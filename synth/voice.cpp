@@ -6,6 +6,7 @@ Voice::Voice(float sampleRate)
     : oscillator1(sampleRate),
       oscillator2(sampleRate),
       moogFilter(sampleRate),
+      moogHPFFilter(sampleRate),
       korgFilter(sampleRate),
       oberheimFilter(sampleRate),
       amplitudeEnvelope(sampleRate),
@@ -30,6 +31,7 @@ void Voice::setSampleRate(float rate) {
     oscillator1.setSampleRate(rate);
     oscillator2.setSampleRate(rate);
     moogFilter.setSampleRate(rate);
+    moogHPFFilter.setSampleRate(rate);
     korgFilter.setSampleRate(rate);
     oberheimFilter.setSampleRate(rate);
     amplitudeEnvelope.setSampleRate(rate);
@@ -57,6 +59,9 @@ void Voice::noteOn(float freq, int id, FilterType filterType,
     switch (filterType) {
         case FilterType::MOOG:
             currentFilter = &moogFilter;
+            break;
+        case FilterType::MOOG_HPF:
+            currentFilter = &moogHPFFilter;
             break;
         case FilterType::KORG_MS20:
             currentFilter = &korgFilter;
@@ -122,7 +127,7 @@ float Voice::process() {
     
     float osc1_out = oscillator1.process();
     
-    float osc2_freq = frequency * std::powf(2.0f, osc2Detune / 12.0f);
+    float osc2_freq = frequency * powf(2.0f, osc2Detune / 12.0f);
     oscillator2.setFrequency(osc2_freq);
     float osc2_out = oscillator2.process();
     
@@ -150,6 +155,9 @@ void Voice::updateFilterType(FilterType type) {
     switch (type) {
         case FilterType::MOOG:
             currentFilter = &moogFilter;
+            break;
+        case FilterType::MOOG_HPF:
+            currentFilter = &moogHPFFilter;
             break;
         case FilterType::KORG_MS20:
             currentFilter = &korgFilter;

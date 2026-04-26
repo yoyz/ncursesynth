@@ -7,12 +7,13 @@
 // LEFT COLUMN: Filter Section (top), then Amp Envelope, then Filter Envelope
 // RIGHT COLUMN: Oscillator, Delay, Reverb, Chorus, Distortion, Master, MIDI
 enum class Parameter {
-    // LEFT COLUMN - Filter Section (6 params)
+    // LEFT COLUMN - Filter Section (7 params)
     POLYPHONY,
     FILTER_TYPE,
     CUTOFF,
     RESONANCE,
     FILTER_ENV_AMOUNT,
+    HPF_FREQ,
     
     // LEFT COLUMN - Amplitude Envelope (5 params)
     AMP_ATTACK,
@@ -62,9 +63,10 @@ enum class Parameter {
     // RIGHT COLUMN - Master (1 param)
     VOLUME,
     
-    // RIGHT COLUMN - MIDI (2 params)
+    // RIGHT COLUMN - MIDI (3 params)
     MIDI_ENABLE,
     MIDI_DEVICE,
+    MIDI_MAPPING,
     
     COUNT
 };

@@ -4,6 +4,7 @@
 #include "ui_colors.h"
 #include "ui_constants.h"
 #include "midi/midi_input.h"
+#include "midi/midi_mapping.h"
 #include "../preset/preset_manager.h"
 #include <ncurses.h>
 
@@ -53,9 +54,47 @@ void UIDraw::drawMidiSection(SynthArchitecture* synth, Parameter selectedParam) 
         }
         row++;
         
+        // MIDI Mapping Selection
+        if (selectedParam == Parameter::MIDI_MAPPING) {
+            attron(A_REVERSE);
+            attron(COLOR_PAIR(UIColor::SELECTED));
+        }
+        
+        MappingManager* mm = midi->getMappingManager();
+        if (mm && mm->getMappingCount() > 0) {
+            mvprintw(row, col, "%-18s: %s", "MAPPING", 
+                     mm->getMappingName(mm->getCurrentMappingIndex()).c_str());
+        } else {
+            mvprintw(row, col, "%-18s: %s", "MAPPING", "NONE");
+        }
+        
+        if (selectedParam == Parameter::MIDI_MAPPING) {
+            attroff(COLOR_PAIR(UIColor::SELECTED));
+            attroff(A_REVERSE);
+        }
+        row++;
+        
         // Device info line
         if (midi->getDeviceCount() > 0) {
             mvprintw(row, col, "%-18s: %d devices", "AVAILABLE", midi->getDeviceCount());
+        }
+        row++;
+        
+        // MIDI Monitor - show last received MIDI message
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - midi->getLastActivity()).count();
+        
+        if (elapsed < 2000 && midi->getLastCC() >= 0) {
+            int lastCC = midi->getLastCC();
+            int lastVal = midi->getLastCCValue();
+            
+            if (lastCC < 128) {
+                mvprintw(row, col, "%-18s: CC%3d = %3d", "MONITOR", lastCC, lastVal);
+            } else if (lastCC < 256) {
+                mvprintw(row, col, "%-18s: Note%3d ON  %3d", "MONITOR", lastCC - 128, lastVal);
+            } else {
+                mvprintw(row, col, "%-18s: Note%3d OFF %3d", "MONITOR", lastCC - 256, lastVal);
+            }
         }
     } else {
         mvprintw(row, col, "%-18s: %s", "MIDI", "NOT AVAILABLE");
@@ -223,6 +262,19 @@ void UIDraw::drawFilterSection(SynthArchitecture* synth, Parameter selectedParam
     }
     mvprintw(row, col, "%-20s: %5.2f", "RESONANCE", resonance);
     if (selectedParam == Parameter::RESONANCE) {
+        attroff(COLOR_PAIR(UIColor::SELECTED));
+        attroff(A_REVERSE);
+    }
+    row++;
+    
+    // HPF Frequency
+    float hpfFreq = synth->getHPFCutoff();
+    if (selectedParam == Parameter::HPF_FREQ) {
+        attron(A_REVERSE);
+        attron(COLOR_PAIR(UIColor::SELECTED));
+    }
+    mvprintw(row, col, "%-20s: %5.0f Hz", "HPF FREQ", hpfFreq);
+    if (selectedParam == Parameter::HPF_FREQ) {
         attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }

@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include "../synth/synth_architecture.h"
+#include "midi_mapping.h"
 
 class MidiInput {
 private:
@@ -17,6 +18,11 @@ private:
     std::thread midiThread;
     SynthArchitecture* synth;
     int selectedPort;
+    MappingManager mappingManager;
+    
+    int lastCC;
+    int lastCCValue;
+    std::chrono::steady_clock::time_point lastActivity;
     
     void midiThreadFunc();
     void processMessage(const std::vector<unsigned char>& message);
@@ -34,6 +40,13 @@ public:
     int getDeviceCount() const;
     std::string getDeviceName(int port) const;
     int getSelectedPort() const { return selectedPort; }
+    
+    MappingManager* getMappingManager() { return &mappingManager; }
+    bool loadMappings() { return mappingManager.loadMappings(); }
+    
+    int getLastCC() const { return lastCC; }
+    int getLastCCValue() const { return lastCCValue; }
+    auto getLastActivity() const { return lastActivity; }
 };
 
 #endif

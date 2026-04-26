@@ -6,6 +6,7 @@ TARGET = virtual_synth
 
 SOURCES = main.cpp \
           filters/moog_filter.cpp \
+          filters/high_pass_filter.cpp \
           filters/korgms20_filter.cpp \
           filters/oberheim_sem_filter.cpp \
           oscillators/saw_oscillator.cpp \
@@ -25,7 +26,8 @@ SOURCES = main.cpp \
           ui/ui_draw.cpp \
           ui/ui_input.cpp \
           ui/ui_constants.cpp \
-          midi/midi_input.cpp
+          midi/midi_input.cpp \
+          midi/midi_mapping.cpp
 
 OBJECTS = $(SOURCES:.cpp=.o)
 

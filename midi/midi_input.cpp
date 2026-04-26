@@ -5,7 +5,8 @@
 #include <cstring>
 
 MidiInput::MidiInput(SynthArchitecture* synthArch) 
-    : running(false), initialized(false), synth(synthArch), selectedPort(-1) {}
+    : running(false), initialized(false), synth(synthArch), selectedPort(-1),
+      lastCC(-1), lastCCValue(0), lastActivity(std::chrono::steady_clock::now()) {}
 
 MidiInput::~MidiInput() {
     stop();
@@ -76,30 +77,48 @@ bool MidiInput::selectDevice(int port) {
 }
 
 void MidiInput::processMessage(const std::vector<unsigned char>& message) {
-    if (message.size() < 3) return;
+    if (message.empty()) return;
     
-    int status = message[0] & 0xF0;
-    int note = message[1];
-    int velocity = message[2];
+    int status = message[0];
+    int data1 = message.size() > 1 ? message[1] : 0;
+    int data2 = message.size() > 2 ? message[2] : 0;
     
-    // Convert MIDI note number to frequency (A4 = 440Hz, MIDI note 69)
+    int msgType = status & 0xF0;
+    int channel = status & 0x0F;
+    int note = data1;
+    int velocity = data2;
+    
+    if (msgType == 0xB0 && data1 >= 0 && data1 <= 127) {
+        int cc = data1;
+        int value = data2;
+        
+        lastCC = cc;
+        lastCCValue = value;
+        lastActivity = std::chrono::steady_clock::now();
+        mappingManager.applyMapping(synth, cc, static_cast<float>(value));
+        return;
+    }
+    
+    if (msgType == 0x90 || msgType == 0x80) {
+        lastCC = note + (msgType == 0x90 ? 128 : 256);
+        lastCCValue = velocity;
+        lastActivity = std::chrono::steady_clock::now();
+    }
+    
     float frequency = 440.0f * powf(2.0f, (note - 69) / 12.0f);
     
-    switch (status) {
-        case 0x90: // Note On
+    switch (msgType) {
+        case 0x90:
             if (velocity > 0) {
-                // Note on
                 synth->noteOn(frequency);
             } else {
-                // Note on with velocity 0 is treated as note off
                 synth->noteOff(frequency);
             }
             break;
-        case 0x80: // Note Off
+        case 0x80:
             synth->noteOff(frequency);
             break;
         default:
-            // Other MIDI messages (Control Change, etc.) - ignore for now
             break;
     }
 }
@@ -108,13 +127,12 @@ void MidiInput::midiThreadFunc() {
     while (running) {
         if (midiIn && midiIn->isPortOpen()) {
             std::vector<unsigned char> message;
-            double stamp = midiIn->getMessage(&message);
+            midiIn->getMessage(&message);
             
             if (!message.empty()) {
                 processMessage(message);
             }
         }
-        // Small sleep to prevent CPU spinning
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }

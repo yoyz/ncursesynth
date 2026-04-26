@@ -1,6 +1,7 @@
 #include "ui_parameters.h"
 #include "ui_constants.h"
 #include "../midi/midi_input.h"
+#include "../midi/midi_mapping.h"
 #include "../preset/preset_manager.h"
 
 const char* UIParameters::getParameterName(Parameter param) {
@@ -10,6 +11,7 @@ const char* UIParameters::getParameterName(Parameter param) {
         case Parameter::CUTOFF: return "CUTOFF";
         case Parameter::RESONANCE: return "RESONANCE";
         case Parameter::FILTER_ENV_AMOUNT: return "FILTER ENV AMOUNT";
+        case Parameter::HPF_FREQ: return "HPF FREQ";
         case Parameter::AMP_ATTACK: return "AMP ATTACK";
         case Parameter::AMP_DECAY: return "AMP DECAY";
         case Parameter::AMP_SUSTAIN: return "AMP SUSTAIN";
@@ -42,6 +44,7 @@ const char* UIParameters::getParameterName(Parameter param) {
         case Parameter::VOLUME: return "VOLUME";
         case Parameter::MIDI_ENABLE: return "MIDI ENABLE";
         case Parameter::MIDI_DEVICE: return "MIDI DEVICE";
+        case Parameter::MIDI_MAPPING: return "MIDI MAPPING";
         default: return "UNKNOWN";
     }
 }
@@ -109,6 +112,12 @@ void UIParameters::increaseParameter(SynthArchitecture* synth, Parameter param) 
             float newVal = synth->getFilterEnvelopeAmount() + 0.02f;
             if (newVal > 1.0f) newVal = 1.0f;
             synth->setFilterEnvelopeAmount(newVal);
+            break;
+        }
+        case Parameter::HPF_FREQ: {
+            float newVal = synth->getHPFCutoff() + 50.0f;
+            if (newVal > 5000.0f) newVal = 5000.0f;
+            synth->setHPFCutoff(newVal);
             break;
         }
         case Parameter::AMP_ATTACK: {
@@ -218,6 +227,18 @@ void UIParameters::increaseParameter(SynthArchitecture* synth, Parameter param) 
                     midi->start();
                 } else {
                     midi->stop();
+                }
+            }
+            break;
+        }
+        case Parameter::MIDI_MAPPING: {
+            MidiInput* midi = synth->getMidiInput();
+            if (midi) {
+                MappingManager* mm = midi->getMappingManager();
+                if (mm && mm->getMappingCount() > 0) {
+                    int currentIdx = mm->getCurrentMappingIndex();
+                    int newIdx = (currentIdx + 1) % mm->getMappingCount();
+                    mm->setCurrentMapping(newIdx);
                 }
             }
             break;
@@ -350,6 +371,12 @@ void UIParameters::decreaseParameter(SynthArchitecture* synth, Parameter param) 
             synth->setFilterEnvelopeAmount(newVal);
             break;
         }
+        case Parameter::HPF_FREQ: {
+            float newVal = synth->getHPFCutoff() - 50.0f;
+            if (newVal < 20.0f) newVal = 20.0f;
+            synth->setHPFCutoff(newVal);
+            break;
+        }
         case Parameter::AMP_ATTACK: {
             float newVal = synth->getAmpAttack() - 0.02f;
             if (newVal < 0.0f) newVal = 0.0f;
@@ -456,6 +483,19 @@ void UIParameters::decreaseParameter(SynthArchitecture* synth, Parameter param) 
                     midi->start();
                 } else {
                     midi->stop();
+                }
+            }
+            break;
+        }
+        case Parameter::MIDI_MAPPING: {
+            MidiInput* midi = synth->getMidiInput();
+            if (midi) {
+                MappingManager* mm = midi->getMappingManager();
+                if (mm && mm->getMappingCount() > 0) {
+                    int currentIdx = mm->getCurrentMappingIndex();
+                    int newIdx = currentIdx - 1;
+                    if (newIdx < 0) newIdx = mm->getMappingCount() - 1;
+                    mm->setCurrentMapping(newIdx);
                 }
             }
             break;

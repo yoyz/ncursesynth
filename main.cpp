@@ -34,15 +34,19 @@ int main() {
     // Get synth reference
     SynthArchitecture* synth = audioEngine.getSynth();
     
+    // Load first preset (Electric Piano will be first in index)
+    if (synth->getPresetManager()->exists()) {
+        synth->getPresetManager()->loadPreset(0, synth);
+    }
+    
     // Initialize MIDI input (but don't auto-select device)
     MidiInput midiInput(synth);
     // After creating midiInput, add:
     synth->setMidiInput(&midiInput);
-    bool midiInitialized = false;
-    
+
     if (midiInput.initialize()) {
         midiInput.listDevices();
-        midiInitialized = true;
+        midiInput.loadMappings();
         std::cout << "✓ MIDI initialized. Use UI to select device.\n" << std::endl;
     } else {
         std::cout << "✗ Failed to initialize MIDI.\n" << std::endl;

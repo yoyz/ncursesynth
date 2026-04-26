@@ -22,6 +22,7 @@ private:
     FilterType currentFilterType;
     Waveform currentWaveform;
     float cutoff;
+    float hpfCutoff;
     float resonance;
     float filterEnvelopeAmount;
     EnvelopeCurve ampEnvelopeCurve;
@@ -72,6 +73,7 @@ public:
     // Global parameter setters
     void setFilterType(FilterType type);
     void setCutoff(float freq);
+    void setHPFCutoff(float freq);
     void setResonance(float res);
     void setFilterEnvelopeAmount(float amount);
     void setWaveform(Waveform wav);
@@ -100,6 +102,7 @@ public:
     // Getters
     FilterType getCurrentFilterType() const { return currentFilterType; }
     float getCutoff() const { return cutoff; }
+    float getHPFCutoff() const { return hpfCutoff; }
     float getResonance() const { return resonance; }
     float getFilterEnvelopeAmount() const { return filterEnvelopeAmount; }
     Waveform getWaveform() const { return currentWaveform; }

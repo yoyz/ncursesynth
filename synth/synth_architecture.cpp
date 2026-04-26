@@ -7,6 +7,7 @@ SynthArchitecture::SynthArchitecture(int polyphony, float rate)
       currentFilterType(FilterType::MOOG),
       currentWaveform(Waveform::SAWTOOTH),
       cutoff(1000.0f),
+      hpfCutoff(0.0f),
       resonance(0.5f),
       filterEnvelopeAmount(0.5f),
       ampEnvelopeCurve(EnvelopeCurve::EXPONENTIAL),
@@ -191,6 +192,11 @@ void SynthArchitecture::setFilterType(FilterType type) {
 
 void SynthArchitecture::setCutoff(float freq) {
     cutoff = freq;
+    updateAllVoices();
+}
+
+void SynthArchitecture::setHPFCutoff(float freq) {
+    hpfCutoff = freq;
     updateAllVoices();
 }
 

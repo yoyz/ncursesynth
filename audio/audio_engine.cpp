@@ -5,7 +5,7 @@
 
 AudioEngine::AudioEngine(int rate, int frames) 
     : stream(nullptr), isRunning(false), sampleRate(rate), framesPerBuffer(frames) {
-    synth = new SynthArchitecture(4, sampleRate);  // Start with 4 voices
+    synth = new SynthArchitecture(8, sampleRate);  // Start with 8 voices
 }
 
 AudioEngine::~AudioEngine() {

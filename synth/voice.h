@@ -4,6 +4,7 @@
 #include "../oscillators/saw_oscillator.h"
 #include "../filters/filter_base.h"
 #include "../filters/moog_filter.h"
+#include "../filters/high_pass_filter.h"
 #include "../filters/korgms20_filter.h"
 #include "../filters/oberheim_sem_filter.h"
 #include "../envelopes/flexible_envelope.h"
@@ -11,7 +12,8 @@
 enum class FilterType {
     MOOG,
     KORG_MS20,
-    OBERHEIM_SEM
+    OBERHEIM_SEM,
+    MOOG_HPF
 };
 
 class Voice {
@@ -19,6 +21,7 @@ private:
     SawtoothOscillator oscillator1;
     SawtoothOscillator oscillator2;
     MoogLadderFilter moogFilter;
+    HighPassFilter moogHPFFilter;
     KorgMS20Filter korgFilter;
     OberheimSEMFilter oberheimFilter;
     FlexibleEnvelope amplitudeEnvelope;
