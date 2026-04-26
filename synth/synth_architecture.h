@@ -3,6 +3,7 @@
 
 #include "voice.h"
 #include "../effects/effect_chain.h"
+#include "../preset/preset_manager.h"
 #include <vector>
 #include <memory>
 
@@ -35,8 +36,13 @@ private:
     float filtRelease;
     float volume;
     
+    // Oscillator parameters
+    float oscMix;
+    float osc2Detune;
+    
     // MIDI reference
     MidiInput* midiInput;
+    PresetManager presetManager;
     
     int findFreeVoice();
     int findVoiceByNoteId(int noteId);
@@ -112,11 +118,22 @@ public:
     
     float getVolume() const { return volume; }
     
+    // Oscillator getters
+    float getOscMix() const { return oscMix; }
+    float getOsc2Detune() const { return osc2Detune; }
+    void setOscMix(float mix);
+    void setOsc2Detune(float detune);
+    
     // Effect getters
     DelayEffect* getDelay() { return effectChain.getDelay(); }
     ReverbEffect* getReverb() { return effectChain.getReverb(); }
     ChorusEffect* getChorus() { return effectChain.getChorus(); }
     DistortionEffect* getDistortion() { return effectChain.getDistortion(); }
+    
+    // Preset methods
+    PresetManager* getPresetManager() { return &presetManager; }
+    bool loadPreset(int index) { return presetManager.loadPreset(index, this); }
+    bool savePreset(int index) { return presetManager.savePreset(index, this); }
 };
 
 #endif

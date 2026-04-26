@@ -42,52 +42,25 @@ void UIInput::releaseVoice(int voiceNumber, SynthArchitecture* synth) {
 
 void UIInput::handleNavigation(int ch, Parameter& selectedParam) {
     int currentIdx = static_cast<int>(selectedParam);
-    int maxIdx = static_cast<int>(Parameter::COUNT);
+    int maxIdx = static_cast<int>(Parameter::COUNT) - 1;
     
-    if (ch == KEY_RIGHT) {
-        currentIdx = (currentIdx + 1) % maxIdx;
-    } else if (ch == KEY_LEFT) {
-        currentIdx = (currentIdx - 1 + maxIdx) % maxIdx;
-    } else if (ch == KEY_DOWN) {
-        if (currentIdx < static_cast<int>(Parameter::FILTER_ENV_AMOUNT)) {
-            currentIdx = static_cast<int>(Parameter::AMP_ATTACK);
-        } else if (currentIdx < static_cast<int>(Parameter::AMP_ENV_CURVE)) {
-            currentIdx = static_cast<int>(Parameter::FILTER_ATTACK);
-        } else if (currentIdx < static_cast<int>(Parameter::FILTER_ENV_CURVE)) {
-            currentIdx = static_cast<int>(Parameter::WAVEFORM);
-        } else if (currentIdx < static_cast<int>(Parameter::DELAY_ENABLE)) {
-            currentIdx = static_cast<int>(Parameter::DELAY_ENABLE);
-        } else if (currentIdx < static_cast<int>(Parameter::DELAY_MIX)) {
-            currentIdx = static_cast<int>(Parameter::REVERB_ENABLE);
-        } else if (currentIdx < static_cast<int>(Parameter::REVERB_MIX)) {
-            currentIdx = static_cast<int>(Parameter::CHORUS_ENABLE);
-        } else if (currentIdx < static_cast<int>(Parameter::CHORUS_MIX)) {
-            currentIdx = static_cast<int>(Parameter::DISTORTION_ENABLE);
-        } else if (currentIdx < static_cast<int>(Parameter::DISTORTION_MIX)) {
-            currentIdx = static_cast<int>(Parameter::VOLUME);
-        } else {
-            currentIdx = static_cast<int>(Parameter::POLYPHONY);
-        }
+    // Simple linear navigation following visual order on screen:
+    // - DOWN: next parameter
+    // - UP: previous parameter
+    // - LEFT/RIGHT: wrap around
+    
+    if (ch == KEY_DOWN) {
+        // Move to next parameter
+        currentIdx = (currentIdx + 1) % (maxIdx + 1);
     } else if (ch == KEY_UP) {
-        if (currentIdx >= static_cast<int>(Parameter::VOLUME)) {
-            currentIdx = static_cast<int>(Parameter::DISTORTION_MIX);
-        } else if (currentIdx >= static_cast<int>(Parameter::DISTORTION_ENABLE)) {
-            currentIdx = static_cast<int>(Parameter::CHORUS_MIX);
-        } else if (currentIdx >= static_cast<int>(Parameter::CHORUS_ENABLE)) {
-            currentIdx = static_cast<int>(Parameter::REVERB_MIX);
-        } else if (currentIdx >= static_cast<int>(Parameter::REVERB_ENABLE)) {
-            currentIdx = static_cast<int>(Parameter::DELAY_MIX);
-        } else if (currentIdx >= static_cast<int>(Parameter::DELAY_ENABLE)) {
-            currentIdx = static_cast<int>(Parameter::FILTER_ENV_CURVE);
-        } else if (currentIdx >= static_cast<int>(Parameter::WAVEFORM)) {
-            currentIdx = static_cast<int>(Parameter::FILTER_ENV_CURVE);
-        } else if (currentIdx >= static_cast<int>(Parameter::FILTER_ATTACK)) {
-            currentIdx = static_cast<int>(Parameter::AMP_ENV_CURVE);
-        } else if (currentIdx >= static_cast<int>(Parameter::AMP_ATTACK)) {
-            currentIdx = static_cast<int>(Parameter::FILTER_ENV_AMOUNT);
-        } else {
-            currentIdx = static_cast<int>(Parameter::VOLUME);
-        }
+        // Move to previous parameter
+        currentIdx = (currentIdx - 1 + maxIdx + 1) % (maxIdx + 1);
+    } else if (ch == KEY_RIGHT) {
+        // Move forward
+        currentIdx = (currentIdx + 1) % (maxIdx + 1);
+    } else if (ch == KEY_LEFT) {
+        // Move backward
+        currentIdx = (currentIdx - 1 + maxIdx + 1) % (maxIdx + 1);
     }
     
     selectedParam = static_cast<Parameter>(currentIdx);

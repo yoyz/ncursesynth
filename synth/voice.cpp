@@ -3,7 +3,8 @@
 #include <cmath>
 
 Voice::Voice(float sampleRate) 
-    : oscillator(sampleRate),
+    : oscillator1(sampleRate),
+      oscillator2(sampleRate),
       moogFilter(sampleRate),
       korgFilter(sampleRate),
       oberheimFilter(sampleRate),
@@ -14,16 +15,20 @@ Voice::Voice(float sampleRate)
       noteId(-1),
       filterEnvelopeAmount(0.5f),
       baseCutoff(1000.0f),
-      resonance(0.5f) {
+      resonance(0.5f),
+      oscMix(0.5f),
+      osc2Detune(0.0f) {
     
     currentFilter = &moogFilter;
-    oscillator.setWaveform(Waveform::SAWTOOTH);
+    oscillator1.setWaveform(Waveform::SAWTOOTH);
+    oscillator2.setWaveform(Waveform::SAWTOOTH);
 }
 
 Voice::~Voice() {}
 
 void Voice::setSampleRate(float rate) {
-    oscillator.setSampleRate(rate);
+    oscillator1.setSampleRate(rate);
+    oscillator2.setSampleRate(rate);
     moogFilter.setSampleRate(rate);
     korgFilter.setSampleRate(rate);
     oberheimFilter.setSampleRate(rate);
@@ -37,18 +42,18 @@ void Voice::noteOn(float freq, int id, FilterType filterType,
                    float filtAttack, float filtDecay, float filtSustain, float filtRelease,
                    EnvelopeCurve ampCurve, EnvelopeCurve filtCurve) {
     
-    // Reset everything for new note
     frequency = freq;
     noteId = id;
     baseCutoff = cutoff;
     resonance = res;
     filterEnvelopeAmount = filterEnvAmount;
     
-    // Reset oscillator
-    oscillator.setFrequency(freq);
-    oscillator.reset();
+    oscillator1.setFrequency(freq);
+    oscillator1.reset();
     
-    // Set filter type
+    oscillator2.setFrequency(freq);
+    oscillator2.reset();
+    
     switch (filterType) {
         case FilterType::MOOG:
             currentFilter = &moogFilter;
@@ -61,12 +66,11 @@ void Voice::noteOn(float freq, int id, FilterType filterType,
             break;
     }
     
-    // Reset and set filter
     currentFilter->reset();
     currentFilter->setCutoff(cutoff);
     currentFilter->setResonance(res);
     
-    // Configure amplitude envelope
+    // Fully reset both envelopes to start fresh
     amplitudeEnvelope.reset();
     amplitudeEnvelope.setAttack(ampAttack);
     amplitudeEnvelope.setDecay(ampDecay);
@@ -76,7 +80,6 @@ void Voice::noteOn(float freq, int id, FilterType filterType,
     amplitudeEnvelope.setDecayCurve(ampCurve);
     amplitudeEnvelope.setReleaseCurve(ampCurve);
     
-    // Configure filter envelope
     filterEnvelope.reset();
     filterEnvelope.setAttack(filtAttack);
     filterEnvelope.setDecay(filtDecay);
@@ -86,7 +89,6 @@ void Voice::noteOn(float freq, int id, FilterType filterType,
     filterEnvelope.setDecayCurve(filtCurve);
     filterEnvelope.setReleaseCurve(filtCurve);
     
-    // Trigger envelopes
     amplitudeEnvelope.noteOn();
     filterEnvelope.noteOn();
     active = true;
@@ -96,34 +98,37 @@ void Voice::noteOff() {
     if (active) {
         amplitudeEnvelope.noteOff();
         filterEnvelope.noteOff();
-        // Don't set active = false here - let the envelope finish naturally
-        // The voice will be considered active until envelope completes
     }
 }
 
 float Voice::process() {
-    // Check if envelope is finished
-    if (active && !amplitudeEnvelope.isActive()) {
+    // Process the amp envelope - it's the master envelope
+    float ampEnvValue = amplitudeEnvelope.process();
+    
+    // Check if amp envelope finished and we're past sustain
+    if (!amplitudeEnvelope.isActive() && amplitudeEnvelope.getCurrentLevel() <= 0.001f) {
         active = false;
         return 0.0f;
     }
     
-    if (!active && !amplitudeEnvelope.isActive()) {
-        return 0.0f;
-    }
+    // Keep active if envelope is still running (attack, decay, or release phases)
+    active = true;
     
-    // Process envelopes
-    float ampEnvValue = amplitudeEnvelope.process();
     float filterEnvValue = filterEnvelope.process();
     
-    // Apply filter envelope to cutoff
     float modulatedCutoff = baseCutoff + (filterEnvValue * filterEnvelopeAmount * 4000.0f);
     modulatedCutoff = std::max(20.0f, std::min(8000.0f, modulatedCutoff));
     currentFilter->setCutoff(modulatedCutoff);
     
-    // Generate sound
-    float osc_out = oscillator.process();
-    float filtered = currentFilter->process(osc_out);
+    float osc1_out = oscillator1.process();
+    
+    float osc2_freq = frequency * std::powf(2.0f, osc2Detune / 12.0f);
+    oscillator2.setFrequency(osc2_freq);
+    float osc2_out = oscillator2.process();
+    
+    float mixed = osc1_out * (1.0f - oscMix) + osc2_out * oscMix;
+    
+    float filtered = currentFilter->process(mixed);
     float output = filtered * ampEnvValue * 0.3f;
     
     return output;
@@ -132,7 +137,8 @@ float Voice::process() {
 void Voice::reset() {
     active = false;
     noteId = -1;
-    oscillator.reset();
+    oscillator1.reset();
+    oscillator2.reset();
     moogFilter.reset();
     korgFilter.reset();
     oberheimFilter.reset();
@@ -170,7 +176,16 @@ void Voice::updateFilterEnvelopeAmount(float amount) {
 }
 
 void Voice::updateWaveform(Waveform wav) {
-    oscillator.setWaveform(wav);
+    oscillator1.setWaveform(wav);
+    oscillator2.setWaveform(wav);
+}
+
+void Voice::updateOscMix(float mix) {
+    oscMix = mix;
+}
+
+void Voice::updateOsc2Detune(float detune) {
+    osc2Detune = detune;
 }
 
 void Voice::updateEnvelopeCurves(EnvelopeCurve ampCurve, EnvelopeCurve filtCurve) {

@@ -25,10 +25,11 @@ namespace UILayout {
     const int AMP_ENV_SECTION_ROW = 18;
     const int FILTER_ENV_SECTION_ROW = 26;
     const int OSCILLATOR_SECTION_ROW = 6;
-    const int DELAY_SECTION_ROW = 12;
-    const int REVERB_SECTION_ROW = 19;
-    const int CHORUS_SECTION_ROW = 26;
-    const int DISTORTION_SECTION_ROW = 33;
+    const int PRESET_SECTION_ROW = 12;
+    const int DELAY_SECTION_ROW = 16;
+    const int REVERB_SECTION_ROW = 22;
+    const int CHORUS_SECTION_ROW = 28;
+    const int DISTORTION_SECTION_ROW = 34;
     const int MASTER_SECTION_ROW = 40;
 }
 

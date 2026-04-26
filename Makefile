@@ -19,6 +19,7 @@ SOURCES = main.cpp \
           effects/distortion.cpp \
           effects/effect_chain.cpp \
           audio/audio_engine.cpp \
+          preset/preset_manager.cpp \
           ui/ui.cpp \
           ui/ui_parameters.cpp \
           ui/ui_draw.cpp \

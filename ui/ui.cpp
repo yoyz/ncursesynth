@@ -50,12 +50,13 @@ void UI::run() {
         UIDraw::drawAmplitudeEnvelopeSection(synth, selectedParameter);
         UIDraw::drawFilterEnvelopeSection(synth, selectedParameter);
         UIDraw::drawOscillatorSection(synth, selectedParameter);
+        UIDraw::drawPresetSection(synth, selectedParameter);
         UIDraw::drawDelaySection(synth, selectedParameter);
         UIDraw::drawReverbSection(synth, selectedParameter);
         UIDraw::drawChorusSection(synth, selectedParameter);
         UIDraw::drawDistortionSection(synth, selectedParameter);
         UIDraw::drawMasterSection(synth, selectedParameter);
-	UIDraw::drawMidiSection(synth, selectedParameter);
+        UIDraw::drawMidiSection(synth, selectedParameter);
         UIDraw::drawVoiceDisplay(synth);
         UIDraw::drawKeyboard();
         UIDraw::drawControls();
@@ -66,11 +67,18 @@ void UI::run() {
         // Handle input
         int ch = getch();
         if (ch != ERR) {
-            // Parameter adjustment keys
-            if (ch == 'q' || ch == 'Q') {
+            // Preset navigation with +/-
+            if (ch == '+' || ch == '=') {
+                UIParameters::loadNextPreset(synth);
+            }
+            else if (ch == '-' || ch == '_') {
+                UIParameters::loadPrevPreset(synth);
+            }
+            // Parameter adjustment keys - PageUp/PageDown
+            else if (ch == KEY_PPAGE) {
                 UIParameters::increaseParameter(synth, selectedParameter);
             }
-            else if (ch == 'w' || ch == 'W') {
+            else if (ch == KEY_NPAGE) {
                 UIParameters::decreaseParameter(synth, selectedParameter);
             }
             // Navigation keys

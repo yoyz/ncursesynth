@@ -1,5 +1,6 @@
 #include "synth_architecture.h"
 #include <algorithm>
+#include <cmath>
 
 SynthArchitecture::SynthArchitecture(int polyphony, float rate) 
     : maxPolyphony(polyphony), nextNoteId(0), sampleRate(rate),
@@ -18,7 +19,10 @@ SynthArchitecture::SynthArchitecture(int polyphony, float rate)
       filtDecay(0.3f),
       filtSustain(0.3f),
       filtRelease(0.5f),
-      volume(0.3f) {
+      volume(0.3f),
+      oscMix(0.5f),
+      osc2Detune(0.0f),
+      presetManager("bank") {
     
     // Create voices
     for (int i = 0; i < maxPolyphony; i++) {
@@ -26,6 +30,9 @@ SynthArchitecture::SynthArchitecture(int polyphony, float rate)
     }
     
     effectChain.setSampleRate(sampleRate);
+    
+    // Load bank if exists
+    presetManager.loadBank();
 }
 
 SynthArchitecture::~SynthArchitecture() {}
@@ -76,41 +83,61 @@ void SynthArchitecture::updateAllVoices() {
         voice->updateResonance(resonance);
         voice->updateFilterEnvelopeAmount(filterEnvelopeAmount);
         voice->updateWaveform(currentWaveform);
+        voice->updateOscMix(oscMix);
+        voice->updateOsc2Detune(osc2Detune);
         voice->updateEnvelopeCurves(ampEnvelopeCurve, filterEnvelopeCurve);
     }
 }
 
 void SynthArchitecture::noteOn(float frequency) {
-    // First, clean up any voices that are finished (envelope complete)
+    // First, find a voice that's already playing this exact frequency
     for (auto& voice : voices) {
-        if (!voice->isActive()) {
-            voice->reset();
+        if (voice->isActive() && std::abs(voice->getFrequency() - frequency) < 0.1f) {
+            // Voice is already playing this note - retrigger it
+            voice->noteOn(frequency, nextNoteId++,
+                         currentFilterType, cutoff, resonance, filterEnvelopeAmount,
+                         ampAttack, ampDecay, ampSustain, ampRelease,
+                         filtAttack, filtDecay, filtSustain, filtRelease,
+                         ampEnvelopeCurve, filterEnvelopeCurve);
+            return;
         }
     }
     
-    int voiceIndex = findFreeVoice();
-    
-    if (voiceIndex == -1) {
-        // No free voice, find the oldest active voice
-        voiceIndex = 0;
-        // Force note off on that voice
-        voices[voiceIndex]->noteOff();
-        voices[voiceIndex]->reset();
+    // Find a completely inactive voice first
+    for (auto& voice : voices) {
+        if (!voice->isActive()) {
+            voice->reset();
+            voice->noteOn(frequency, nextNoteId++,
+                         currentFilterType, cutoff, resonance, filterEnvelopeAmount,
+                         ampAttack, ampDecay, ampSustain, ampRelease,
+                         filtAttack, filtDecay, filtSustain, filtRelease,
+                         ampEnvelopeCurve, filterEnvelopeCurve);
+            return;
+        }
     }
     
-    voices[voiceIndex]->noteOn(frequency, nextNoteId++,
-                               currentFilterType, cutoff, resonance, filterEnvelopeAmount,
-                               ampAttack, ampDecay, ampSustain, ampRelease,
-                               filtAttack, filtDecay, filtSustain, filtRelease,
-                               ampEnvelopeCurve, filterEnvelopeCurve);
+    // All voices active - steal the oldest one (index 0) but properly reset it
+    voices[0]->reset();
+    voices[0]->noteOn(frequency, nextNoteId++,
+                     currentFilterType, cutoff, resonance, filterEnvelopeAmount,
+                     ampAttack, ampDecay, ampSustain, ampRelease,
+                     filtAttack, filtDecay, filtSustain, filtRelease,
+                     ampEnvelopeCurve, filterEnvelopeCurve);
 }
 
 void SynthArchitecture::noteOff(float frequency) {
-    // Find voice playing this frequency
+    // Find the exact voice playing this frequency
+    for (auto& voice : voices) {
+        if (voice->isActive() && std::abs(voice->getFrequency() - frequency) < 0.1f) {
+            voice->noteOff();
+            return;
+        }
+    }
+    // If no exact match, try to find any voice close to this note
     for (auto& voice : voices) {
         if (voice->isActive()) {
             voice->noteOff();
-            break; // Found and released one voice
+            break;
         }
     }
 }
@@ -226,6 +253,16 @@ void SynthArchitecture::setFilterRelease(float value) {
 
 void SynthArchitecture::setVolume(float vol) {
     volume = vol;
+}
+
+void SynthArchitecture::setOscMix(float mix) {
+    oscMix = mix;
+    updateAllVoices();
+}
+
+void SynthArchitecture::setOsc2Detune(float detune) {
+    osc2Detune = detune;
+    updateAllVoices();
 }
 
 void SynthArchitecture::setEffectEnabled(int effectIndex, bool enabled) {

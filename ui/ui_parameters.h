@@ -3,53 +3,69 @@
 
 #include "../synth/synth_architecture.h"
 
-// Parameter enum definition
+// Parameter enum definition - ordered to match UI layout
+// LEFT COLUMN: Filter Section (top), then Amp Envelope, then Filter Envelope
+// RIGHT COLUMN: Oscillator, Delay, Reverb, Chorus, Distortion, Master, MIDI
 enum class Parameter {
-    // Main synth parameters
+    // LEFT COLUMN - Filter Section (6 params)
     POLYPHONY,
     FILTER_TYPE,
     CUTOFF,
     RESONANCE,
     FILTER_ENV_AMOUNT,
     
-    // Amplitude Envelope
+    // LEFT COLUMN - Amplitude Envelope (5 params)
     AMP_ATTACK,
     AMP_DECAY,
     AMP_SUSTAIN,
     AMP_RELEASE,
     AMP_ENV_CURVE,
     
-    // Filter Envelope
+    // LEFT COLUMN - Filter Envelope (5 params)
     FILTER_ATTACK,
     FILTER_DECAY,
     FILTER_SUSTAIN,
     FILTER_RELEASE,
     FILTER_ENV_CURVE,
     
-    // Oscillator
+    // RIGHT COLUMN - Oscillator (3 params)
     WAVEFORM,
+    OSC_MIX,
+    OSC2_DETUNE,
     
-    // MIDI
-    MIDI_DEVICE,
-    MIDI_ENABLE,
+    // RIGHT COLUMN - Preset (2 params)
+    PRESET_LOAD,
+    PRESET_SAVE,
     
-    // Effects
+    // RIGHT COLUMN - Delay (4 params)
     DELAY_ENABLE,
     DELAY_TIME,
     DELAY_FEEDBACK,
     DELAY_MIX,
+    
+    // RIGHT COLUMN - Reverb (3 params)
     REVERB_ENABLE,
     REVERB_DECAY,
     REVERB_MIX,
+    
+    // RIGHT COLUMN - Chorus (4 params)
     CHORUS_ENABLE,
     CHORUS_DEPTH,
     CHORUS_RATE,
     CHORUS_MIX,
+    
+    // RIGHT COLUMN - Distortion (3 params)
     DISTORTION_ENABLE,
     DISTORTION_DRIVE,
     DISTORTION_MIX,
     
+    // RIGHT COLUMN - Master (1 param)
     VOLUME,
+    
+    // RIGHT COLUMN - MIDI (2 params)
+    MIDI_ENABLE,
+    MIDI_DEVICE,
+    
     COUNT
 };
 
@@ -63,6 +79,10 @@ namespace UIParameters {
     // Parameter adjustment functions
     void increaseParameter(SynthArchitecture* synth, Parameter param);
     void decreaseParameter(SynthArchitecture* synth, Parameter param);
+    
+    // Preset navigation
+    void loadNextPreset(SynthArchitecture* synth);
+    void loadPrevPreset(SynthArchitecture* synth);
 }
 
 #endif

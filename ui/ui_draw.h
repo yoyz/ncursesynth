@@ -11,6 +11,7 @@ namespace UIDraw {
     void drawAmplitudeEnvelopeSection(SynthArchitecture* synth, Parameter selectedParam);
     void drawFilterEnvelopeSection(SynthArchitecture* synth, Parameter selectedParam);
     void drawOscillatorSection(SynthArchitecture* synth, Parameter selectedParam);
+    void drawPresetSection(SynthArchitecture* synth, Parameter selectedParam);
     void drawDelaySection(SynthArchitecture* synth, Parameter selectedParam);
     void drawReverbSection(SynthArchitecture* synth, Parameter selectedParam);
     void drawChorusSection(SynthArchitecture* synth, Parameter selectedParam);

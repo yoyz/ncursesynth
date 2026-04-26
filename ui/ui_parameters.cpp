@@ -1,6 +1,7 @@
 #include "ui_parameters.h"
 #include "ui_constants.h"
-#include "../midi/midi_input.h"  // Add this line
+#include "../midi/midi_input.h"
+#include "../preset/preset_manager.h"
 
 const char* UIParameters::getParameterName(Parameter param) {
     switch (param) {
@@ -20,8 +21,10 @@ const char* UIParameters::getParameterName(Parameter param) {
         case Parameter::FILTER_RELEASE: return "FILTER RELEASE";
         case Parameter::FILTER_ENV_CURVE: return "FILTER ENV CURVE";
         case Parameter::WAVEFORM: return "WAVEFORM";
-        case Parameter::MIDI_DEVICE: return "MIDI DEVICE";
-        case Parameter::MIDI_ENABLE: return "MIDI ENABLE";
+        case Parameter::OSC_MIX: return "OSC MIX";
+        case Parameter::OSC2_DETUNE: return "OSC2 DETUNE";
+        case Parameter::PRESET_LOAD: return "LOAD PRESET";
+        case Parameter::PRESET_SAVE: return "SAVE PRESET";
         case Parameter::DELAY_ENABLE: return "DELAY ENABLE";
         case Parameter::DELAY_TIME: return "DELAY TIME";
         case Parameter::DELAY_FEEDBACK: return "DELAY FEEDBACK";
@@ -37,6 +40,8 @@ const char* UIParameters::getParameterName(Parameter param) {
         case Parameter::DISTORTION_DRIVE: return "DISTORTION DRIVE";
         case Parameter::DISTORTION_MIX: return "DISTORTION MIX";
         case Parameter::VOLUME: return "VOLUME";
+        case Parameter::MIDI_ENABLE: return "MIDI ENABLE";
+        case Parameter::MIDI_DEVICE: return "MIDI DEVICE";
         default: return "UNKNOWN";
     }
 }
@@ -170,6 +175,34 @@ void UIParameters::increaseParameter(SynthArchitecture* synth, Parameter param) 
             int wav = static_cast<int>(synth->getWaveform());
             wav = (wav + 1) % 3;
             synth->setWaveform(static_cast<Waveform>(wav));
+            break;
+        }
+        case Parameter::OSC_MIX: {
+            float newVal = synth->getOscMix() + 0.05f;
+            if (newVal > 1.0f) newVal = 1.0f;
+            synth->setOscMix(newVal);
+            break;
+        }
+        case Parameter::OSC2_DETUNE: {
+            float newVal = synth->getOsc2Detune() + 0.1f;
+            if (newVal > 1.0f) newVal = 1.0f;
+            synth->setOsc2Detune(newVal);
+            break;
+        }
+        case Parameter::PRESET_LOAD: {
+            PresetManager* pm = synth->getPresetManager();
+            if (pm && pm->exists()) {
+                int currentIdx = pm->getCurrentPresetIndex();
+                int newIdx = (currentIdx + 1) % pm->getPresetCount();
+                pm->loadPreset(newIdx, synth);
+            }
+            break;
+        }
+        case Parameter::PRESET_SAVE: {
+            PresetManager* pm = synth->getPresetManager();
+            if (pm && pm->exists()) {
+                pm->savePreset(pm->getCurrentPresetIndex(), synth);
+            }
             break;
         }
         case Parameter::MIDI_DEVICE: {
@@ -383,6 +416,35 @@ void UIParameters::decreaseParameter(SynthArchitecture* synth, Parameter param) 
             synth->setWaveform(static_cast<Waveform>(wav));
             break;
         }
+        case Parameter::OSC_MIX: {
+            float newVal = synth->getOscMix() - 0.05f;
+            if (newVal < 0.0f) newVal = 0.0f;
+            synth->setOscMix(newVal);
+            break;
+        }
+        case Parameter::OSC2_DETUNE: {
+            float newVal = synth->getOsc2Detune() - 0.1f;
+            if (newVal < -1.0f) newVal = -1.0f;
+            synth->setOsc2Detune(newVal);
+            break;
+        }
+        case Parameter::PRESET_LOAD: {
+            PresetManager* pm = synth->getPresetManager();
+            if (pm && pm->exists()) {
+                int currentIdx = pm->getCurrentPresetIndex();
+                int newIdx = currentIdx - 1;
+                if (newIdx < 0) newIdx = pm->getPresetCount() - 1;
+                pm->loadPreset(newIdx, synth);
+            }
+            break;
+        }
+        case Parameter::PRESET_SAVE: {
+            PresetManager* pm = synth->getPresetManager();
+            if (pm && pm->exists()) {
+                pm->savePreset(pm->getCurrentPresetIndex(), synth);
+            }
+            break;
+        }
         case Parameter::MIDI_DEVICE: {
             MidiInput* midi = synth->getMidiInput();
             if (midi) {
@@ -492,5 +554,24 @@ void UIParameters::decreaseParameter(SynthArchitecture* synth, Parameter param) 
             break;
         }
         default: break;
+    }
+}
+
+void UIParameters::loadNextPreset(SynthArchitecture* synth) {
+    PresetManager* pm = synth->getPresetManager();
+    if (pm && pm->exists()) {
+        int currentIdx = pm->getCurrentPresetIndex();
+        int newIdx = (currentIdx + 1) % pm->getPresetCount();
+        pm->loadPreset(newIdx, synth);
+    }
+}
+
+void UIParameters::loadPrevPreset(SynthArchitecture* synth) {
+    PresetManager* pm = synth->getPresetManager();
+    if (pm && pm->exists()) {
+        int currentIdx = pm->getCurrentPresetIndex();
+        int newIdx = currentIdx - 1;
+        if (newIdx < 0) newIdx = pm->getPresetCount() - 1;
+        pm->loadPreset(newIdx, synth);
     }
 }

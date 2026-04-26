@@ -16,7 +16,8 @@ enum class FilterType {
 
 class Voice {
 private:
-    SawtoothOscillator oscillator;
+    SawtoothOscillator oscillator1;
+    SawtoothOscillator oscillator2;
     MoogLadderFilter moogFilter;
     KorgMS20Filter korgFilter;
     OberheimSEMFilter oberheimFilter;
@@ -30,6 +31,8 @@ private:
     float filterEnvelopeAmount;
     float baseCutoff;
     float resonance;
+    float oscMix;
+    float osc2Detune;
     
 public:
     Voice(float sampleRate = 48000.0f);
@@ -56,6 +59,8 @@ public:
     void updateResonance(float res);
     void updateFilterEnvelopeAmount(float amount);
     void updateWaveform(Waveform wav);
+    void updateOscMix(float mix);
+    void updateOsc2Detune(float detune);
     void updateEnvelopeCurves(EnvelopeCurve ampCurve, EnvelopeCurve filtCurve);
 };
 

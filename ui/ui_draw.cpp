@@ -4,6 +4,7 @@
 #include "ui_colors.h"
 #include "ui_constants.h"
 #include "midi/midi_input.h"
+#include "../preset/preset_manager.h"
 #include <ncurses.h>
 
 
@@ -415,6 +416,65 @@ void UIDraw::drawOscillatorSection(SynthArchitecture* synth, Parameter selectedP
         attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
+    row++;
+    
+    if (selectedParam == Parameter::OSC_MIX) {
+        attron(A_REVERSE);
+        attron(COLOR_PAIR(UIColor::SELECTED));
+    }
+    mvprintw(row, col, "%-18s: %5.2f", "OSC MIX", synth->getOscMix());
+    if (selectedParam == Parameter::OSC_MIX) {
+        attroff(COLOR_PAIR(UIColor::SELECTED));
+        attroff(A_REVERSE);
+    }
+    row++;
+    
+    if (selectedParam == Parameter::OSC2_DETUNE) {
+        attron(A_REVERSE);
+        attron(COLOR_PAIR(UIColor::SELECTED));
+    }
+    mvprintw(row, col, "%-18s: %+5.2f st", "OSC2 DETUNE", synth->getOsc2Detune());
+    if (selectedParam == Parameter::OSC2_DETUNE) {
+        attroff(COLOR_PAIR(UIColor::SELECTED));
+        attroff(A_REVERSE);
+    }
+}
+
+void UIDraw::drawPresetSection(SynthArchitecture* synth, Parameter selectedParam) {
+    int row = UILayout::PRESET_SECTION_ROW;
+    int col = UILayout::RIGHT_COL;
+    
+    attron(A_BOLD);
+    mvprintw(row, col, "=== PRESET ===");
+    attroff(A_BOLD);
+    row++;
+    
+    PresetManager* pm = synth->getPresetManager();
+    
+    if (selectedParam == Parameter::PRESET_LOAD) {
+        attron(A_REVERSE);
+        attron(COLOR_PAIR(UIColor::SELECTED));
+    }
+    if (pm && pm->exists()) {
+        mvprintw(row, col, "%-18s: %s", "LOAD", pm->getPresetName(pm->getCurrentPresetIndex()).c_str());
+    } else {
+        mvprintw(row, col, "%-18s: %s", "LOAD", "NONE");
+    }
+    if (selectedParam == Parameter::PRESET_LOAD) {
+        attroff(COLOR_PAIR(UIColor::SELECTED));
+        attroff(A_REVERSE);
+    }
+    row++;
+    
+    if (selectedParam == Parameter::PRESET_SAVE) {
+        attron(A_REVERSE);
+        attron(COLOR_PAIR(UIColor::SELECTED));
+    }
+    mvprintw(row, col, "%-18s: %s", "SAVE", "current");
+    if (selectedParam == Parameter::PRESET_SAVE) {
+        attroff(COLOR_PAIR(UIColor::SELECTED));
+        attroff(A_REVERSE);
+    }
 }
 
 void UIDraw::drawDelaySection(SynthArchitecture* synth, Parameter selectedParam) {
@@ -659,13 +719,17 @@ void UIDraw::drawControls() {
     row++;
     mvprintw(row, 4, "NAVIGATION:");
     row++;
-    mvprintw(row, 6, "[Up/Down/Left/Right] - Move between parameters");
+    mvprintw(row, 6, "[Up/Down/Left/Right] - Move through all parameters");
+    row++;
+    mvprintw(row, 4, "LOAD PRESET:");
+    row++;
+    mvprintw(row, 6, "[+] or [-] - Cycle presets");
     row++;
     mvprintw(row, 4, "ADJUST VALUES:");
     row++;
-    mvprintw(row, 6, "[Q] - Increase selected parameter");
+    mvprintw(row, 6, "[PageUp]   - Increase value");
     row++;
-    mvprintw(row, 6, "[W] - Decrease selected parameter");
+    mvprintw(row, 6, "[PageDown] - Decrease value");
     row++;
     mvprintw(row, 4, "PLAY NOTES:");
     row++;
@@ -674,8 +738,6 @@ void UIDraw::drawControls() {
     mvprintw(row, 4, "VOICE CONTROL:");
     row++;
     mvprintw(row, 6, "[F5] - PANIC (stop all notes immediately)");
-    row++;
-    mvprintw(row, 6, "[1-4] - Release specific voice (for testing)");
     row++;
     mvprintw(row, 4, "OTHER:");
     row++;
@@ -693,5 +755,5 @@ void UIDraw::drawSelectedParameter(Parameter param) {
     attroff(COLOR_PAIR(UIColor::SELECTED));
     attroff(A_BOLD);
     row++;
-    mvprintw(row, 2, "Press Q to increase, W to decrease the selected parameter");
+    mvprintw(row, 2, "Press PageUp to increase, PageDown to decrease the selected parameter");
 }
