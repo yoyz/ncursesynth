@@ -5,11 +5,16 @@
 #include "ui_draw.h"
 #include "ui_input.h"
 #include "ui_constants.h"
+#include "../preset/preset_manager.h"
 #include <ncurses.h>
 #include <chrono>
 #include <map>
+#include <sstream>
+#include <iostream>
 
-UI::UI(SynthArchitecture* synthArch) : synth(synthArch), running(true), selectedParameter(Parameter::POLYPHONY) {}
+UI::UI(SynthArchitecture* synthArch) 
+    : synth(synthArch), running(true), selectedParameter(Parameter::POLYPHONY),
+      mode(UIMode::NORMAL), browserSelectedIndex(0), savePresetName("") {}
 
 UI::~UI() {
     stop();
@@ -45,19 +50,28 @@ void UI::run() {
 
         // Draw all UI sections
         UIDraw::drawTitle();
-        UIDraw::drawStatus(synth);
-        UIDraw::drawFilterSection(synth, selectedParameter);
-        UIDraw::drawAmplitudeEnvelopeSection(synth, selectedParameter);
-        UIDraw::drawFilterEnvelopeSection(synth, selectedParameter);
-        UIDraw::drawOscillatorSection(synth, selectedParameter);
-        UIDraw::drawPresetSection(synth, selectedParameter);
-        UIDraw::drawDelaySection(synth, selectedParameter);
-        UIDraw::drawReverbSection(synth, selectedParameter);
-        UIDraw::drawChorusSection(synth, selectedParameter);
-        UIDraw::drawDistortionSection(synth, selectedParameter);
-        UIDraw::drawMasterSection(synth, selectedParameter);
-        UIDraw::drawMidiSection(synth, selectedParameter);
-        UIDraw::drawVoiceDisplay(synth);
+        
+        if (mode == UIMode::PRESET_BROWSER || mode == UIMode::PRESET_SAVE) {
+            UIDraw::drawPresetBrowser(synth, browserSelectedIndex, savePresetName, 
+                                      mode == UIMode::PRESET_SAVE);
+        } else {
+            UIDraw::drawStatus(synth);
+            UIDraw::drawFilterSection(synth, selectedParameter);
+            UIDraw::drawAmplitudeEnvelopeSection(synth, selectedParameter);
+            UIDraw::drawFilterEnvelopeSection(synth, selectedParameter);
+            UIDraw::drawOscillatorSection(synth, selectedParameter);
+            UIDraw::drawPresetSection(synth, selectedParameter);
+            UIDraw::drawDelaySection(synth, selectedParameter);
+            UIDraw::drawReverbSection(synth, selectedParameter);
+            UIDraw::drawChorusSection(synth, selectedParameter);
+            UIDraw::drawDistortionSection(synth, selectedParameter);
+            UIDraw::drawMasterSection(synth, selectedParameter);
+            UIDraw::drawMidiSection(synth, selectedParameter);
+            UIDraw::drawVoiceDisplay(synth);
+            UIDraw::drawKeyboard();
+            UIDraw::drawControls();
+            UIDraw::drawSelectedParameter(selectedParameter);
+        }
         UIDraw::drawKeyboard();
         UIDraw::drawControls();
         UIDraw::drawSelectedParameter(selectedParameter);
@@ -67,14 +81,17 @@ void UI::run() {
         // Handle input
         int ch = getch();
         if (ch != ERR) {
-            // Preset navigation with +/-
-            if (ch == '+' || ch == '=') {
-                UIParameters::loadNextPreset(synth);
+            // F2 - Open preset browser
+            if (ch == KEY_F(2)) {
+                mode = UIMode::PRESET_BROWSER;
+                browserSelectedIndex = synth->getPresetManager()->getCurrentPresetIndex();
+                if (browserSelectedIndex < 0) browserSelectedIndex = 0;
             }
-            else if (ch == '-' || ch == '_') {
-                UIParameters::loadPrevPreset(synth);
+            // In preset browser or save mode
+            else if (mode == UIMode::PRESET_BROWSER || mode == UIMode::PRESET_SAVE) {
+                handleBrowserInput(ch);
             }
-            // Parameter adjustment keys - PageUp/PageDown
+            // Preset navigation with +/- - remove this
             else if (ch == KEY_PPAGE) {
                 UIParameters::increaseParameter(synth, selectedParameter);
             }
@@ -85,9 +102,13 @@ void UI::run() {
             else if (ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT) {
                 UIInput::handleNavigation(ch, selectedParameter);
             }
-            // ESC key - clear all notes gracefully
+            // ESC key - clear all notes gracefully (or exit browser)
             else if (ch == 27) {
-                UIInput::clearAllNotes(synth);
+                if (mode == UIMode::PRESET_BROWSER || mode == UIMode::PRESET_SAVE) {
+                    mode = UIMode::NORMAL;
+                } else {
+                    UIInput::clearAllNotes(synth);
+                }
             }
             // F5 - PANIC immediate stop
             else if (ch == KEY_F(5)) {
@@ -129,4 +150,62 @@ void UI::run() {
     UIInput::clearAllNotes(synth);
 
     endwin();
+}
+
+void UI::handleBrowserInput(int ch) {
+    PresetManager* pm = synth->getPresetManager();
+    int presetCount = pm->getPresetCount();
+    
+    if (mode == UIMode::PRESET_SAVE) {
+        if (ch == '\n' || ch == KEY_ENTER) {
+            if (!savePresetName.empty()) {
+                printf("\n=== SAVING PRESET: %s ===\n", savePresetName.c_str());
+                bool success = pm->saveCurrentAsNew(savePresetName, synth);
+                printf("Save result: %d, reloading bank...\n", success);
+                pm->loadBank();
+                printf("Loaded %d presets\n", pm->getPresetCount());
+                // Stay in browser mode to see the new preset
+                mode = UIMode::PRESET_BROWSER;
+                browserSelectedIndex = pm->getCurrentPresetIndex();
+                printf("Current index: %d\n", browserSelectedIndex);
+            }
+        }
+        else if (ch == 127 || ch == KEY_BACKSPACE) {
+            if (!savePresetName.empty()) {
+                savePresetName.pop_back();
+            }
+        }
+        else if (ch >= 32 && ch <= 126) {
+            if (savePresetName.length() < 32) {
+                savePresetName += static_cast<char>(ch);
+            }
+        }
+        return;
+    }
+    
+    // PRESET_BROWSER mode
+    if (ch == KEY_UP) {
+        browserSelectedIndex = (browserSelectedIndex - 1 + presetCount) % presetCount;
+    }
+    else if (ch == KEY_DOWN) {
+        browserSelectedIndex = (browserSelectedIndex + 1) % presetCount;
+    }
+    else if (ch == 'l' || ch == 'L') {
+        // Load preset
+        pm->loadPreset(browserSelectedIndex, synth);
+        mode = UIMode::NORMAL;
+    }
+    else if (ch == 's' || ch == 'S') {
+        // Save preset - enter save mode
+        savePresetName = pm->getPresetName(browserSelectedIndex);
+        mode = UIMode::PRESET_SAVE;
+    }
+    else if (ch == 'n' || ch == 'N') {
+        // Save current as new preset
+        savePresetName = "";
+        mode = UIMode::PRESET_SAVE;
+    }
+    else if (ch == 27) { // ESC
+        mode = UIMode::NORMAL;
+    }
 }

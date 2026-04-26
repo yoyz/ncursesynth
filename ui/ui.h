@@ -4,7 +4,13 @@
 #include <atomic>
 #include <thread>
 #include "../synth/synth_architecture.h"
-#include "ui_parameters.h"  // This now contains the Parameter enum
+#include "ui_parameters.h"
+
+enum class UIMode {
+    NORMAL,
+    PRESET_BROWSER,
+    PRESET_SAVE
+};
 
 class UI {
 private:
@@ -12,8 +18,12 @@ private:
     std::atomic<bool> running;
     std::thread uiThread;
     Parameter selectedParameter;
+    UIMode mode;
+    int browserSelectedIndex;
+    std::string savePresetName;
     
     void run();
+    void handleBrowserInput(int ch);
     
 public:
     UI(SynthArchitecture* synthArch);

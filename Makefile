@@ -9,6 +9,7 @@ SOURCES = main.cpp \
           filters/high_pass_filter.cpp \
           filters/korgms20_filter.cpp \
           filters/oberheim_sem_filter.cpp \
+          filters/svf_filter.cpp \
           oscillators/saw_oscillator.cpp \
           envelopes/adsr_envelope.cpp \
           envelopes/flexible_envelope.cpp \

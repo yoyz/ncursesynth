@@ -4,6 +4,10 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <cctype>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <stdio.h>
 
 PresetManager::PresetManager(const std::string& bankDir) 
     : currentPresetIndex(-1), bankPath(bankDir) {}
@@ -188,10 +192,6 @@ bool PresetManager::savePreset(int index, SynthArchitecture* synth) {
     return true;
 }
 
-bool PresetManager::saveCurrentAsNew(const std::string& name, SynthArchitecture* synth) {
-    return false;
-}
-
 std::string PresetManager::getPresetName(int index) const {
     if (index < 0 || index >= (int)presets.size()) return "";
     return presets[index].name;
@@ -200,6 +200,134 @@ std::string PresetManager::getPresetName(int index) const {
 std::string PresetManager::getPresetFile(int index) const {
     if (index < 0 || index >= (int)presets.size()) return "";
     return presets[index].filename;
+}
+
+bool PresetManager::saveCurrentAsNew(const std::string& name, SynthArchitecture* synth) {
+    if (name.empty()) return false;
+    
+    // Create filename from name (replace spaces with underscores)
+    std::string filename = name;
+    for (char& c : filename) {
+        if (c == ' ' || c == '-' || c == '(' || c == ')') c = '_';
+        else c = std::tolower(c);
+    }
+    filename += ".txt";
+    
+    // Try multiple path possibilities
+    std::string fullPath = bankPath + "/" + filename;
+    printf("DEBUG: Initial fullPath = %s\n", fullPath.c_str());
+    
+    // Check if path exists, if not try alternatives
+    
+    // Check if path exists, if not try alternatives
+    struct stat st;
+    if (stat(fullPath.c_str(), &st) != 0) {
+        // Try relative to current dir
+        fullPath = "./bank/ncursesynth/" + filename;
+        if (stat(fullPath.c_str(), &st) != 0) {
+            // Try one directory up
+            fullPath = "../bank/ncursesynth/" + filename;
+            if (stat(fullPath.c_str(), &st) != 0) {
+                // Use absolute from executable location
+                char cwd[1024];
+                if (getcwd(cwd, sizeof(cwd))) {
+                    fullPath = std::string(cwd) + "/bank/ncursesynth/" + filename;
+                }
+            }
+        }
+    }
+    
+    printf("DEBUG: Trying path = %s\n", fullPath.c_str());
+    
+    // Update the global bankPath to match where we actually saved
+    // Find the directory part of fullPath
+    size_t dirSlash = fullPath.rfind("/");
+    if (dirSlash != std::string::npos) {
+        std::string savedDir = fullPath.substr(0, dirSlash);
+        bankPath = savedDir;
+    }
+    
+    printf("DEBUG: Final bankPath = %s\n", bankPath.c_str());
+    
+    // Save the preset to file
+    std::map<std::string, std::string> params;
+    
+    auto addParam = [&params](const std::string& key, float value) {
+        std::ostringstream oss;
+        oss << value;
+        params[key] = oss.str();
+    };
+    
+    addParam("polyphony", (float)synth->getPolyphony());
+    addParam("filter_type", (int)synth->getCurrentFilterType());
+    addParam("cutoff", synth->getCutoff());
+    addParam("resonance", synth->getResonance());
+    addParam("filter_env_amount", synth->getFilterEnvelopeAmount());
+    addParam("waveform", (int)synth->getWaveform());
+    addParam("osc_mix", synth->getOscMix());
+    addParam("osc2_detune", synth->getOsc2Detune());
+    addParam("amp_attack", synth->getAmpAttack());
+    addParam("amp_decay", synth->getAmpDecay());
+    addParam("amp_sustain", synth->getAmpSustain());
+    addParam("amp_release", synth->getAmpRelease());
+    addParam("amp_env_curve", (int)synth->getAmpEnvelopeCurve());
+    addParam("filter_attack", synth->getFilterAttack());
+    addParam("filter_decay", synth->getFilterDecay());
+    addParam("filter_sustain", synth->getFilterSustain());
+    addParam("filter_release", synth->getFilterRelease());
+    addParam("filter_env_curve", (int)synth->getFilterEnvelopeCurve());
+    addParam("volume", synth->getVolume());
+    
+    addParam("delay_enable", synth->getDelay()->isEnabled() ? 1 : 0);
+    addParam("delay_time", synth->getDelay()->getDelayTime());
+    addParam("delay_feedback", synth->getDelay()->getFeedback());
+    addParam("delay_mix", synth->getDelay()->getMix());
+    
+    addParam("reverb_enable", synth->getReverb()->isEnabled() ? 1 : 0);
+    addParam("reverb_decay", synth->getReverb()->getDecay());
+    addParam("reverb_mix", synth->getReverb()->getMix());
+    
+    addParam("chorus_enable", synth->getChorus()->isEnabled() ? 1 : 0);
+    addParam("chorus_depth", synth->getChorus()->getDepth());
+    addParam("chorus_rate", synth->getChorus()->getRate());
+    addParam("chorus_mix", synth->getChorus()->getMix());
+    
+    addParam("distortion_enable", synth->getDistortion()->isEnabled() ? 1 : 0);
+    addParam("distortion_drive", synth->getDistortion()->getDrive());
+    addParam("distortion_mix", synth->getDistortion()->getMix());
+    
+    std::ofstream outfile(fullPath.c_str());
+    if (!outfile.is_open()) {
+        std::cerr << "Failed to open file for writing: " << fullPath << std::endl;
+        return false;
+    }
+    
+    for (auto& kv : params) {
+        outfile << kv.first << "=" << kv.second << std::endl;
+    }
+    outfile.close();
+    
+    // Find and select the newly saved preset
+    for (int i = 0; i < (int)presets.size(); i++) {
+        if (presets[i].name == name) {
+            currentPresetIndex = i;
+            break;
+        }
+    }
+    
+    // Update index file - use the directory containing the preset file
+    size_t lastSlash = fullPath.rfind("/");
+    if (lastSlash != std::string::npos) {
+        std::string directory = fullPath.substr(0, lastSlash);
+        std::string indexPath = directory + "/index.txt";
+        std::ofstream indexFile(indexPath.c_str(), std::ios::app);
+        if (indexFile.is_open()) {
+            indexFile << filename << ":" << name << std::endl;
+            indexFile.close();
+        }
+    }
+    
+    return true;
 }
 
 void PresetManager::setCurrentPreset(int index) {

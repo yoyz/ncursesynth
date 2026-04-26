@@ -7,13 +7,18 @@
 #include "../filters/high_pass_filter.h"
 #include "../filters/korgms20_filter.h"
 #include "../filters/oberheim_sem_filter.h"
+#include "../filters/svf_filter.h"
 #include "../envelopes/flexible_envelope.h"
 
 enum class FilterType {
     MOOG,
     KORG_MS20,
     OBERHEIM_SEM,
-    MOOG_HPF
+    MOOG_HPF,
+    SVF_LP12,
+    SVF_HP12,
+    SVF_BP12,
+    SVF_AP12
 };
 
 class Voice {
@@ -24,6 +29,7 @@ private:
     HighPassFilter moogHPFFilter;
     KorgMS20Filter korgFilter;
     OberheimSEMFilter oberheimFilter;
+    StateVariableFilter svfFilter;
     FlexibleEnvelope amplitudeEnvelope;
     FlexibleEnvelope filterEnvelope;
     FilterBase* currentFilter;

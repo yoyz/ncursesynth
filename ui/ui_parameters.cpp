@@ -66,6 +66,11 @@ const char* UIParameters::getFilterTypeName(SynthArchitecture* synth) {
         case FilterType::MOOG: return "MOOG";
         case FilterType::KORG_MS20: return "KORG MS-20";
         case FilterType::OBERHEIM_SEM: return "OBERHEIM SEM";
+        case FilterType::MOOG_HPF: return "MOOG HPF";
+        case FilterType::SVF_LP12: return "SVF LP12";
+        case FilterType::SVF_HP12: return "SVF HP12";
+        case FilterType::SVF_BP12: return "SVF BP12";
+        case FilterType::SVF_AP12: return "SVF AP12";
         default: return "UNKNOWN";
     }
 }
@@ -92,7 +97,7 @@ void UIParameters::increaseParameter(SynthArchitecture* synth, Parameter param) 
         }
         case Parameter::FILTER_TYPE: {
             int type = static_cast<int>(synth->getCurrentFilterType());
-            type = (type + 1) % 3;
+            type = (type + 1) % 8;
             synth->setFilterType(static_cast<FilterType>(type));
             break;
         }
@@ -349,7 +354,7 @@ void UIParameters::decreaseParameter(SynthArchitecture* synth, Parameter param) 
         }
         case Parameter::FILTER_TYPE: {
             int type = static_cast<int>(synth->getCurrentFilterType());
-            type = (type - 1 + 3) % 3;
+            type = (type - 1 + 8) % 8;
             synth->setFilterType(static_cast<FilterType>(type));
             break;
         }

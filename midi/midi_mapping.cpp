@@ -163,6 +163,8 @@ bool MappingManager::applyMapping(SynthArchitecture* synth, int cc, float value)
         synth->setFilterRelease(normalized);
     } else if (param == "VOLUME") {
         synth->setVolume(normalized);
+    } else if (param == "HPF_FREQ") {
+        synth->setHPFCutoff(20.0f + normalized * 4980.0f);
     } else {
         return false;
     }

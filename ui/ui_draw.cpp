@@ -809,3 +809,55 @@ void UIDraw::drawSelectedParameter(Parameter param) {
     row++;
     mvprintw(row, 2, "Press PageUp to increase, PageDown to decrease the selected parameter");
 }
+
+void UIDraw::drawPresetBrowser(SynthArchitecture* synth, int selectedIndex, const std::string& saveName, bool isSaving) {
+    int height = 20;
+    int width = 50;
+    int startY = (LINES - height) / 2;
+    int startX = (COLS - width) / 2;
+    
+    // Draw border
+    attron(A_BOLD);
+    mvprintw(startY, startX, "+------------------------------------------------+");
+    for (int i = 1; i < height - 1; i++) {
+        mvprintw(startY + i, startX, "|");
+        mvprintw(startY + i, startX + width - 1, "|");
+    }
+    mvprintw(startY + height - 1, startX, "+------------------------------------------------+");
+    attroff(A_BOLD);
+    
+    // Title
+    if (isSaving) {
+        attron(A_BOLD);
+        mvprintw(startY + 1, startX + 15, " SAVE PRESET ");
+        attroff(A_BOLD);
+        mvprintw(startY + 3, startX + 2, "Name: %s", saveName.c_str());
+        mvprintw(startY + 4, startX + 2, "[Enter] to save, [Esc] to cancel");
+    } else {
+        attron(A_BOLD);
+        mvprintw(startY + 1, startX + 15, " PRESET BROWSER ");
+        attroff(A_BOLD);
+        
+        // Draw preset list
+        PresetManager* pm = synth->getPresetManager();
+        int presetCount = pm->getPresetCount();
+        int displayCount = std::min(presetCount, 15);
+        
+        for (int i = 0; i < displayCount; i++) {
+            int y = startY + 3 + i;
+            if (i == selectedIndex) {
+                attron(A_REVERSE);
+                attron(COLOR_PAIR(UIColor::SELECTED));
+            }
+            std::string name = pm->getPresetName(i);
+            if (name.length() > 40) name = name.substr(0, 40);
+            mvprintw(y, startX + 2, "%-40s", name.c_str());
+            if (i == selectedIndex) {
+                attroff(COLOR_PAIR(UIColor::SELECTED));
+                attroff(A_REVERSE);
+            }
+        }
+        
+        mvprintw(startY + height - 3, startX + 2, "[Up/Down] Navigate  [l] Load  [s] Save  [n] New  [Esc] Exit");
+    }
+}

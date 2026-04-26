@@ -9,6 +9,7 @@ Voice::Voice(float sampleRate)
       moogHPFFilter(sampleRate),
       korgFilter(sampleRate),
       oberheimFilter(sampleRate),
+      svfFilter(sampleRate),
       amplitudeEnvelope(sampleRate),
       filterEnvelope(sampleRate),
       frequency(440.0f),
@@ -34,6 +35,7 @@ void Voice::setSampleRate(float rate) {
     moogHPFFilter.setSampleRate(rate);
     korgFilter.setSampleRate(rate);
     oberheimFilter.setSampleRate(rate);
+    svfFilter.setSampleRate(rate);
     amplitudeEnvelope.setSampleRate(rate);
     filterEnvelope.setSampleRate(rate);
 }
@@ -68,6 +70,22 @@ void Voice::noteOn(float freq, int id, FilterType filterType,
             break;
         case FilterType::OBERHEIM_SEM:
             currentFilter = &oberheimFilter;
+            break;
+        case FilterType::SVF_LP12:
+            currentFilter = &svfFilter;
+            svfFilter.setType(StateVariableFilter::Type::LP12);
+            break;
+        case FilterType::SVF_HP12:
+            currentFilter = &svfFilter;
+            svfFilter.setType(StateVariableFilter::Type::HP12);
+            break;
+        case FilterType::SVF_BP12:
+            currentFilter = &svfFilter;
+            svfFilter.setType(StateVariableFilter::Type::BP12);
+            break;
+        case FilterType::SVF_AP12:
+            currentFilter = &svfFilter;
+            svfFilter.setType(StateVariableFilter::Type::AP12);
             break;
     }
     
@@ -147,6 +165,7 @@ void Voice::reset() {
     moogFilter.reset();
     korgFilter.reset();
     oberheimFilter.reset();
+    svfFilter.reset();
     amplitudeEnvelope.reset();
     filterEnvelope.reset();
 }
@@ -164,6 +183,22 @@ void Voice::updateFilterType(FilterType type) {
             break;
         case FilterType::OBERHEIM_SEM:
             currentFilter = &oberheimFilter;
+            break;
+        case FilterType::SVF_LP12:
+            currentFilter = &svfFilter;
+            svfFilter.setType(StateVariableFilter::Type::LP12);
+            break;
+        case FilterType::SVF_HP12:
+            currentFilter = &svfFilter;
+            svfFilter.setType(StateVariableFilter::Type::HP12);
+            break;
+        case FilterType::SVF_BP12:
+            currentFilter = &svfFilter;
+            svfFilter.setType(StateVariableFilter::Type::BP12);
+            break;
+        case FilterType::SVF_AP12:
+            currentFilter = &svfFilter;
+            svfFilter.setType(StateVariableFilter::Type::AP12);
             break;
     }
 }

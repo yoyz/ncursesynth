@@ -18,7 +18,8 @@ namespace UIDraw {
     void drawDistortionSection(SynthArchitecture* synth, Parameter selectedParam);
     void drawMasterSection(SynthArchitecture* synth, Parameter selectedParam);
     void drawVoiceDisplay(SynthArchitecture* synth);
-    void drawMidiSection(SynthArchitecture* synth, Parameter selectedParam);  // Add this
+    void drawMidiSection(SynthArchitecture* synth, Parameter selectedParam);
+    void drawPresetBrowser(SynthArchitecture* synth, int selectedIndex, const std::string& saveName, bool isSaving);
     void drawKeyboard();
     void drawControls();
     void drawSelectedParameter(Parameter param);

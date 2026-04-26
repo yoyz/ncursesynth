@@ -23,7 +23,7 @@ SynthArchitecture::SynthArchitecture(int polyphony, float rate)
       volume(0.3f),
       oscMix(0.5f),
       osc2Detune(0.0f),
-      presetManager("bank") {
+      presetManager("bank/ncursesynth") {
     
     // Create voices
     for (int i = 0; i < maxPolyphony; i++) {
