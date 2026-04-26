@@ -1,0 +1,24 @@
+# Behringer DeepMind 12 CC Mapping for ncursesynth
+# Format: cc,parameter_name,min_value,max_value,default_value
+
+# Filter Section
+29,CUTOFF,0,127,64
+30,RESONANCE,0,127,0
+31,FILTER_ENV_AMOUNT,0,127,0
+35,HPF_FREQ,0,127,0
+
+# Filter Envelope (VCF): A=42, D=43, S=44, R=45
+42,FILTER_ATTACK,0,127,0
+43,FILTER_DECAY,0,127,64
+44,FILTER_SUSTAIN,0,127,96
+45,FILTER_RELEASE,0,127,64
+
+# VCA / Amplitude Envelope (VCA): A=37, D=39, S=40, R=41
+37,AMP_ATTACK,0,127,0
+39,AMP_DECAY,0,127,64
+40,AMP_SUSTAIN,0,127,127
+41,AMP_RELEASE,0,127,64
+
+# Master Volume
+7,VOLUME,0,127,100
+36,VOLUME,0,127,100
