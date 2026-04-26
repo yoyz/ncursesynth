@@ -49,6 +49,7 @@ To build and run ncursesynth, you'll need the following libraries installed:
 On **Debian/Ubuntu**:
 ```bash
 sudo apt-get install libncurses5-dev portaudio19-dev librtmidi-dev
+sudo dnf     install ncurses-devel portaudio-devel rtmidi-devel
 ```
 
 ## Building
