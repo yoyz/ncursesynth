@@ -1,0 +1,14 @@
+#ifndef NCURSESYNTH_MACHINE_H
+#define NCURSESYNTH_MACHINE_H
+#include "../oscillators/saw_oscillator.h"
+#include "../filters/filter_base.h"
+#include "../filters/moog_filter.h"
+#include "../filters/korgms20_ filter.h"
+#include "../filters/oberheim_sem_filter.h"
+#include "../filters/high_pass_filter.h"
+#include "../filters/svf_ filter.h"
+#include "../envelopes/flexible_ envelope.h"
+#include "Machine.h"
+#include "Parameter.h"
+class SynthArchitecture;
+class NcursesynthMachine : public Machine { private: SynthArchitecture* synth_; int params_[MachineParam::PERFORMANCE_ COUNT]; int noteOn_; public: NcursesynthMachine(); virtual ~NcursesynthMachine(); void setSynth(SynthArchitecture* synth) { synth_ = synth; } virtual void init() override; virtual void reset() override; virtual int32_ t tick() override; virtual void noteOn() override; virtual void noteOff() override; virtual void setI(int index, int value) override; virtual void setF(int index, float value) override; virtual int getI(int index) override; virtual float getF(int index) override; virtual int checkI(int index, int value) override; virtual const char* getDisplayString(int index) override; }; #endif
