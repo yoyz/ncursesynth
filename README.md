@@ -8,35 +8,11 @@ A polyphonic virtual analog synthesizer with MIDI support and ncurses terminal U
 
 ## Features
 
-- **Terminal UI**: Clean, real-time interface using ncurses
-- **Dual Input**: Play via connected MIDI devices or computer keyboard
-- **Dual Oscillators**: 2 oscillators with mix and detune controls
-- **Multiple Waveforms**: Sawtooth, Square, Triangle
-- **Polyphonic**: Configurable voice count (up to 16 voices)
-- **Filters**: 8 filter types (Moog, Korg MS-20, Oberheim SEM, SVF variants)
-- **Envelopes**: ADSR envelopes for amplitude and filter with curve options
-- **Effects**: Delay, Reverb, Chorus, Distortion
-- **Preset System**: Save and load presets
-- **MIDI Mapping**: Configurable CC mappings (includes DeepMind 12 preset)
-
-## Project Structure
-
-```
-ncursesynth/
-├── audio/           # PortAudio stream management
-├── effects/         # Audio effects (reverb, delay, chorus, distortion)
-├── envelopes/       # ADSR envelope generators with curve options
-├── filters/         # Filter implementations (Moog, Korg, Oberheim, SVF)
-├── midi/            # RtMidi input handling and CC mapping
-├── oscillators/     # Waveform generation
-├── synth/           # Core synthesis engine and voice management
-├── preset/          # Preset loading and saving
-├── ui/              # Ncurses terminal interface
-├── bank/            # Preset files
-├── mapping/         # MIDI CC mapping files
-├── main.cpp         # Program entry point
-└── Makefile         # Build configuration
-```
+* **Multi-Engine Architecture:** Dynamically switch between distinct synthesizer engines on the fly without interrupting the audio stream.
+* **Terminal User Interface (TUI):** keyboard-driven interface built with `ncurses` for headless setups, minimal environments, distraction-free sound design.
+* **Robust MIDI Integration:** support for external MIDI hardware, including device discovery, port selection
+* **Visual Feedback:** Real-time visual updates on the TUI for parameter changes and incoming MIDI notes.
+* **Preset Management:** TODO Save and load patches seamlessly.
 
 ## Dependencies
 
@@ -59,44 +35,43 @@ cd ncursesynth
 make
 ```
 
+## Dependencies
+
+To compile and run `ncursesynth`, you will need a C++ compiler supporting standard threading (`<thread>`, `<atomic>`) and the following libraries:
+* `libncurses-dev` (for the TUI)
+* Standard audio/MIDI development headers (e.g., ALSA, depending on your backend)
+
+
+## Command-Line Usage
+
+You can launch `ncursesynth` with several flags to configure MIDI and debugging options before the UI loads.
+
+| Option | Description |
+| :--- | :--- |
+| `--help`, `-h` | Show the help message and exit. |
+| `--list-midi` | List all available MIDI devices and their hardware ports. |
+| `--midi-port <hw:X,Y,Z>`| Connect to a specific MIDI port on startup (e.g., `hw:1,0,0`). |
+| `--midi-debug` | Enable verbose MIDI debugging output to the console. |
+
+
+## Keyboard Controls
+
+The application is heavily optimized for keyboard-centric workflows. 
+
+| Key | Action |
+| :--- | :--- |
+| **TAB** | Switch between UI menus (Engine selection, MIDI setup, Parameters). |
+| **Arrow Keys** | Navigate through parameters or menu items. |
+| **1-9, 0** | Instantly set the selected parameter slider from 10% to 100%. |
+| **Q** or **ESC** | Safely shutdown the audio/MIDI engines and quit the application. |
+
 ## Running
 
 ```bash
 ./ncursesynth
 ```
 
-**Note**: The synth currently requires an active audio device and will exit cleanly if none is found.
-
-## Controls
-
-| Key | Action |
-|-----|--------|
-| Arrow Keys | Navigate parameters |
-| PageUp | Increase selected parameter |
-| PageDown | Decrease selected parameter |
-| F2 | Open preset browser |
-| A-$, ^ | Play notes (C4-B4) |
-| F5 | Panic (stop all notes) |
-| ESC | Release all notes gracefully / Exit browser |
-| Ctrl+C | Exit |
-
-### Preset Browser (F2)
-
-| Key | Action |
-|-----|--------|
-| Up/Down | Navigate presets |
-| l | Load selected preset |
-| s | Save to selected preset |
-| n | Create new preset |
-| Enter | Confirm save |
-| ESC | Exit browser |
-
-### Keyboard Layout
-
-```
-Key:  A  Z  E  R  T  Y  U  I  O  P  ^  $
-Note: C  C# D  D# E  F  F# G  G# A  A# B
-```
+**Note**: The synth currently requires an active audio device
 
 ## MIDI Support
 
@@ -110,6 +85,7 @@ The synth includes a preset mapping for Behringer DeepMind 12:
 ### MIDI CC Mappings
 
 Custom mapping files can be placed in the `mapping/` directory.
+TODO work on other midi keyboard
 
 ## Presets
 
