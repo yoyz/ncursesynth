@@ -125,6 +125,13 @@ std::string MappingManager::getMappingName(int index) const {
     return "None";
 }
 
+MappingEntry MappingManager::getMappingEntry(int cc) {
+    MidiMapping* mapping = getCurrentMapping();
+    if (!mapping) return MappingEntry{-1, "", 0, 127, 0};
+    if (!mapping->hasCC(cc)) return MappingEntry{-1, "", 0, 127, 0};
+    return mapping->getEntry(cc);
+}
+
 bool MappingManager::applyMapping(SynthArchitecture* synth, int cc, float value) {
     if (!synth || currentMappingIndex < 0) return false;
 

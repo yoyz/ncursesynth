@@ -3,10 +3,11 @@
 #include <cmath>
 #include <chrono>
 #include <cstring>
+#include <set>
 
-MidiInput::MidiInput(SynthArchitecture* synthArch) 
-    : running(false), initialized(false), synth(synthArch), selectedPort(-1),
-      lastCC(-1), lastCCValue(0), lastActivity(std::chrono::steady_clock::now()) {}
+MidiInput::MidiInput(SynthArchitecture* synthArch)
+    : running(false), initialized(false), synth(synthArch), machine(nullptr), mappingMachine(nullptr), selectedPort(-1),
+      lastCC(-1), lastCCValue(0), lastActivity(std::chrono::steady_clock::now()), midiDebug(false) {}
 
 MidiInput::~MidiInput() {
     stop();
@@ -95,7 +96,18 @@ void MidiInput::processMessage(const std::vector<unsigned char>& message) {
         lastCC = cc;
         lastCCValue = value;
         lastActivity = std::chrono::steady_clock::now();
-        mappingManager.applyMapping(synth, cc, static_cast<float>(value));
+        
+        if (mappingMachine) {
+            MappingEntry entry = mappingManager.getMappingEntry(cc);
+            if (!entry.parameterName.empty()) {
+                float normalized = static_cast<float>(value - entry.minValue) / static_cast<float>(entry.maxValue - entry.minValue);
+                normalized = std::max(0.0f, std::min(1.0f, normalized));
+                mappingMachine->applyCC(cc, normalized, entry.parameterName);
+                if (midiDebug) std::cerr << "  CC " << cc << " -> " << entry.parameterName << " (" << value << ")" << std::endl;
+            }
+        } else if (synth) {
+            mappingManager.applyMapping(synth, cc, static_cast<float>(value));
+        }
         return;
     }
     
@@ -106,17 +118,39 @@ void MidiInput::processMessage(const std::vector<unsigned char>& message) {
     }
     
     float frequency = 440.0f * powf(2.0f, (note - 69) / 12.0f);
-    
+
+    if (midiDebug) {
+        std::cerr << "  type=" << std::hex << msgType << std::dec << " note=" << note << " vel=" << velocity << std::endl;
+    }
+
     switch (msgType) {
         case 0x90:
             if (velocity > 0) {
-                synth->noteOn(frequency);
+                if (midiDebug) std::cerr << "  NOTE ON note=" << note << " vel=" << velocity << std::endl;
+                if (synth) synth->noteOn(frequency);
+                if (machine) {
+                    activeNotes.insert(note);
+                    machine->setI(70, note);
+                    machine->setI(150, 1);
+                }
             } else {
-                synth->noteOff(frequency);
+                if (midiDebug) std::cerr << "  NOTE OFF note=" << note << std::endl;
+                if (synth) synth->noteOff(frequency);
+                if (machine) {
+                    activeNotes.erase(note);
+                    machine->setI(70, note);
+                    machine->setI(150, 0);
+                }
             }
             break;
         case 0x80:
-            synth->noteOff(frequency);
+            if (midiDebug) std::cerr << "  NOTE OFF note=" << note << " vel=" << velocity << std::endl;
+            if (synth) synth->noteOff(frequency);
+            if (machine) {
+                activeNotes.erase(note);
+                machine->setI(70, note);
+                machine->setI(150, 0);
+            }
             break;
         default:
             break;
@@ -124,17 +158,26 @@ void MidiInput::processMessage(const std::vector<unsigned char>& message) {
 }
 
 void MidiInput::midiThreadFunc() {
+    std::cerr << "MIDI thread started, port open=" << (midiIn && midiIn->isPortOpen()) << std::endl;
     while (running) {
         if (midiIn && midiIn->isPortOpen()) {
             std::vector<unsigned char> message;
             midiIn->getMessage(&message);
-            
+
             if (!message.empty()) {
+                if (midiDebug) {
+                    std::cerr << "MIDI RAW: ";
+                    for (size_t i = 0; i < message.size(); i++) {
+                        std::cerr << std::hex << "0x" << (int)message[i] << " ";
+                    }
+                    std::cerr << std::dec << std::endl;
+                }
                 processMessage(message);
             }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+    std::cerr << "MIDI thread exiting" << std::endl;
 }
 
 void MidiInput::start() {

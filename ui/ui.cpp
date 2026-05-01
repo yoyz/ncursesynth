@@ -45,43 +45,53 @@ void UI::run() {
     // Counter for periodic checks
     int releaseCheckCounter = 0;
 
-    while (running) {
+while (running) {
         clear();
 
-        // Draw all UI sections
+        // Draw all UI sections (cursynth-style 3-column layout)
         UIDraw::drawTitle();
-        
+
         if (mode == UIMode::PRESET_BROWSER || mode == UIMode::PRESET_SAVE) {
-            UIDraw::drawPresetBrowser(synth, browserSelectedIndex, savePresetName, 
-                                      mode == UIMode::PRESET_SAVE);
+            UIDraw::drawPresetBrowser(synth, browserSelectedIndex, savePresetName,
+                                       mode == UIMode::PRESET_SAVE);
+        } else if (mode == UIMode::HELP) {
+            UIDraw::drawHelp();
         } else {
             UIDraw::drawStatus(synth);
-            UIDraw::drawFilterSection(synth, selectedParameter);
-            UIDraw::drawAmplitudeEnvelopeSection(synth, selectedParameter);
-            UIDraw::drawFilterEnvelopeSection(synth, selectedParameter);
+
+            // Column 1 (LEFT): OSCILLATORS, LFO, MOD MATRIX, VOLUME
             UIDraw::drawOscillatorSection(synth, selectedParameter);
-            UIDraw::drawPresetSection(synth, selectedParameter);
+            UIDraw::drawLfoSection(synth, selectedParameter);
+            UIDraw::drawModulationMatrix(synth, selectedParameter);
+            UIDraw::drawVolumeSection(synth, selectedParameter);
+
+            // Column 2 (CENTER): FILTER, FILTER ENVELOPE
+            UIDraw::drawFilterSection(synth, selectedParameter);
+            UIDraw::drawFilterEnvelopeSection(synth, selectedParameter);
+
+            // Column 3 (RIGHT): PERFORMANCE, AMP ENV, DELAY, REVERB, CHORUS, DISTORTION, MASTER
+            UIDraw::drawPerformanceSection(synth, selectedParameter);
+            UIDraw::drawAmpEnvelopeSection(synth, selectedParameter);
             UIDraw::drawDelaySection(synth, selectedParameter);
             UIDraw::drawReverbSection(synth, selectedParameter);
             UIDraw::drawChorusSection(synth, selectedParameter);
             UIDraw::drawDistortionSection(synth, selectedParameter);
             UIDraw::drawMasterSection(synth, selectedParameter);
-            UIDraw::drawMidiSection(synth, selectedParameter);
-            UIDraw::drawVoiceDisplay(synth);
+
             UIDraw::drawKeyboard();
             UIDraw::drawControls();
             UIDraw::drawSelectedParameter(selectedParameter);
         }
-        UIDraw::drawKeyboard();
-        UIDraw::drawControls();
-        UIDraw::drawSelectedParameter(selectedParameter);
 
         refresh();
 
         // Handle input
         int ch = getch();
         if (ch != ERR) {
-            // F2 - Open preset browser
+            // F1 - Help screen
+            if (ch == KEY_F(1)) {
+                mode = (mode == UIMode::HELP) ? UIMode::NORMAL : UIMode::HELP;
+            }
             if (ch == KEY_F(2)) {
                 mode = UIMode::PRESET_BROWSER;
                 browserSelectedIndex = synth->getPresetManager()->getCurrentPresetIndex();
@@ -102,13 +112,17 @@ void UI::run() {
             else if (ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT) {
                 UIInput::handleNavigation(ch, selectedParameter);
             }
-            // ESC key - clear all notes gracefully (or exit browser)
+            // ESC key - clear all notes gracefully (or exit browser/help)
             else if (ch == 27) {
-                if (mode == UIMode::PRESET_BROWSER || mode == UIMode::PRESET_SAVE) {
+                if (mode == UIMode::PRESET_BROWSER || mode == UIMode::PRESET_SAVE || mode == UIMode::HELP) {
                     mode = UIMode::NORMAL;
                 } else {
                     UIInput::clearAllNotes(synth);
                 }
+            }
+            // Any key closes help screen
+            else if (mode == UIMode::HELP) {
+                mode = UIMode::NORMAL;
             }
             // F5 - PANIC immediate stop
             else if (ch == KEY_F(5)) {

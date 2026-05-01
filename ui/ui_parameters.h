@@ -3,71 +3,83 @@
 
 #include "../synth/synth_architecture.h"
 
-// Parameter enum definition - ordered to match UI layout
-// LEFT COLUMN: Filter Section (top), then Amp Envelope, then Filter Envelope
-// RIGHT COLUMN: Oscillator, Delay, Reverb, Chorus, Distortion, Master, MIDI
 enum class Parameter {
-    // LEFT COLUMN - Filter Section (7 params)
-    POLYPHONY,
+    // LEFT COLUMN - Oscillator (row 6)
+    WAVEFORM,
+    OSC_MIX,
+    OSC2_DETUNE,
+
+    // LEFT COLUMN - LFO (row 14)
+    LFO_WAVEFORM,
+    LFO_FREQUENCY,
+    LFO_DEPTH,
+
+    // LEFT COLUMN - Volume (row 26)
+    VOLUME,
+
+    // LEFT COLUMN - Modulation Matrix (row 32)
+    MOD_SOURCE_1,
+    MOD_SCALE_1,
+    MOD_DESTINATION_1,
+    MOD_SOURCE_2,
+    MOD_SCALE_2,
+    MOD_DESTINATION_2,
+
+    // CENTER COLUMN - Filter (row 6)
     FILTER_TYPE,
     CUTOFF,
     RESONANCE,
     FILTER_ENV_AMOUNT,
     HPF_FREQ,
-    
-    // LEFT COLUMN - Amplitude Envelope (5 params)
-    AMP_ATTACK,
-    AMP_DECAY,
-    AMP_SUSTAIN,
-    AMP_RELEASE,
-    AMP_ENV_CURVE,
-    
-    // LEFT COLUMN - Filter Envelope (5 params)
+
+    // CENTER COLUMN - Filter Envelope (row 20)
     FILTER_ATTACK,
     FILTER_DECAY,
     FILTER_SUSTAIN,
     FILTER_RELEASE,
     FILTER_ENV_CURVE,
-    
-    // RIGHT COLUMN - Oscillator (3 params)
-    WAVEFORM,
-    OSC_MIX,
-    OSC2_DETUNE,
-    
-    // RIGHT COLUMN - Preset (2 params)
-    PRESET_LOAD,
-    PRESET_SAVE,
-    
-    // RIGHT COLUMN - Delay (4 params)
+
+    // RIGHT COLUMN - Performance (row 6)
+    POLYPHONY,
+    LEGATO,
+    PORTAMENTO,
+
+    // RIGHT COLUMN - Amp Envelope (row 14)
+    AMP_ATTACK,
+    AMP_DECAY,
+    AMP_SUSTAIN,
+    AMP_RELEASE,
+    AMP_ENV_CURVE,
+
+    // RIGHT COLUMN - Delay (row 14)
     DELAY_ENABLE,
     DELAY_TIME,
     DELAY_FEEDBACK,
     DELAY_MIX,
-    
-    // RIGHT COLUMN - Reverb (3 params)
+
+    // RIGHT COLUMN - Reverb (row 20)
     REVERB_ENABLE,
     REVERB_DECAY,
     REVERB_MIX,
-    
-    // RIGHT COLUMN - Chorus (4 params)
+
+    // RIGHT COLUMN - Chorus (row 26)
     CHORUS_ENABLE,
     CHORUS_DEPTH,
     CHORUS_RATE,
     CHORUS_MIX,
-    
-    // RIGHT COLUMN - Distortion (3 params)
+
+    // RIGHT COLUMN - Distortion (row 29)
     DISTORTION_ENABLE,
     DISTORTION_DRIVE,
     DISTORTION_MIX,
-    
-    // RIGHT COLUMN - Master (1 param)
-    VOLUME,
-    
-    // RIGHT COLUMN - MIDI (3 params)
-    MIDI_ENABLE,
-    MIDI_DEVICE,
-    MIDI_MAPPING,
-    
+
+    // RIGHT COLUMN - Master (row 29)
+    MASTER_VOLUME,
+
+    // Preset (special - can be anywhere)
+    PRESET_LOAD,
+    PRESET_SAVE,
+
     COUNT
 };
 

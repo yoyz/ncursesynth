@@ -11,83 +11,51 @@
 
 
 void UIDraw::drawMidiSection(SynthArchitecture* synth, Parameter selectedParam) {
+    (void)selectedParam;
     int row = UILayout::MIDI_SECTION_ROW;
     int col = UILayout::RIGHT_COL;
-    
+
     attron(A_BOLD);
     mvprintw(row, col, "=== MIDI ===");
     attroff(A_BOLD);
     row++;
-    
+
     MidiInput* midi = synth->getMidiInput();
     if (midi) {
-        // MIDI Enable/Disable
-        if (selectedParam == Parameter::MIDI_ENABLE) {
-            attron(A_REVERSE);
-            attron(COLOR_PAIR(UIColor::SELECTED));
-        }
-        mvprintw(row, col, "%-18s: %s", "ENABLE", 
+        mvprintw(row, col, "%-18s: %s", "ENABLE",
                  UIParameters::getBoolText(midi->isRunning()));
-        if (selectedParam == Parameter::MIDI_ENABLE) {
-            attroff(COLOR_PAIR(UIColor::SELECTED));
-            attroff(A_REVERSE);
-        }
         row++;
-        
-        // MIDI Device Selection
-        if (selectedParam == Parameter::MIDI_DEVICE) {
-            attron(A_REVERSE);
-            attron(COLOR_PAIR(UIColor::SELECTED));
-        }
-        
+
         int currentPort = midi->getSelectedPort();
         if (currentPort >= 0 && currentPort < midi->getDeviceCount()) {
-            mvprintw(row, col, "%-18s: %s", "DEVICE", 
+            mvprintw(row, col, "%-18s: %s", "DEVICE",
                      midi->getDeviceName(currentPort).c_str());
         } else {
             mvprintw(row, col, "%-18s: %s", "DEVICE", "NONE");
         }
-        
-        if (selectedParam == Parameter::MIDI_DEVICE) {
-            attroff(COLOR_PAIR(UIColor::SELECTED));
-            attroff(A_REVERSE);
-        }
         row++;
-        
-        // MIDI Mapping Selection
-        if (selectedParam == Parameter::MIDI_MAPPING) {
-            attron(A_REVERSE);
-            attron(COLOR_PAIR(UIColor::SELECTED));
-        }
-        
+
         MappingManager* mm = midi->getMappingManager();
         if (mm && mm->getMappingCount() > 0) {
-            mvprintw(row, col, "%-18s: %s", "MAPPING", 
+            mvprintw(row, col, "%-18s: %s", "MAPPING",
                      mm->getMappingName(mm->getCurrentMappingIndex()).c_str());
         } else {
             mvprintw(row, col, "%-18s: %s", "MAPPING", "NONE");
         }
-        
-        if (selectedParam == Parameter::MIDI_MAPPING) {
-            attroff(COLOR_PAIR(UIColor::SELECTED));
-            attroff(A_REVERSE);
-        }
         row++;
-        
-        // Device info line
+
         if (midi->getDeviceCount() > 0) {
             mvprintw(row, col, "%-18s: %d devices", "AVAILABLE", midi->getDeviceCount());
         }
         row++;
-        
-        // MIDI Monitor - show last received MIDI message
+
         auto now = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - midi->getLastActivity()).count();
-        
+
         if (elapsed < 2000 && midi->getLastCC() >= 0) {
             int lastCC = midi->getLastCC();
             int lastVal = midi->getLastCCValue();
-            
+
             if (lastCC < 128) {
                 mvprintw(row, col, "%-18s: CC%3d = %3d", "MONITOR", lastCC, lastVal);
             } else if (lastCC < 256) {
@@ -106,25 +74,20 @@ void UIDraw::drawVoiceDisplay(SynthArchitecture* synth) {
     int startRow = UILayout::VOICE_START_ROW;
     int col = UILayout::LEFT_COL;
 
-    // Draw voice monitor header
     attron(A_BOLD);
     mvprintw(startRow, col, "=== VOICE MONITOR ===");
     attroff(A_BOLD);
     startRow++;
 
-    // Get voices
     const auto& voices = synth->getVoices();
     int polyphony = synth->getPolyphony();
 
-    // Draw each voice status
     for (int i = 0; i < polyphony; i++) {
         const auto& voice = voices[i];
         bool isActive = voice->isActive();
         float freq = voice->getFrequency();
         float envelopeLevel = voice->getEnvelopeLevel();
-        // int noteId = voice->getNoteId();  // Remove unused variable or comment out
 
-        // Convert frequency to note name
         const char* noteName = "---";
         for (int n = 0; n < 12; n++) {
             if (std::abs(freq - NOTE_FREQUENCIES[n]) < 1.0f) {
@@ -133,7 +96,6 @@ void UIDraw::drawVoiceDisplay(SynthArchitecture* synth) {
             }
         }
 
-        // Choose color based on voice activity
         if (isActive) {
             attron(COLOR_PAIR(UIColor::STATUS_OK));
             attron(A_BOLD);
@@ -141,41 +103,32 @@ void UIDraw::drawVoiceDisplay(SynthArchitecture* synth) {
             attron(COLOR_PAIR(UIColor::SELECTED));
         }
 
-        // Draw voice box
         mvprintw(startRow + i, col, "Voice %d: ", i + 1);
 
         if (isActive) {
-            // Draw active voice with note info
             printw("[ACTIVE] ");
-            printw("Note: %s ", noteName);
-            printw("(%.1f Hz) ", freq);
-
-            // Draw envelope level bar
-            int levelBar = (int)(envelopeLevel * 10);
-            printw("Env: [");
-            for (int b = 0; b < levelBar; b++) addch('=');
-            for (int b = levelBar; b < 10; b++) addch(' ');
-            printw("] %3d%%", (int)(envelopeLevel * 100));
+            attron(COLOR_PAIR(UIColor::STATUS_OK));
+            printw("%s", noteName);
+            attroff(COLOR_PAIR(UIColor::STATUS_OK));
+            printw(" %5.1fHz", freq);
+            int envBar = static_cast<int>(envelopeLevel * 10);
+            printw(" [");
+            for (int j = 0; j < envBar; j++) addch('|');
+            for (int j = envBar; j < 10; j++) addch(' ');
+            printw("]");
         } else {
-            // Draw inactive voice
-            printw("[IDLE]   ---");
+            printw("[INACTIVE]");
         }
-
+        
         if (isActive) {
             attroff(A_BOLD);
-            attroff(COLOR_PAIR(UIColor::STATUS_OK));
-        } else {
-            attroff(COLOR_PAIR(UIColor::SELECTED));
         }
     }
 
-    // Draw voice usage summary
     int activeCount = 0;
     for (int i = 0; i < polyphony; i++) {
         if (voices[i]->isActive()) activeCount++;
     }
-
-    startRow += polyphony + 1;
     attron(A_BOLD);
     mvprintw(startRow, col, "Active Voices: %d / %d", activeCount, polyphony);
     attroff(A_BOLD);
@@ -199,298 +152,6 @@ void UIDraw::drawStatus(SynthArchitecture* synth) {
     attroff(A_REVERSE);
 }
 
-void UIDraw::drawFilterSection(SynthArchitecture* synth, Parameter selectedParam) {
-    int row = UILayout::FILTER_SECTION_ROW;
-    int col = UILayout::LEFT_COL;
-    
-    attron(A_BOLD);
-    mvprintw(row, col, "=== FILTER SECTION ===");
-    attroff(A_BOLD);
-    row++;
-    
-    // Polyphony
-    if (selectedParam == Parameter::POLYPHONY) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %2d voices", "POLYPHONY", synth->getPolyphony());
-    if (selectedParam == Parameter::POLYPHONY) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    // Filter Type
-    if (selectedParam == Parameter::FILTER_TYPE) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %-15s", "FILTER TYPE", UIParameters::getFilterTypeName(synth));
-    if (selectedParam == Parameter::FILTER_TYPE) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    // Cutoff
-    float cutoff = synth->getCutoff();
-    if (selectedParam == Parameter::CUTOFF) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %7.1f Hz", "CUTOFF", cutoff);
-    if (selectedParam == Parameter::CUTOFF) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    // Cutoff bar
-    int cutoffBar = (int)((cutoff / 8000.0f) * 30);
-    if (cutoffBar > 30) cutoffBar = 30;
-    mvprintw(row, col + 2, "[");
-    for (int i = 0; i < cutoffBar; i++) addch('=');
-    for (int i = cutoffBar; i < 30; i++) addch(' ');
-    mvprintw(row, col + 34, "]");
-    row++;
-    
-    // Resonance
-    float resonance = synth->getResonance();
-    if (selectedParam == Parameter::RESONANCE) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %5.2f", "RESONANCE", resonance);
-    if (selectedParam == Parameter::RESONANCE) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    // HPF Frequency
-    float hpfFreq = synth->getHPFCutoff();
-    if (selectedParam == Parameter::HPF_FREQ) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %5.0f Hz", "HPF FREQ", hpfFreq);
-    if (selectedParam == Parameter::HPF_FREQ) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    // Resonance bar
-    int resBar = (int)(resonance * 30);
-    mvprintw(row, col + 2, "{");
-    for (int i = 0; i < resBar; i++) addch('#');
-    for (int i = resBar; i < 30; i++) addch(' ');
-    mvprintw(row, col + 34, "}");
-    row++;
-    
-    // Filter Envelope Amount
-    float filterEnvAmount = synth->getFilterEnvelopeAmount();
-    if (selectedParam == Parameter::FILTER_ENV_AMOUNT) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %5.2f", "FILTER ENV AMOUNT", filterEnvAmount);
-    if (selectedParam == Parameter::FILTER_ENV_AMOUNT) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    int envAmountBar = (int)(filterEnvAmount * 30);
-    mvprintw(row, col + 2, "(");
-    for (int i = 0; i < envAmountBar; i++) addch('*');
-    for (int i = envAmountBar; i < 30; i++) addch(' ');
-    mvprintw(row, col + 34, ")");
-}
-
-void UIDraw::drawAmplitudeEnvelopeSection(SynthArchitecture* synth, Parameter selectedParam) {
-    int row = UILayout::AMP_ENV_SECTION_ROW;
-    int col = UILayout::LEFT_COL;
-    
-    attron(A_BOLD);
-    mvprintw(row, col, "=== AMPLITUDE ENVELOPE ===");
-    attroff(A_BOLD);
-    row++;
-    
-    float attack = synth->getAmpAttack();
-    float decay = synth->getAmpDecay();
-    float sustain = synth->getAmpSustain();
-    float release = synth->getAmpRelease();
-    
-    if (selectedParam == Parameter::AMP_ATTACK) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %5.2f", "ATTACK", attack);
-    if (selectedParam == Parameter::AMP_ATTACK) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    if (selectedParam == Parameter::AMP_DECAY) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %5.2f", "DECAY", decay);
-    if (selectedParam == Parameter::AMP_DECAY) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    if (selectedParam == Parameter::AMP_SUSTAIN) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %5.2f", "SUSTAIN", sustain);
-    if (selectedParam == Parameter::AMP_SUSTAIN) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    if (selectedParam == Parameter::AMP_RELEASE) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %5.2f", "RELEASE", release);
-    if (selectedParam == Parameter::AMP_RELEASE) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    // AMP ENV CURVE - This was missing!
-    const char* curveName = UIParameters::getCurveName(synth->getAmpEnvelopeCurve());
-    if (selectedParam == Parameter::AMP_ENV_CURVE) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %-15s", "CURVE", curveName);
-    if (selectedParam == Parameter::AMP_ENV_CURVE) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-}
-
-void UIDraw::drawFilterEnvelopeSection(SynthArchitecture* synth, Parameter selectedParam) {
-    int row = UILayout::FILTER_ENV_SECTION_ROW;
-    int col = UILayout::LEFT_COL;
-    
-    attron(A_BOLD);
-    mvprintw(row, col, "=== FILTER ENVELOPE ===");
-    attroff(A_BOLD);
-    row++;
-    
-    float attack = synth->getFilterAttack();
-    float decay = synth->getFilterDecay();
-    float sustain = synth->getFilterSustain();
-    float release = synth->getFilterRelease();
-    
-    if (selectedParam == Parameter::FILTER_ATTACK) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %5.2f", "ATTACK", attack);
-    if (selectedParam == Parameter::FILTER_ATTACK) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    if (selectedParam == Parameter::FILTER_DECAY) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %5.2f", "DECAY", decay);
-    if (selectedParam == Parameter::FILTER_DECAY) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    if (selectedParam == Parameter::FILTER_SUSTAIN) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %5.2f", "SUSTAIN", sustain);
-    if (selectedParam == Parameter::FILTER_SUSTAIN) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    if (selectedParam == Parameter::FILTER_RELEASE) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %5.2f", "RELEASE", release);
-    if (selectedParam == Parameter::FILTER_RELEASE) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    // FILTER ENV CURVE - This was missing!
-    const char* curveName = UIParameters::getCurveName(synth->getFilterEnvelopeCurve());
-    if (selectedParam == Parameter::FILTER_ENV_CURVE) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-20s: %-15s", "CURVE", curveName);
-    if (selectedParam == Parameter::FILTER_ENV_CURVE) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-}
-
-void UIDraw::drawOscillatorSection(SynthArchitecture* synth, Parameter selectedParam) {
-    int row = UILayout::OSCILLATOR_SECTION_ROW;
-    int col = UILayout::RIGHT_COL;
-    
-    attron(A_BOLD);
-    mvprintw(row, col, "=== OSCILLATOR ===");
-    attroff(A_BOLD);
-    row++;
-    
-    if (selectedParam == Parameter::WAVEFORM) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-18s: %-10s", "WAVEFORM", UIParameters::getWaveformName(synth));
-    if (selectedParam == Parameter::WAVEFORM) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    if (selectedParam == Parameter::OSC_MIX) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-18s: %5.2f", "OSC MIX", synth->getOscMix());
-    if (selectedParam == Parameter::OSC_MIX) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-    row++;
-    
-    if (selectedParam == Parameter::OSC2_DETUNE) {
-        attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
-    }
-    mvprintw(row, col, "%-18s: %+5.2f st", "OSC2 DETUNE", synth->getOsc2Detune());
-    if (selectedParam == Parameter::OSC2_DETUNE) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
-        attroff(A_REVERSE);
-    }
-}
 
 void UIDraw::drawPresetSection(SynthArchitecture* synth, Parameter selectedParam) {
     int row = UILayout::PRESET_SECTION_ROW;
@@ -530,221 +191,238 @@ void UIDraw::drawPresetSection(SynthArchitecture* synth, Parameter selectedParam
 }
 
 void UIDraw::drawDelaySection(SynthArchitecture* synth, Parameter selectedParam) {
-    int row = UILayout::DELAY_SECTION_ROW;
+    int row = UILayout::DELAY_ROW;
     int col = UILayout::RIGHT_COL;
-    
+
     attron(A_BOLD);
+    attron(COLOR_PAIR(UIColor::SECTION_HEADER));
     mvprintw(row, col, "=== DELAY ===");
+    attroff(COLOR_PAIR(UIColor::SECTION_HEADER));
     attroff(A_BOLD);
     row++;
-    
+
     if (selectedParam == Parameter::DELAY_ENABLE) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %s", "ENABLE", UIParameters::getBoolText(synth->getDelay()->isEnabled()));
+    mvprintw(row, col, "%-14s: %-4s", "ENABLE", UIParameters::getBoolText(synth->getDelay()->isEnabled()));
     if (selectedParam == Parameter::DELAY_ENABLE) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
     row++;
-    
+
     if (selectedParam == Parameter::DELAY_TIME) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %5.1f ms", "TIME", synth->getDelay()->getDelayTime());
+    mvprintw(row, col, "%-14s: %5.0fms", "TIME", synth->getDelay()->getDelayTime());
     if (selectedParam == Parameter::DELAY_TIME) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
     row++;
-    
+
     if (selectedParam == Parameter::DELAY_FEEDBACK) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %5.2f", "FEEDBACK", synth->getDelay()->getFeedback());
+    float fb = synth->getDelay()->getFeedback();
+    int fbBar = static_cast<int>(fb * 16);
+    mvprintw(row, col, "%-14s: [", "FB");
+    for (int i = 0; i < fbBar; i++) addch('=');
+    for (int i = fbBar; i < 16; i++) addch(' ');
+    printw("] %4.2f", fb);
     if (selectedParam == Parameter::DELAY_FEEDBACK) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
     row++;
-    
+
     if (selectedParam == Parameter::DELAY_MIX) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %5.2f", "MIX", synth->getDelay()->getMix());
+    float mix = synth->getDelay()->getMix();
+    int mixBar = static_cast<int>(mix * 16);
+    mvprintw(row, col, "%-14s: [", "MIX");
+    for (int i = 0; i < mixBar; i++) addch('=');
+    for (int i = mixBar; i < 16; i++) addch(' ');
+    printw("] %4.2f", mix);
     if (selectedParam == Parameter::DELAY_MIX) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
 }
 
 void UIDraw::drawReverbSection(SynthArchitecture* synth, Parameter selectedParam) {
-    int row = UILayout::REVERB_SECTION_ROW;
+    int row = UILayout::REVERB_ROW;
     int col = UILayout::RIGHT_COL;
-    
+
     attron(A_BOLD);
+    attron(COLOR_PAIR(UIColor::SECTION_HEADER));
     mvprintw(row, col, "=== REVERB ===");
+    attroff(COLOR_PAIR(UIColor::SECTION_HEADER));
     attroff(A_BOLD);
     row++;
-    
+
     if (selectedParam == Parameter::REVERB_ENABLE) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %s", "ENABLE", UIParameters::getBoolText(synth->getReverb()->isEnabled()));
+    mvprintw(row, col, "%-14s: %-4s", "ENABLE", UIParameters::getBoolText(synth->getReverb()->isEnabled()));
     if (selectedParam == Parameter::REVERB_ENABLE) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
     row++;
-    
+
     if (selectedParam == Parameter::REVERB_DECAY) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %5.2f", "DECAY", synth->getReverb()->getDecay());
+    float dec = synth->getReverb()->getDecay();
+    int decBar = static_cast<int>(dec * 16);
+    mvprintw(row, col, "%-14s: [", "DECAY");
+    for (int i = 0; i < decBar; i++) addch('=');
+    for (int i = decBar; i < 16; i++) addch(' ');
+    printw("] %4.2f", dec);
     if (selectedParam == Parameter::REVERB_DECAY) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
     row++;
-    
+
     if (selectedParam == Parameter::REVERB_MIX) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %5.2f", "MIX", synth->getReverb()->getMix());
+    float mix = synth->getReverb()->getMix();
+    int mixBar = static_cast<int>(mix * 16);
+    mvprintw(row, col, "%-14s: [", "MIX");
+    for (int i = 0; i < mixBar; i++) addch('=');
+    for (int i = mixBar; i < 16; i++) addch(' ');
+    printw("] %4.2f", mix);
     if (selectedParam == Parameter::REVERB_MIX) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
 }
 
 void UIDraw::drawChorusSection(SynthArchitecture* synth, Parameter selectedParam) {
-    int row = UILayout::CHORUS_SECTION_ROW;
+    int row = UILayout::CHORUS_ROW;
     int col = UILayout::RIGHT_COL;
-    
+
     attron(A_BOLD);
+    attron(COLOR_PAIR(UIColor::SECTION_HEADER));
     mvprintw(row, col, "=== CHORUS ===");
+    attroff(COLOR_PAIR(UIColor::SECTION_HEADER));
     attroff(A_BOLD);
     row++;
-    
+
     if (selectedParam == Parameter::CHORUS_ENABLE) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %s", "ENABLE", UIParameters::getBoolText(synth->getChorus()->isEnabled()));
+    mvprintw(row, col, "%-14s: %-4s", "ENABLE", UIParameters::getBoolText(synth->getChorus()->isEnabled()));
     if (selectedParam == Parameter::CHORUS_ENABLE) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
     row++;
-    
+
     if (selectedParam == Parameter::CHORUS_DEPTH) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %5.2f", "DEPTH", synth->getChorus()->getDepth());
+    float depth = synth->getChorus()->getDepth();
+    int depthBar = static_cast<int>(depth * 16);
+    mvprintw(row, col, "%-14s: [", "DEPTH");
+    for (int i = 0; i < depthBar; i++) addch('=');
+    for (int i = depthBar; i < 16; i++) addch(' ');
+    printw("] %4.2f", depth);
     if (selectedParam == Parameter::CHORUS_DEPTH) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
     row++;
-    
+
     if (selectedParam == Parameter::CHORUS_RATE) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %5.2f Hz", "RATE", synth->getChorus()->getRate());
+    mvprintw(row, col, "%-14s: %4.1fHz", "RATE", synth->getChorus()->getRate());
     if (selectedParam == Parameter::CHORUS_RATE) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
     row++;
-    
+
     if (selectedParam == Parameter::CHORUS_MIX) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %5.2f", "MIX", synth->getChorus()->getMix());
+    float mix = synth->getChorus()->getMix();
+    int mixBar = static_cast<int>(mix * 16);
+    mvprintw(row, col, "%-14s: [", "MIX");
+    for (int i = 0; i < mixBar; i++) addch('=');
+    for (int i = mixBar; i < 16; i++) addch(' ');
+    printw("] %4.2f", mix);
     if (selectedParam == Parameter::CHORUS_MIX) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
 }
 
 void UIDraw::drawDistortionSection(SynthArchitecture* synth, Parameter selectedParam) {
-    int row = UILayout::DISTORTION_SECTION_ROW;
+    int row = UILayout::DISTORTION_ROW;
     int col = UILayout::RIGHT_COL;
-    
+
     attron(A_BOLD);
+    attron(COLOR_PAIR(UIColor::SECTION_HEADER));
     mvprintw(row, col, "=== DISTORTION ===");
+    attroff(COLOR_PAIR(UIColor::SECTION_HEADER));
     attroff(A_BOLD);
     row++;
-    
+
     if (selectedParam == Parameter::DISTORTION_ENABLE) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %s", "ENABLE", UIParameters::getBoolText(synth->getDistortion()->isEnabled()));
+    mvprintw(row, col, "%-14s: %-4s", "ENABLE", UIParameters::getBoolText(synth->getDistortion()->isEnabled()));
     if (selectedParam == Parameter::DISTORTION_ENABLE) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
     row++;
-    
+
     if (selectedParam == Parameter::DISTORTION_DRIVE) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %5.2f", "DRIVE", synth->getDistortion()->getDrive());
+    float drive = synth->getDistortion()->getDrive();
+    int driveBar = static_cast<int>(drive * 16);
+    mvprintw(row, col, "%-14s: [", "DRIVE");
+    for (int i = 0; i < driveBar; i++) addch('=');
+    for (int i = driveBar; i < 16; i++) addch(' ');
+    printw("] %4.2f", drive);
     if (selectedParam == Parameter::DISTORTION_DRIVE) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
     row++;
-    
+
     if (selectedParam == Parameter::DISTORTION_MIX) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %5.2f", "MIX", synth->getDistortion()->getMix());
+    float mix = synth->getDistortion()->getMix();
+    int mixBar = static_cast<int>(mix * 16);
+    mvprintw(row, col, "%-14s: [", "MIX");
+    for (int i = 0; i < mixBar; i++) addch('=');
+    for (int i = mixBar; i < 16; i++) addch(' ');
+    printw("] %4.2f", mix);
     if (selectedParam == Parameter::DISTORTION_MIX) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
         attroff(A_REVERSE);
     }
 }
 
 void UIDraw::drawMasterSection(SynthArchitecture* synth, Parameter selectedParam) {
-    int row = UILayout::MASTER_SECTION_ROW;
+    int row = UILayout::MASTER_ROW;
     int col = UILayout::RIGHT_COL;
-    
+
     attron(A_BOLD);
+    attron(COLOR_PAIR(UIColor::SECTION_HEADER));
     mvprintw(row, col, "=== MASTER ===");
+    attroff(COLOR_PAIR(UIColor::SECTION_HEADER));
     attroff(A_BOLD);
     row++;
-    
+
     float volume = synth->getVolume();
-    if (selectedParam == Parameter::VOLUME) {
+    if (selectedParam == Parameter::MASTER_VOLUME) {
         attron(A_REVERSE);
-        attron(COLOR_PAIR(UIColor::SELECTED));
     }
-    mvprintw(row, col, "%-18s: %5.2f", "VOLUME", volume);
-    if (selectedParam == Parameter::VOLUME) {
-        attroff(COLOR_PAIR(UIColor::SELECTED));
+    int volBar = static_cast<int>(volume * 16);
+    mvprintw(row, col, "%-14s: [", "VOLUME");
+    for (int i = 0; i < volBar; i++) addch('=');
+    for (int i = volBar; i < 16; i++) addch(' ');
+    printw("] %3d%%", static_cast<int>(volume * 100));
+    if (selectedParam == Parameter::MASTER_VOLUME) {
         attroff(A_REVERSE);
     }
-    row++;
-    
-    int volBar = (int)(volume * 25);
-    mvprintw(row, col + 2, "|");
-    for (int i = 0; i < volBar; i++) addch('|');
-    for (int i = volBar; i < 25; i++) addch(' ');
-    mvprintw(row, col + 29, "|");
 }
 
 void UIDraw::drawKeyboard() {
@@ -756,7 +434,6 @@ void UIDraw::drawKeyboard() {
     row++;
     mvprintw(row, 2, "  C   C#  D   D#  E   F   F#  G   G#  A   A#  B");
     
-    // Add note: Press ESC to clear all notes
     row += 2;
     mvprintw(row, 2, "Press ESC to stop all playing notes");
 }
@@ -816,7 +493,6 @@ void UIDraw::drawPresetBrowser(SynthArchitecture* synth, int selectedIndex, cons
     int startY = (LINES - height) / 2;
     int startX = (COLS - width) / 2;
     
-    // Draw border
     attron(A_BOLD);
     mvprintw(startY, startX, "+------------------------------------------------+");
     for (int i = 1; i < height - 1; i++) {
@@ -826,38 +502,450 @@ void UIDraw::drawPresetBrowser(SynthArchitecture* synth, int selectedIndex, cons
     mvprintw(startY + height - 1, startX, "+------------------------------------------------+");
     attroff(A_BOLD);
     
-    // Title
     if (isSaving) {
         attron(A_BOLD);
         mvprintw(startY + 1, startX + 15, " SAVE PRESET ");
         attroff(A_BOLD);
         mvprintw(startY + 3, startX + 2, "Name: %s", saveName.c_str());
-        mvprintw(startY + 4, startX + 2, "[Enter] to save, [Esc] to cancel");
     } else {
         attron(A_BOLD);
         mvprintw(startY + 1, startX + 15, " PRESET BROWSER ");
         attroff(A_BOLD);
         
-        // Draw preset list
         PresetManager* pm = synth->getPresetManager();
-        int presetCount = pm->getPresetCount();
-        int displayCount = std::min(presetCount, 15);
-        
-        for (int i = 0; i < displayCount; i++) {
-            int y = startY + 3 + i;
-            if (i == selectedIndex) {
-                attron(A_REVERSE);
-                attron(COLOR_PAIR(UIColor::SELECTED));
+        if (pm && pm->exists()) {
+            int presetCount = pm->getPresetCount();
+            int displayStart = std::max(0, selectedIndex - 6);
+            int displayEnd = std::min(presetCount, displayStart + 14);
+            
+            for (int i = displayStart; i < displayEnd; i++) {
+                int row = startY + 3 + (i - displayStart);
+                if (i == selectedIndex) {
+                    attron(A_REVERSE);
+                    attron(COLOR_PAIR(UIColor::SELECTED));
+                }
+                mvprintw(row, startX + 2, "> %-44s", pm->getPresetName(i).c_str());
+                if (i == selectedIndex) {
+                    attroff(COLOR_PAIR(UIColor::SELECTED));
+                    attroff(A_REVERSE);
+                }
             }
-            std::string name = pm->getPresetName(i);
-            if (name.length() > 40) name = name.substr(0, 40);
-            mvprintw(y, startX + 2, "%-40s", name.c_str());
-            if (i == selectedIndex) {
-                attroff(COLOR_PAIR(UIColor::SELECTED));
-                attroff(A_REVERSE);
-            }
+            
+            mvprintw(startY + height - 3, startX + 2, "Preset %d / %d", selectedIndex + 1, presetCount);
+        } else {
+            mvprintw(startY + 3, startX + 2, "No presets available");
         }
-        
-        mvprintw(startY + height - 3, startX + 2, "[Up/Down] Navigate  [l] Load  [s] Save  [n] New  [Esc] Exit");
     }
+    
+    mvprintw(startY + height - 2, startX + 2, "Use Up/Down to select, Enter to load");
+}
+
+void UIDraw::drawOscillatorSection(SynthArchitecture* synth, Parameter selectedParam) {
+    int row = UILayout::OSC_ROW;
+    int col = UILayout::LEFT_COL;
+
+    attron(A_BOLD);
+    attron(COLOR_PAIR(UIColor::SECTION_HEADER));
+    mvprintw(row, col, "=== OSCILLATORS ===");
+    attroff(COLOR_PAIR(UIColor::SECTION_HEADER));
+    attroff(A_BOLD);
+    row++;
+
+    if (selectedParam == Parameter::WAVEFORM) {
+        attron(A_REVERSE);
+    }
+    mvprintw(row, col, "%-14s: %-8s", "OSC 1", UIParameters::getWaveformName(synth));
+    if (selectedParam == Parameter::WAVEFORM) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::OSC_MIX) {
+        attron(A_REVERSE);
+    }
+    float mix = synth->getOscMix();
+    int mixBar = static_cast<int>(mix * 16);
+    mvprintw(row, col, "%-14s: [", "MIX");
+    for (int i = 0; i < mixBar; i++) addch('=');
+    for (int i = mixBar; i < 16; i++) addch(' ');
+    printw("] %3d%%", static_cast<int>(mix * 100));
+    if (selectedParam == Parameter::OSC_MIX) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::OSC2_DETUNE) {
+        attron(A_REVERSE);
+    }
+    float detune = synth->getOsc2Detune();
+    int detuneBar = static_cast<int>((detune + 1.0f) * 8);
+    mvprintw(row, col, "%-14s: [", "DETUNE");
+    for (int i = 0; i < detuneBar; i++) addch('=');
+    for (int i = detuneBar; i < 16; i++) addch(' ');
+    printw("] %+4.1fst", detune * 100.0f);
+    if (selectedParam == Parameter::OSC2_DETUNE) {
+        attroff(A_REVERSE);
+    }
+}
+
+void UIDraw::drawLfoSection(SynthArchitecture* synth, Parameter selectedParam) {
+    (void)synth;
+    int row = UILayout::LFO_ROW;
+    int col = UILayout::LEFT_COL;
+
+    attron(A_BOLD);
+    attron(COLOR_PAIR(UIColor::SECTION_HEADER));
+    mvprintw(row, col, "=== LFO ===");
+    attroff(COLOR_PAIR(UIColor::SECTION_HEADER));
+    attroff(A_BOLD);
+    row++;
+
+    if (selectedParam == Parameter::LFO_WAVEFORM) {
+        attron(A_REVERSE);
+    }
+    mvprintw(row, col, "%-14s: %-8s", "WAVEFORM", "SINE");
+    if (selectedParam == Parameter::LFO_WAVEFORM) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::LFO_FREQUENCY) {
+        attron(A_REVERSE);
+    }
+    mvprintw(row, col, "%-14s: %5.1f Hz", "FREQ", 1.0f);
+    if (selectedParam == Parameter::LFO_FREQUENCY) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::LFO_DEPTH) {
+        attron(A_REVERSE);
+    }
+    float depth = 0.5f;
+    int depthBar = static_cast<int>(depth * 16);
+    mvprintw(row, col, "%-14s: [", "DEPTH");
+    for (int i = 0; i < depthBar; i++) addch('=');
+    for (int i = depthBar; i < 16; i++) addch(' ');
+    printw("] %4.2f", depth);
+    if (selectedParam == Parameter::LFO_DEPTH) {
+        attroff(A_REVERSE);
+    }
+}
+
+void UIDraw::drawFilterSection(SynthArchitecture* synth, Parameter selectedParam) {
+    int row = UILayout::FILTER_ROW;
+    int col = UILayout::CENTER_COL;
+
+    attron(A_BOLD);
+    attron(COLOR_PAIR(UIColor::SECTION_HEADER));
+    mvprintw(row, col, "=== FILTER ===");
+    attroff(COLOR_PAIR(UIColor::SECTION_HEADER));
+    attroff(A_BOLD);
+    row++;
+
+    if (selectedParam == Parameter::FILTER_TYPE) {
+        attron(A_REVERSE);
+    }
+    mvprintw(row, col, "%-14s: %-8s", "TYPE", UIParameters::getFilterTypeName(synth));
+    if (selectedParam == Parameter::FILTER_TYPE) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::CUTOFF) {
+        attron(A_REVERSE);
+    }
+    float cutoff = synth->getCutoff();
+    int cutoffBar = static_cast<int>((cutoff / 20000.0f) * 16);
+    mvprintw(row, col, "%-14s: [", "CUTOFF");
+    for (int i = 0; i < cutoffBar; i++) addch('|');
+    for (int i = cutoffBar; i < 16; i++) addch(' ');
+    printw("] %5.0fHz", cutoff);
+    if (selectedParam == Parameter::CUTOFF) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::RESONANCE) {
+        attron(A_REVERSE);
+    }
+    float res = synth->getResonance();
+    int resBar = static_cast<int>(res * 16);
+    mvprintw(row, col, "%-14s: [", "RESO");
+    for (int i = 0; i < resBar; i++) addch('{');
+    for (int i = resBar; i < 16; i++) addch(' ');
+    printw("] %4.2f", res);
+    if (selectedParam == Parameter::RESONANCE) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::FILTER_ENV_AMOUNT) {
+        attron(A_REVERSE);
+    }
+    float envAmt = synth->getFilterEnvelopeAmount();
+    int envBar = static_cast<int>((envAmt + 1.0f) * 8);
+    mvprintw(row, col, "%-14s: [", "ENV AMT");
+    for (int i = 0; i < envBar; i++) addch('=');
+    for (int i = envBar; i < 16; i++) addch(' ');
+    printw("] %+4.2f", envAmt);
+    if (selectedParam == Parameter::FILTER_ENV_AMOUNT) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::HPF_FREQ) {
+        attron(A_REVERSE);
+    }
+    float hpf = synth->getHPFCutoff();
+    int hpfBar = static_cast<int>((hpf / 5000.0f) * 16);
+    mvprintw(row, col, "%-14s: [", "HPF");
+    for (int i = 0; i < hpfBar; i++) addch('|');
+    for (int i = hpfBar; i < 16; i++) addch(' ');
+    printw("] %4.0fHz", hpf);
+    if (selectedParam == Parameter::HPF_FREQ) {
+        attroff(A_REVERSE);
+    }
+}
+
+void UIDraw::drawAmpEnvelopeSection(SynthArchitecture* synth, Parameter selectedParam) {
+    int row = UILayout::AMP_ENV_ROW;
+    int col = UILayout::RIGHT_COL;
+
+    attron(A_BOLD);
+    attron(COLOR_PAIR(UIColor::SECTION_HEADER));
+    mvprintw(row, col, "=== AMP ENV ===");
+    attroff(COLOR_PAIR(UIColor::SECTION_HEADER));
+    attroff(A_BOLD);
+    row++;
+
+    if (selectedParam == Parameter::AMP_ATTACK) {
+        attron(A_REVERSE);
+    }
+    mvprintw(row, col, "%-14s: %5.3fs", "ATTACK", synth->getAmpAttack());
+    if (selectedParam == Parameter::AMP_ATTACK) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::AMP_DECAY) {
+        attron(A_REVERSE);
+    }
+    mvprintw(row, col, "%-14s: %5.3fs", "DECAY", synth->getAmpDecay());
+    if (selectedParam == Parameter::AMP_DECAY) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::AMP_SUSTAIN) {
+        attron(A_REVERSE);
+    }
+    float sustain = synth->getAmpSustain();
+    int susBar = static_cast<int>(sustain * 16);
+    mvprintw(row, col, "%-14s: [", "SUSTAIN");
+    for (int i = 0; i < susBar; i++) addch('=');
+    for (int i = susBar; i < 16; i++) addch(' ');
+    printw("] %4.2f", sustain);
+    if (selectedParam == Parameter::AMP_SUSTAIN) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::AMP_RELEASE) {
+        attron(A_REVERSE);
+    }
+    mvprintw(row, col, "%-14s: %5.3fs", "RELEASE", synth->getAmpRelease());
+    if (selectedParam == Parameter::AMP_RELEASE) {
+        attroff(A_REVERSE);
+    }
+}
+
+void UIDraw::drawFilterEnvelopeSection(SynthArchitecture* synth, Parameter selectedParam) {
+    int row = UILayout::FILTER_ENV_ROW;
+    int col = UILayout::CENTER_COL;
+
+    attron(A_BOLD);
+    attron(COLOR_PAIR(UIColor::SECTION_HEADER));
+    mvprintw(row, col, "=== FILTER ENV ===");
+    attroff(COLOR_PAIR(UIColor::SECTION_HEADER));
+    attroff(A_BOLD);
+    row++;
+
+    if (selectedParam == Parameter::FILTER_ATTACK) {
+        attron(A_REVERSE);
+    }
+    mvprintw(row, col, "%-14s: %5.3fs", "ATTACK", synth->getFilterAttack());
+    if (selectedParam == Parameter::FILTER_ATTACK) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::FILTER_DECAY) {
+        attron(A_REVERSE);
+    }
+    mvprintw(row, col, "%-14s: %5.3fs", "DECAY", synth->getFilterDecay());
+    if (selectedParam == Parameter::FILTER_DECAY) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::FILTER_SUSTAIN) {
+        attron(A_REVERSE);
+    }
+    float sus = synth->getFilterSustain();
+    int susBar = static_cast<int>(sus * 16);
+    mvprintw(row, col, "%-14s: [", "SUSTAIN");
+    for (int i = 0; i < susBar; i++) addch('=');
+    for (int i = susBar; i < 16; i++) addch(' ');
+    printw("] %4.2f", sus);
+    if (selectedParam == Parameter::FILTER_SUSTAIN) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::FILTER_RELEASE) {
+        attron(A_REVERSE);
+    }
+    mvprintw(row, col, "%-14s: %5.3fs", "RELEASE", synth->getFilterRelease());
+    if (selectedParam == Parameter::FILTER_RELEASE) {
+        attroff(A_REVERSE);
+    }
+}
+
+void UIDraw::drawPerformanceSection(SynthArchitecture* synth, Parameter selectedParam) {
+    int row = UILayout::PERFORMANCE_ROW;
+    int col = UILayout::RIGHT_COL;
+
+    attron(A_BOLD);
+    attron(COLOR_PAIR(UIColor::SECTION_HEADER));
+    mvprintw(row, col, "=== PERFORMANCE ===");
+    attroff(COLOR_PAIR(UIColor::SECTION_HEADER));
+    attroff(A_BOLD);
+    row++;
+
+    if (selectedParam == Parameter::POLYPHONY) {
+        attron(A_REVERSE);
+    }
+    int poly = synth->getPolyphony();
+    int polyBar = static_cast<int>((poly / 16.0f) * 16);
+    mvprintw(row, col, "%-14s: [", "POLY");
+    for (int i = 0; i < polyBar; i++) addch('=');
+    for (int i = polyBar; i < 16; i++) addch(' ');
+    printw("] %2d", poly);
+    if (selectedParam == Parameter::POLYPHONY) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::LEGATO) {
+        attron(A_REVERSE);
+    }
+    mvprintw(row, col, "%-14s: %-4s", "LEGATO", "OFF");
+    if (selectedParam == Parameter::LEGATO) {
+        attroff(A_REVERSE);
+    }
+    row++;
+
+    if (selectedParam == Parameter::PORTAMENTO) {
+        attron(A_REVERSE);
+    }
+    float port = 0.0f;
+    int portBar = static_cast<int>(port * 16);
+    mvprintw(row, col, "%-14s: [", "PORTA");
+    for (int i = 0; i < portBar; i++) addch('=');
+    for (int i = portBar; i < 16; i++) addch(' ');
+    printw("] %4.2f", port);
+    if (selectedParam == Parameter::PORTAMENTO) {
+        attroff(A_REVERSE);
+    }
+}
+
+void UIDraw::drawVolumeSection(SynthArchitecture* synth, Parameter selectedParam) {
+    int row = UILayout::VOLUME_ROW;
+    int col = UILayout::LEFT_COL;
+
+    attron(A_BOLD);
+    attron(COLOR_PAIR(UIColor::SECTION_HEADER));
+    mvprintw(row, col, "=== VOLUME ===");
+    attroff(COLOR_PAIR(UIColor::SECTION_HEADER));
+    attroff(A_BOLD);
+    row++;
+
+    if (selectedParam == Parameter::VOLUME) {
+        attron(A_REVERSE);
+    }
+    float volume = synth->getVolume();
+    int volBar = static_cast<int>(volume * 16);
+    mvprintw(row, col, "%-14s: [", "MASTER");
+    for (int i = 0; i < volBar; i++) addch('=');
+    for (int i = volBar; i < 16; i++) addch(' ');
+    printw("] %3d%%", static_cast<int>(volume * 100));
+    if (selectedParam == Parameter::VOLUME) {
+        attroff(A_REVERSE);
+    }
+}
+
+void UIDraw::drawModulationMatrix(SynthArchitecture* synth, Parameter selectedParam) {
+    (void)synth;
+    (void)selectedParam;
+    int row = UILayout::MOD_MATRIX_ROW;
+    int col = UILayout::LEFT_COL;
+
+    attron(A_BOLD);
+    attron(COLOR_PAIR(UIColor::MOD_MATRIX));
+    mvprintw(row, col, "=== MOD MATRIX ===");
+    attroff(COLOR_PAIR(UIColor::MOD_MATRIX));
+    attroff(A_BOLD);
+    row++;
+
+    mvprintw(row, col, "%-10s %-8s %-10s", "SRC", "SCALE", "DEST");
+    row++;
+
+    const char* sources[] = {"LFO 1", "LFO 2", "ENV"};
+    const char* dests[] = {"CUTOFF", "RESO", "MIX"};
+
+    for (int i = 0; i < 2; i++) {
+        mvprintw(row + i, col, "%-10s %-8s %-10s",
+               sources[i], "1.00", dests[i]);
+    }
+}
+
+void UIDraw::drawLegacySections(SynthArchitecture* synth, Parameter selectedParam) {
+    drawPresetSection(synth, selectedParam);
+    drawDelaySection(synth, selectedParam);
+    drawReverbSection(synth, selectedParam);
+    drawChorusSection(synth, selectedParam);
+    drawDistortionSection(synth, selectedParam);
+    drawMasterSection(synth, selectedParam);
+}
+
+void UIDraw::drawHelp() {
+    int height = 20;
+    int width = 60;
+    int startY = (LINES - height) / 2;
+    int startX = (COLS - width) / 2;
+
+    attron(A_BOLD);
+    for (int i = 0; i < width - 2; i++) {
+        mvaddch(startY, startX + i, '-');
+        mvaddch(startY + height - 1, startX + i, '-');
+    }
+    for (int i = 1; i < height - 1; i++) {
+        mvaddch(startY + i, startX, '|');
+        mvaddch(startY + i, startX + width - 1, '|');
+    }
+    attroff(A_BOLD);
+
+    mvprintw(startY + 1, startX + 20, "KEYBOARD CONTROLS");
+    mvprintw(startY + 3, startX + 2, "[Arrow Keys] Navigate parameters");
+    mvprintw(startY + 4, startX + 2, "[PageUp/Down] Increase/decrease value");
+    mvprintw(startY + 5, startX + 2, "[1-9,0]   Set slider 10-100%%");
+    mvprintw(startY + 6, startX + 2, "[A-$,^]   Play notes C4-B4");
+    mvprintw(startY + 7, startX + 2, "[F1]      This help screen");
+    mvprintw(startY + 8, startX + 2, "[F2]      Preset browser");
+    mvprintw(startY + 9, startX + 2, "[F5]      Panic (stop all)");
+    mvprintw(startY + 10, startX + 2, "[ESC]     Release notes");
+    mvprintw(startY + 11, startX + 2, "[Ctrl+C]  Exit program");
+
+    mvprintw(startY + 13, startX + 18, "Press any key to close");
 }

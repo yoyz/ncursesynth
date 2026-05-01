@@ -61,6 +61,8 @@ public:
     MidiMapping* getMapping(int index);
     std::string getMappingName(int index) const;
 
+    MappingEntry getMappingEntry(int cc);
+
     bool applyMapping(SynthArchitecture* synth, int cc, float value);
 };
 

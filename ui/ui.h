@@ -9,7 +9,8 @@
 enum class UIMode {
     NORMAL,
     PRESET_BROWSER,
-    PRESET_SAVE
+    PRESET_SAVE,
+    HELP
 };
 
 class UI {

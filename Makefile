@@ -5,6 +5,19 @@ LDFLAGS = -lncurses -lportaudio -lrtmidi -lasound -lpthread -lm
 TARGET = virtual_synth
 
 SOURCES = main.cpp \
+          machine/NcursesynthMachine.cpp \
+          machine/MachineManager.cpp \
+          machine/PBSynth/PBSynthMachine.cpp \
+          machine/PBSynth/synthengine.cpp \
+          machine/PBSynth/osctab.cpp \
+          machine/PBSynth/lfo.cpp \
+          machine/PBSynth/osc.cpp \
+          machine/PBSynth/envtab.cpp \
+          machine/PBSynth/filter.cpp \
+          machine/PBSynth/coeff.cpp \
+          machine/PBSynth/echo.cpp \
+          machine/PBSynth/env.cpp \
+          machine/PBSynth/lfotab.cpp \
           filters/moog_filter.cpp \
           filters/high_pass_filter.cpp \
           filters/korgms20_filter.cpp \
@@ -25,8 +38,10 @@ SOURCES = main.cpp \
           ui/ui.cpp \
           ui/ui_parameters.cpp \
           ui/ui_draw.cpp \
+          ui/ui_draw_util.cpp \
           ui/ui_input.cpp \
           ui/ui_constants.cpp \
+          ui/pbsynth_ui.cpp \
           midi/midi_input.cpp \
           midi/midi_mapping.cpp
 

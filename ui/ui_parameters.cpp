@@ -6,27 +6,37 @@
 
 const char* UIParameters::getParameterName(Parameter param) {
     switch (param) {
-        case Parameter::POLYPHONY: return "POLYPHONY";
+        case Parameter::WAVEFORM: return "OSC WAVEFORM";
+        case Parameter::OSC_MIX: return "OSC MIX";
+        case Parameter::OSC2_DETUNE: return "OSC2 DETUNE";
+        case Parameter::LFO_WAVEFORM: return "LFO WAVEFORM";
+        case Parameter::LFO_FREQUENCY: return "LFO FREQ";
+        case Parameter::LFO_DEPTH: return "LFO DEPTH";
+        case Parameter::VOLUME: return "VOLUME";
+        case Parameter::MOD_SOURCE_1: return "MOD SOURCE 1";
+        case Parameter::MOD_SCALE_1: return "MOD SCALE 1";
+        case Parameter::MOD_DESTINATION_1: return "MOD DEST 1";
+        case Parameter::MOD_SOURCE_2: return "MOD SOURCE 2";
+        case Parameter::MOD_SCALE_2: return "MOD SCALE 2";
+        case Parameter::MOD_DESTINATION_2: return "MOD DEST 2";
         case Parameter::FILTER_TYPE: return "FILTER TYPE";
         case Parameter::CUTOFF: return "CUTOFF";
         case Parameter::RESONANCE: return "RESONANCE";
-        case Parameter::FILTER_ENV_AMOUNT: return "FILTER ENV AMOUNT";
+        case Parameter::FILTER_ENV_AMOUNT: return "FILTER ENV AMT";
         case Parameter::HPF_FREQ: return "HPF FREQ";
-        case Parameter::AMP_ATTACK: return "AMP ATTACK";
-        case Parameter::AMP_DECAY: return "AMP DECAY";
-        case Parameter::AMP_SUSTAIN: return "AMP SUSTAIN";
-        case Parameter::AMP_RELEASE: return "AMP RELEASE";
-        case Parameter::AMP_ENV_CURVE: return "AMP ENV CURVE";
         case Parameter::FILTER_ATTACK: return "FILTER ATTACK";
         case Parameter::FILTER_DECAY: return "FILTER DECAY";
         case Parameter::FILTER_SUSTAIN: return "FILTER SUSTAIN";
         case Parameter::FILTER_RELEASE: return "FILTER RELEASE";
         case Parameter::FILTER_ENV_CURVE: return "FILTER ENV CURVE";
-        case Parameter::WAVEFORM: return "WAVEFORM";
-        case Parameter::OSC_MIX: return "OSC MIX";
-        case Parameter::OSC2_DETUNE: return "OSC2 DETUNE";
-        case Parameter::PRESET_LOAD: return "LOAD PRESET";
-        case Parameter::PRESET_SAVE: return "SAVE PRESET";
+        case Parameter::POLYPHONY: return "POLYPHONY";
+        case Parameter::LEGATO: return "LEGATO";
+        case Parameter::PORTAMENTO: return "PORTAMENTO";
+        case Parameter::AMP_ATTACK: return "AMP ATTACK";
+        case Parameter::AMP_DECAY: return "AMP DECAY";
+        case Parameter::AMP_SUSTAIN: return "AMP SUSTAIN";
+        case Parameter::AMP_RELEASE: return "AMP RELEASE";
+        case Parameter::AMP_ENV_CURVE: return "AMP ENV CURVE";
         case Parameter::DELAY_ENABLE: return "DELAY ENABLE";
         case Parameter::DELAY_TIME: return "DELAY TIME";
         case Parameter::DELAY_FEEDBACK: return "DELAY FEEDBACK";
@@ -38,13 +48,12 @@ const char* UIParameters::getParameterName(Parameter param) {
         case Parameter::CHORUS_DEPTH: return "CHORUS DEPTH";
         case Parameter::CHORUS_RATE: return "CHORUS RATE";
         case Parameter::CHORUS_MIX: return "CHORUS MIX";
-        case Parameter::DISTORTION_ENABLE: return "DISTORTION ENABLE";
-        case Parameter::DISTORTION_DRIVE: return "DISTORTION DRIVE";
-        case Parameter::DISTORTION_MIX: return "DISTORTION MIX";
-        case Parameter::VOLUME: return "VOLUME";
-        case Parameter::MIDI_ENABLE: return "MIDI ENABLE";
-        case Parameter::MIDI_DEVICE: return "MIDI DEVICE";
-        case Parameter::MIDI_MAPPING: return "MIDI MAPPING";
+        case Parameter::DISTORTION_ENABLE: return "DIST ENABLE";
+        case Parameter::DISTORTION_DRIVE: return "DIST DRIVE";
+        case Parameter::DISTORTION_MIX: return "DIST MIX";
+        case Parameter::MASTER_VOLUME: return "MASTER VOL";
+        case Parameter::PRESET_LOAD: return "LOAD PRESET";
+        case Parameter::PRESET_SAVE: return "SAVE PRESET";
         default: return "UNKNOWN";
     }
 }
@@ -219,46 +228,6 @@ void UIParameters::increaseParameter(SynthArchitecture* synth, Parameter param) 
             }
             break;
         }
-        case Parameter::MIDI_DEVICE: {
-            MidiInput* midi = synth->getMidiInput();
-            if (midi) {
-                int currentDevice = midi->getSelectedPort();
-                int newDevice = currentDevice + 1;
-                if (newDevice >= midi->getDeviceCount()) {
-                    newDevice = -1;
-                }
-                if (newDevice >= 0) {
-                    midi->selectDevice(newDevice);
-                    midi->start();
-                } else {
-                    midi->stop();
-                }
-            }
-            break;
-        }
-        case Parameter::MIDI_MAPPING: {
-            MidiInput* midi = synth->getMidiInput();
-            if (midi) {
-                MappingManager* mm = midi->getMappingManager();
-                if (mm && mm->getMappingCount() > 0) {
-                    int currentIdx = mm->getCurrentMappingIndex();
-                    int newIdx = (currentIdx + 1) % mm->getMappingCount();
-                    mm->setCurrentMapping(newIdx);
-                }
-            }
-            break;
-        }
-        case Parameter::MIDI_ENABLE: {
-            MidiInput* midi = synth->getMidiInput();
-            if (midi) {
-                if (midi->isRunning()) {
-                    midi->stop();
-                } else if (midi->getSelectedPort() >= 0) {
-                    midi->start();
-                }
-            }
-            break;
-        }
         case Parameter::DELAY_ENABLE: {
             synth->getDelay()->setEnabled(!synth->getDelay()->isEnabled());
             break;
@@ -335,10 +304,36 @@ void UIParameters::increaseParameter(SynthArchitecture* synth, Parameter param) 
             synth->getDistortion()->setMix(newVal);
             break;
         }
-        case Parameter::VOLUME: {
+        case Parameter::VOLUME:
+        case Parameter::MASTER_VOLUME: {
             float newVal = synth->getVolume() + 0.02f;
             if (newVal > 1.0f) newVal = 1.0f;
             synth->setVolume(newVal);
+            break;
+        }
+        case Parameter::LFO_WAVEFORM: {
+            break;
+        }
+        case Parameter::LFO_FREQUENCY: {
+            break;
+        }
+        case Parameter::LFO_DEPTH: {
+            break;
+        }
+        case Parameter::MOD_SOURCE_1:
+        case Parameter::MOD_DESTINATION_1:
+        case Parameter::MOD_SOURCE_2:
+        case Parameter::MOD_DESTINATION_2: {
+            break;
+        }
+        case Parameter::MOD_SCALE_1:
+        case Parameter::MOD_SCALE_2: {
+            break;
+        }
+        case Parameter::LEGATO: {
+            break;
+        }
+        case Parameter::PORTAMENTO: {
             break;
         }
         default: break;
@@ -477,45 +472,6 @@ void UIParameters::decreaseParameter(SynthArchitecture* synth, Parameter param) 
             }
             break;
         }
-        case Parameter::MIDI_DEVICE: {
-            MidiInput* midi = synth->getMidiInput();
-            if (midi) {
-                int currentDevice = midi->getSelectedPort();
-                int newDevice = currentDevice - 1;
-                if (newDevice < -1) newDevice = midi->getDeviceCount() - 1;
-                if (newDevice >= 0) {
-                    midi->selectDevice(newDevice);
-                    midi->start();
-                } else {
-                    midi->stop();
-                }
-            }
-            break;
-        }
-        case Parameter::MIDI_MAPPING: {
-            MidiInput* midi = synth->getMidiInput();
-            if (midi) {
-                MappingManager* mm = midi->getMappingManager();
-                if (mm && mm->getMappingCount() > 0) {
-                    int currentIdx = mm->getCurrentMappingIndex();
-                    int newIdx = currentIdx - 1;
-                    if (newIdx < 0) newIdx = mm->getMappingCount() - 1;
-                    mm->setCurrentMapping(newIdx);
-                }
-            }
-            break;
-        }
-        case Parameter::MIDI_ENABLE: {
-            MidiInput* midi = synth->getMidiInput();
-            if (midi) {
-                if (midi->isRunning()) {
-                    midi->stop();
-                } else if (midi->getSelectedPort() >= 0) {
-                    midi->start();
-                }
-            }
-            break;
-        }
         case Parameter::DELAY_ENABLE: {
             synth->getDelay()->setEnabled(!synth->getDelay()->isEnabled());
             break;
@@ -592,10 +548,36 @@ void UIParameters::decreaseParameter(SynthArchitecture* synth, Parameter param) 
             synth->getDistortion()->setMix(newVal);
             break;
         }
-        case Parameter::VOLUME: {
+        case Parameter::VOLUME:
+        case Parameter::MASTER_VOLUME: {
             float newVal = synth->getVolume() - 0.02f;
             if (newVal < 0.0f) newVal = 0.0f;
             synth->setVolume(newVal);
+            break;
+        }
+        case Parameter::LFO_WAVEFORM: {
+            break;
+        }
+        case Parameter::LFO_FREQUENCY: {
+            break;
+        }
+        case Parameter::LFO_DEPTH: {
+            break;
+        }
+        case Parameter::MOD_SOURCE_1:
+        case Parameter::MOD_DESTINATION_1:
+        case Parameter::MOD_SOURCE_2:
+        case Parameter::MOD_DESTINATION_2: {
+            break;
+        }
+        case Parameter::MOD_SCALE_1:
+        case Parameter::MOD_SCALE_2: {
+            break;
+        }
+        case Parameter::LEGATO: {
+            break;
+        }
+        case Parameter::PORTAMENTO: {
             break;
         }
         default: break;

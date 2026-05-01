@@ -3,8 +3,8 @@
 #include <cstring>
 #include <algorithm>
 
-AudioEngine::AudioEngine(int rate, int frames) 
-    : stream(nullptr), isRunning(false), sampleRate(rate), framesPerBuffer(frames) {
+AudioEngine::AudioEngine(int rate, int frames)
+    : stream(nullptr), synth(nullptr), machine(nullptr), isRunning(false), sampleRate(rate), framesPerBuffer(frames) {
     synth = new SynthArchitecture(8, sampleRate);  // Start with 8 voices
 }
 
@@ -17,17 +17,22 @@ int AudioEngine::audioCallback(const void* inputBuffer, void* outputBuffer,
                               const PaStreamCallbackTimeInfo* timeInfo,
                               PaStreamCallbackFlags statusFlags,
                               void* userData) {
-    
+
     AudioEngine* engine = static_cast<AudioEngine*>(userData);
     float* out = static_cast<float*>(outputBuffer);
-    
-    // Process audio
-    for (unsigned int i = 0; i < framesPerBuffer; i++) {
-        float sample = engine->synth->process();
-        // Soft clipping to prevent harsh distortion
-        out[i] = std::max(-0.95f, std::min(0.95f, sample));
+
+    if (engine->machine) {
+        for (unsigned int i = 0; i < framesPerBuffer; i++) {
+            int32_t sample = engine->machine->tick();
+            out[i] = std::max(-0.95f, std::min(0.95f, sample / 1280.0f));
+        }
+    } else if (engine->synth) {
+        for (unsigned int i = 0; i < framesPerBuffer; i++) {
+            float sample = engine->synth->process();
+            out[i] = std::max(-0.95f, std::min(0.95f, sample));
+        }
     }
-    
+
     return paContinue;
 }
 
@@ -70,6 +75,13 @@ void AudioEngine::stop() {
     if (stream) {
         Pa_StopStream(stream);
         isRunning = false;
+    }
+}
+
+void AudioEngine::setMachine(Machine* m) {
+    machine = m;
+    if (m) {
+        m->init();
     }
 }
 
