@@ -3,8 +3,8 @@
 #include <cmath>
 #include <cstring>
 
-PBSynthUI::PBSynthUI(Machine* mach)
-    : selectedControl(0), machine(mach), screenRows(0), screenCols(0),
+PBSynthUI::PBSynthUI(Machine* mach, MachineManager* mgr)
+    : selectedControl(0), menuSelection(0), engineIndex(0), machine(mach), machineManager(mgr), screenRows(0), screenCols(0),
       lastMidiNote(-1), lastMidiVel(0), midiActivity(false) {
     initControls();
 }
@@ -67,20 +67,46 @@ void PBSynthUI::init() {
     cbreak();
     noecho();
     keypad(stdscr, TRUE);
+    start_color();
     getmaxyx(stdscr, screenRows, screenCols);
 }
 
 void PBSynthUI::draw() {
-    clear();
+    erase();
 
+    // Get engine name from machine
+    std::string engineName = machine ? machine->getName() : "SYNTH";
+    
+    // Menu bar at top (row 2)
+    drawMenuBar();
+
+    // Engine title below menu (row 4)
     attron(A_BOLD);
-    mvprintw(2, 2, "PBSYNTH ENGINE");
+    mvprintw(4, 2, "%s ENGINE", engineName.c_str());
     attroff(A_BOLD);
 
-    // Column headers
-    drawColumnHeader(2, "OSCILLATORS");
-    drawColumnHeader(40, "FILTER");
-    drawColumnHeader(78, "ENVELOPE / LFO");
+    // Column headers (row 6)
+    if (engineName == "PBSynth") {
+        drawColumnHeader(2, "OSCILLATORS");
+        drawColumnHeader(40, "FILTER");
+        drawColumnHeader(78, "ENVELOPE / LFO");
+    } else if (engineName == "Twytch") {
+        drawColumnHeader(2, "OSCILLATORS");
+        drawColumnHeader(40, "FILTER");
+        drawColumnHeader(78, "ENVELOPE / LFO");
+    } else if (engineName == "Cursynth") {
+        drawColumnHeader(2, "OSCILLATORS");
+        drawColumnHeader(40, "FILTER");
+        drawColumnHeader(78, "ENVELOPE / LFO");
+    } else if (engineName == "Ncursesynth") {
+        drawColumnHeader(2, "OSCILLATORS");
+        drawColumnHeader(40, "FILTER");
+        drawColumnHeader(78, "ENVELOPE / LFO");
+    } else {
+        drawColumnHeader(2, "OSCILLATORS");
+        drawColumnHeader(40, "FILTER");
+        drawColumnHeader(78, "ENVELOPE / LFO");
+    }
 
     // Draw controls
     for (size_t i = 0; i < controls.size(); i++) {
@@ -89,7 +115,13 @@ void PBSynthUI::draw() {
 
     // Instructions
     attron(A_DIM);
-    mvprintw(screenRows - 3, 2, "ARROWS: Navigate | 1-9: Set Value | PAGEUP/DOWN: Adjust | Q: Quit");
+    if (menuSelection == 0) {
+        mvprintw(screenRows - 3, 2, "TAB: Menu | ARROWS: Navigate | 1-9: Set Value | PAGEUP/DOWN: Adjust | Q: Quit");
+    } else if (menuSelection == 1) {
+        mvprintw(screenRows - 3, 2, "LEFT/RIGHT: Switch Engine | TAB: Menu | Q: Quit");
+    } else {
+        mvprintw(screenRows - 3, 2, "LEFT/RIGHT: Switch MIDI | TAB: Menu | Q: Quit");
+    }
     attroff(A_DIM);
 
     // MIDI Monitor
@@ -117,9 +149,28 @@ void PBSynthUI::drawMidiMonitor() {
     }
 }
 
+void PBSynthUI::drawMenuBar() {
+    int row = 2;
+    int col = 2;
+    
+    // Highlight menu when selected
+    if (menuSelection == 1) attron(A_REVERSE);
+    mvprintw(row, col, "[ENGINE: %s]", machine ? machine->getName().c_str() : "None");
+    if (menuSelection == 1) attroff(A_REVERSE);
+    
+    if (menuSelection == 2) attron(A_REVERSE);
+    mvprintw(row, col + 25, "[MIDI: None]");
+    if (menuSelection == 2) attroff(A_REVERSE);
+    
+    // Instructions
+    attron(A_DIM);
+    mvprintw(row, col + 50, "(TAB: Menu | ARROWS: Navigate)");
+    attroff(A_DIM);
+}
+
 void PBSynthUI::drawColumnHeader(int col, const char* title) {
     attron(A_BOLD | A_UNDERLINE);
-    mvprintw(4, col, "%s", title);
+    mvprintw(6, col, "%s", title);
     attroff(A_BOLD | A_UNDERLINE);
 }
 
@@ -140,9 +191,12 @@ void PBSynthUI::drawControl(int index, bool selected) {
 }
 
 void PBSynthUI::drawSlider(int row, int col, const char* name, float value, bool selected) {
-    char bar[18];
-    memset(bar, ' ', 16);
-    bar[16] = '\0';
+    char bar[20];
+    char valueStr[20];
+    memset(bar, ' ', 19);
+    bar[19] = '\0';
+    memset(valueStr, ' ', 19);
+    valueStr[19] = '\0';
 
     int filled = (int)(value * 16);
     if (filled > 16) filled = 16;
@@ -151,24 +205,52 @@ void PBSynthUI::drawSlider(int row, int col, const char* name, float value, bool
     bar[0] = '[';
     for (int i = 1; i <= 16; i++) {
         if (i <= filled) {
-            bar[i] = '=';
+            bar[i] = '#';
         } else {
             bar[i] = '-';
         }
     }
     bar[16] = ']';
 
+    snprintf(valueStr, sizeof(valueStr), "%3d%%", (int)(value * 100));
+
     if (selected) {
         attron(A_BOLD);
     }
-    mvprintw(row, col, "%-12s", name);
-    mvprintw(row, col + 13, "%s %3d%%", bar, (int)(value * 100));
+    mvprintw(row, col, "%-11s %-18s %s", name, bar, valueStr);
     if (selected) {
         attroff(A_BOLD);
     }
 }
 
 void PBSynthUI::handleInput(int ch) {
+    // Menu navigation
+    if (ch == '\t') {
+        menuSelection = (menuSelection + 1) % 3;  // 0=params, 1=engine, 2=midi
+        return;
+    }
+    
+    // Handle menu selections
+    if (menuSelection == 1 && machineManager) {
+        switch (ch) {
+            case KEY_LEFT:
+            case KEY_RIGHT:
+                int count = machineManager->getMachineCount();
+                engineIndex = (ch == KEY_LEFT) ? (engineIndex - 1 + count) % count : (engineIndex + 1) % count;
+                machineManager->setCurrentMachine(engineIndex);
+                machine = machineManager->getMachine(engineIndex);
+                initControls();
+                break;
+        }
+        return;
+    }
+    
+    if (menuSelection == 2) {
+        // MIDI device selection - future
+        return;
+    }
+    
+    // Normal parameter navigation
     auto& c = controls[selectedControl];
 
     switch (ch) {

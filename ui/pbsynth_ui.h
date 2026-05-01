@@ -3,8 +3,9 @@
 
 #include <string>
 #include <vector>
-#include <ncurses.h>
+#include <ncursesw/ncurses.h>
 #include "../machine/Machine.h"
+#include "../machine/MachineManager.h"
 
 namespace PBSynthParam {
     enum Osc1 {
@@ -63,8 +64,11 @@ struct PBSynthControl {
 class PBSynthUI {
 private:
     int selectedControl;
+    int menuSelection;  // 0=normal, 1=engine, 2=midi
+    int engineIndex;  // current engine index
     std::vector<PBSynthControl> controls;
     Machine* machine;
+    MachineManager* machineManager;
     int screenRows, screenCols;
 
     std::string midiMonitorText;
@@ -77,9 +81,10 @@ private:
     void drawControl(int index, bool selected);
     void drawSlider(int row, int col, const char* name, float value, bool selected);
     void drawMidiMonitor();
+    void drawMenuBar();
 
 public:
-    PBSynthUI(Machine* mach);
+    PBSynthUI(Machine* mach, MachineManager* mgr = nullptr);
     ~PBSynthUI();
 
     void init();

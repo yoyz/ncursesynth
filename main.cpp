@@ -12,6 +12,8 @@
 #include "machine/MachineManager.h"
 #include "machine/NcursesynthMachine.h"
 #include "machine/PBSynth/PBSynthMachine.h"
+#include "machine/Cursynth/CursynthMachine.h"
+#include "machine/Twytch/TwytchsynthMachine.h"
 #include "ui/pbsynth_ui.h"
 
 std::atomic<bool> running(true);
@@ -19,31 +21,6 @@ std::atomic<bool> running(true);
 void signalHandler(int sig) {
     if (sig == SIGINT) {
         running = false;
-    }
-}
-
-void listMachines(MachineManager& mm) {
-    std::cout << "\nAvailable Synth Engines:\n";
-    std::cout << "-------------------------\n";
-    for (int i = 0; i < mm.getMachineCount(); i++) {
-        std::cout << "  " << (i + 1) << ". " << mm.getMachineName(i) << "\n";
-    }
-    std::cout << "\n";
-}
-
-int selectMachine(MachineManager& mm) {
-    while (true) {
-        std::cout << "Select engine (1-" << mm.getMachineCount() << "): ";
-        int choice;
-        if (!(std::cin >> choice)) {
-            std::cin.clear();
-            std::cin.ignore(10000, '\n');
-            continue;
-        }
-        if (choice >= 1 && choice <= mm.getMachineCount()) {
-            return choice - 1;
-        }
-        std::cout << "Invalid choice.\n";
     }
 }
 
@@ -56,22 +33,20 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    signal(SIGINT, signalHandler);
+signal(SIGINT, signalHandler);
     
-    std::cout << "\n========================================" << std::endl;
-    std::cout << "  VIRTUAL ANALOG SYNTHESIZER v1.0" << std::endl;
-    std::cout << "  with MIDI Support" << std::endl;
-    std::cout << "========================================\n" << std::endl;
-
+    std::cout << "ncursesynth - Virtual Analog Synthesizer\n";
+    std::cout << "TAB: Switch Engine | ARROWS: Navigate Params | Q: Quit\n\n";
+    
     // Create machine manager and register engines
     MachineManager machineManager;
     machineManager.registerMachine(new NcursesynthMachine());
     machineManager.registerMachine(new PBSynthMachine());
+    machineManager.registerMachine(new CursynthMachine(8));
+    machineManager.registerMachine(new TwytchsynthMachine());
 
-    // Let user select engine
-    listMachines(machineManager);
-    int selected = selectMachine(machineManager);
-    machineManager.setCurrentMachine(selected);
+    // Start with first engine, user can switch in UI
+    machineManager.setCurrentMachine(0);
 
     Machine* activeMachine = machineManager.getCurrentMachine();
     std::cout << "Selected engine: " << activeMachine->getName() << "\n" << std::endl;
@@ -107,7 +82,22 @@ int main(int argc, char* argv[]) {
         midiInput.setMappingMachine(pbsynthMachine);
     }
 
-    bool usePBSynthUI = (pbsynthMachine != nullptr);
+    // If using Cursynth, set machine for MIDI
+    CursynthMachine* cursynthMachine = dynamic_cast<CursynthMachine*>(activeMachine);
+    if (cursynthMachine) {
+        midiInput.setMachine(cursynthMachine);
+        midiInput.setMappingMachine(cursynthMachine);
+    }
+
+    // If using Twytch, set machine for MIDI
+    TwytchsynthMachine* twytchMachine = dynamic_cast<TwytchsynthMachine*>(activeMachine);
+    if (twytchMachine) {
+        midiInput.setMachine(twytchMachine);
+        midiInput.setMappingMachine(twytchMachine);
+    }
+
+    // Use PBSynth-style UI for all machines
+    bool usePBSynthUI = (activeMachine != nullptr);
 
     if (midiInput.initialize()) {
         midiInput.listDevices();
@@ -164,19 +154,57 @@ int main(int argc, char* argv[]) {
     std::cout << "Press Ctrl+C to exit\n" << std::endl;
 
     if (usePBSynthUI) {
-        PBSynthUI pui(activeMachine);
+        PBSynthUI pui(activeMachine, &machineManager);
         pui.init();
         pui.draw();
 
         int ch;
+        Machine* lastMachine = activeMachine;
         while ((ch = getch()) != 'q' && ch != 'Q' && ch != 27) {
             if (ch != ERR) {
                 pui.handleInput(ch);
             }
             pui.updateValues();
-
-            if (pbsynthMachine && pbsynthMachine->getKeyOn()) {
-                pui.setMidiNote(pbsynthMachine->getLastNote(), 127);
+            
+            // Get current active machine from manager
+            activeMachine = machineManager.getCurrentMachine();
+            
+            // If machine changed, update audio engine and MIDI
+            if (activeMachine != lastMachine) {
+                audioEngine.setMachine(activeMachine);
+                
+                // Also update MIDI machine
+                PBSynthMachine* pbsynthMachine = dynamic_cast<PBSynthMachine*>(activeMachine);
+                CursynthMachine* cursynthMachine = dynamic_cast<CursynthMachine*>(activeMachine);
+                TwytchsynthMachine* twytchMachine = dynamic_cast<TwytchsynthMachine*>(activeMachine);
+                
+                if (pbsynthMachine) {
+                    midiInput.setMachine(pbsynthMachine);
+                    midiInput.setMappingMachine(pbsynthMachine);
+                } else if (cursynthMachine) {
+                    midiInput.setMachine(cursynthMachine);
+                    midiInput.setMappingMachine(cursynthMachine);
+                } else if (twytchMachine) {
+                    midiInput.setMachine(twytchMachine);
+                    midiInput.setMappingMachine(twytchMachine);
+                }
+                
+                lastMachine = activeMachine;
+            }
+            
+            if (activeMachine) {
+                // Cast and check keyon
+                PBSynthMachine* pbsynthMachine = dynamic_cast<PBSynthMachine*>(activeMachine);
+                CursynthMachine* cursynthMachine = dynamic_cast<CursynthMachine*>(activeMachine);
+                TwytchsynthMachine* twytchMachine = dynamic_cast<TwytchsynthMachine*>(activeMachine);
+                
+                if (pbsynthMachine && pbsynthMachine->getKeyOn()) {
+                    pui.setMidiNote(pbsynthMachine->getLastNote(), 127);
+                } else if (cursynthMachine && cursynthMachine->getKeyOn()) {
+                    pui.setMidiNote(cursynthMachine->getLastNote(), 127);
+                } else if (twytchMachine && twytchMachine->getKeyOn()) {
+                    pui.setMidiNote(twytchMachine->getLastNote(), 127);
+                }
             }
 
             pui.draw();
