@@ -2,7 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
-#include "../synth/synth_architecture.h"
+#include "machine/Ncursesynth/synth/synth_architecture.h"
 
 MidiMapping::MidiMapping(const std::string& mappingName, const std::string& mappingFile)
     : name(mappingName), filename(mappingFile) {}

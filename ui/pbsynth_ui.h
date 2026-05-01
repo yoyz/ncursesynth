@@ -7,15 +7,17 @@
 #include "../machine/Machine.h"
 #include "../machine/MachineManager.h"
 
+class MidiInput;
+
 namespace PBSynthParam {
     enum Osc1 {
-        P_OSC1_WAVEFORM = 0,
+        P_OSC1_WAVEFORM = 20,
         P_OSC1_DETUNE = 74,
         P_OSC1_SCALE = 65,
         P_OSC1_AMP = 31
     };
     enum Osc2 {
-        P_OSC2_WAVEFORM = 1,
+        P_OSC2_WAVEFORM = 21,
         P_OSC2_DETUNE = 75,
         P_OSC2_SCALE = 66,
         P_OSC2_AMP = 32
@@ -66,9 +68,11 @@ private:
     int selectedControl;
     int menuSelection;  // 0=normal, 1=engine, 2=midi
     int engineIndex;  // current engine index
+    int midiDeviceIndex;  // current MIDI device index
     std::vector<PBSynthControl> controls;
     Machine* machine;
     MachineManager* machineManager;
+    MidiInput* midiInput;
     int screenRows, screenCols;
 
     std::string midiMonitorText;
@@ -95,6 +99,7 @@ public:
     bool isActive() const { return true; }
 
     void setControlValue(int paramId, float value);
+    void setMidiInput(MidiInput* midi) { midiInput = midi; }
 };
 
 #endif

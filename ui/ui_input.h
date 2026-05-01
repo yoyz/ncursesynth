@@ -1,7 +1,7 @@
 #ifndef UI_INPUT_H
 #define UI_INPUT_H
 
-#include "../synth/synth_architecture.h"
+#include "machine/Ncursesynth/synth/synth_architecture.h"
 #include "ui_parameters.h"
 
 namespace UIInput {

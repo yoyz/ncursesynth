@@ -5,7 +5,7 @@
 #define SAM 64
 
 TwytchsynthMachine::TwytchsynthMachine()
-    : engine(nullptr), cutoff(125), resonance(10),
+    : engine(nullptr), cutoff(125), resonance(10), amp_volume(64),
       trig_time_mode(0), trig_time_duration(0), trig_time_duration_sample(0)
 {
     setName("Twytch");
@@ -61,6 +61,15 @@ void TwytchsynthMachine::init()
     engine->setBufferSize(SAM);
     engine->setSampleRate(DEFAULTFREQ);
 
+    // Initialize engine controls
+    auto controls = engine->getControls();
+    if (controls.count("polyphony")) controls.at("polyphony")->set(8);
+    if (controls.count("filter_on")) controls.at("filter_on")->set(1);
+    if (controls.count("osc_1_tune")) controls.at("osc_1_tune")->set(0);
+    if (controls.count("osc_2_tune")) controls.at("osc_2_tune")->set(0);
+    if (controls.count("cutoff")) controls.at("cutoff")->set(80.0);  // Default cutoff
+    if (controls.count("resonance")) controls.at("resonance")->set(0.0);
+
     note = 60;
 }
 
@@ -100,7 +109,7 @@ int TwytchsynthMachine::getI(int what)
     if (what == OSC12_MIX) return osc12_mix;
     if (what == LFO1_FREQ) return (int)(lfo1_freq * 127);
     if (what == LFO2_FREQ) return (int)(lfo2_freq * 127);
-    if (what == AMP) return 64;
+    if (what == AMP) return amp_volume;
 
     return 0;
 }
@@ -212,22 +221,34 @@ void TwytchsynthMachine::setI(int what, int val)
 
     if (what == FILTER1_CUTOFF) {
         filter1_cutoff = val;
+        if (midiDebug_) std::cerr << ">>> Twytch FILTER1_CUTOFF: val=" << val << " f_val=" << f_val << std::endl;
         auto controls = engine->getControls();
         
-        // Kill filter envelope to prevent it from overriding
-        if (controls.count("fil_env_depth")) {
-            controls.at("fil_env_depth")->set(-128.0f);
-        }
-        
         if (controls.count("cutoff")) {
-            controls.at("cutoff")->set(f_val * 128.0f);
+            double newVal = 28.0 + f_val * 99.0;
+            if (midiDebug_) std::cerr << "    Setting cutoff to " << newVal << std::endl;
+            controls.at("cutoff")->set(newVal);
+        } else {
+            if (midiDebug_) std::cerr << "    ERROR: 'cutoff' control not found!" << std::endl;
         }
     }
     if (what == FILTER1_RESONANCE) {
         filter1_resonance = val;
+        if (midiDebug_) std::cerr << ">>> Twytch FILTER1_RESONANCE: val=" << val << " f_val=" << f_val << std::endl;
         auto controls = engine->getControls();
         if (controls.count("resonance")) {
-            controls.at("resonance")->set(f_val * 10.0f);  // 0-10 range
+            if (midiDebug_) std::cerr << "    Setting resonance to " << f_val << std::endl;
+            controls.at("resonance")->set(f_val);
+        } else {
+            if (midiDebug_) std::cerr << "    ERROR: 'resonance' control not found!" << std::endl;
+        }
+    }
+
+    if (what == ENV1_DEPTH) {
+        auto controls = engine->getControls();
+        if (controls.count("fil_env_depth")) {
+            // fil_env_depth range: -128 to +127 (center is 0)
+            controls.at("fil_env_depth")->set(((f_val * 2.0f) - 1.0f) * 128.0f);
         }
     }
 
@@ -252,6 +273,14 @@ void TwytchsynthMachine::setI(int what, int val)
         note = val;
         if (midiDebug_) std::cerr << "Twytch: NOTE1 set to " << val << std::endl;
     }
+
+    if (what == AMP) {
+        amp_volume = val;
+        auto controls = engine->getControls();
+        if (controls.count("volume")) {
+            controls.at("volume")->set(f_val);
+        }
+    }
 }
 
 
@@ -275,10 +304,13 @@ void TwytchsynthMachine::reset()
 void TwytchsynthMachine::applyCC(int cc, float normalized, const std::string& paramName)
 {
     int val = (int)(normalized * 127.0f);
+    if (midiDebug_) std::cerr << ">>> Twytch applyCC: cc=" << cc << " param=" << paramName << " normalized=" << normalized << " val=" << val << std::endl;
 
     if (paramName == "CUTOFF") {
+        if (midiDebug_) std::cerr << "    -> calling setI(FILTER1_CUTOFF, " << val << ")" << std::endl;
         setI(FILTER1_CUTOFF, val);
     } else if (paramName == "RESONANCE") {
+        if (midiDebug_) std::cerr << "    -> calling setI(FILTER1_RESONANCE, " << val << ")" << std::endl;
         setI(FILTER1_RESONANCE, val);
     } else if (paramName == "FILTER_ENV_AMOUNT") {
         setI(ENV1_DEPTH, val);

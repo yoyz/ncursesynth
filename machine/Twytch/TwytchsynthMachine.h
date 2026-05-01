@@ -117,8 +117,10 @@ class TwytchsynthMachine : public Machine
    int                   filter1_cutoff;
    int                   filter1_resonance;
 
-   float                 lfo1_freq;
-   float                 lfo2_freq;
+float                 lfo1_freq;
+    float                 lfo2_freq;
+
+    int                   amp_volume;
 
 };
 

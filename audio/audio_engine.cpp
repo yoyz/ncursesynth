@@ -2,9 +2,12 @@
 #include <iostream>
 #include <cstring>
 #include <algorithm>
+#include <thread>
 
 AudioEngine::AudioEngine(int rate, int frames)
-    : stream(nullptr), synth(nullptr), machine(nullptr), isRunning(false), sampleRate(rate), framesPerBuffer(frames) {
+    : stream(nullptr), synth(nullptr), machine(nullptr), isRunning(false), switching(false), sampleRate(rate), framesPerBuffer(frames) {
+    machine.store(nullptr);
+    switching.store(false);
     synth = new SynthArchitecture(8, sampleRate);  // Start with 8 voices
 }
 
@@ -21,7 +24,15 @@ int AudioEngine::audioCallback(const void* inputBuffer, void* outputBuffer,
     AudioEngine* engine = static_cast<AudioEngine*>(userData);
     float* out = static_cast<float*>(outputBuffer);
 
-    Machine* machine = engine->machine;
+    // Skip if machine is being switched
+    if (engine->switching.load(std::memory_order_acquire)) {
+        for (unsigned int i = 0; i < framesPerBuffer; i++) {
+            out[i] = 0.0f;
+        }
+        return paContinue;
+    }
+
+    Machine* machine = engine->machine.load(std::memory_order_acquire);
     if (machine) {
         for (unsigned int i = 0; i < framesPerBuffer; i++) {
             int32_t sample = 0;
@@ -91,14 +102,24 @@ void AudioEngine::stop() {
 }
 
 void AudioEngine::setMachine(Machine* m) {
+    // Signal that we're switching - audio thread will output silence
+    switching.store(true, std::memory_order_release);
+    
+    // Small delay to let audio thread notice the flag
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
+    
+    Machine* oldMachine = machine.load(std::memory_order_acquire);
     // Reset the old machine before switching
-    if (machine && machine != m) {
-        machine->reset();
+    if (oldMachine && oldMachine != m) {
+        oldMachine->reset();
     }
-    machine = m;
+    machine.store(m, std::memory_order_release);
     if (m) {
         m->init();
     }
+    
+    // Clear switching flag
+    switching.store(false, std::memory_order_release);
 }
 
 void AudioEngine::shutdown() {

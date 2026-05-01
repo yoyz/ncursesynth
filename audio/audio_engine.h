@@ -3,15 +3,16 @@
 
 #include <atomic>
 #include <portaudio.h>
-#include "synth/synth_architecture.h"
+#include "machine/Ncursesynth/synth/synth_architecture.h"
 #include "machine/Machine.h"
 
 class AudioEngine {
 private:
     PaStream* stream;
     SynthArchitecture* synth;
-    Machine* machine;
+    std::atomic<Machine*> machine;
     std::atomic<bool> isRunning;
+    std::atomic<bool> switching;
     int sampleRate;
     int framesPerBuffer;
 
@@ -30,7 +31,7 @@ public:
     void stop();
     void shutdown();
     SynthArchitecture* getSynth() { return synth; }
-    Machine* getMachine() { return machine; }
+    Machine* getMachine() { return machine.load(); }
     void setMachine(Machine* m);
     bool isActive() const { return isRunning.load(); }
 };

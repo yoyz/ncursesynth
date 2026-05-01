@@ -10,7 +10,7 @@
 #include "ui/ui.h"
 #include "midi/midi_input.h"
 #include "machine/MachineManager.h"
-#include "machine/NcursesynthMachine.h"
+#include "machine/Ncursesynth/NcursesynthMachine.h"
 #include "machine/PBSynth/PBSynthMachine.h"
 #include "machine/Cursynth/CursynthMachine.h"
 #include "machine/Twytch/TwytchsynthMachine.h"
@@ -99,36 +99,10 @@ signal(SIGINT, signalHandler);
     // Use PBSynth-style UI for all machines
     bool usePBSynthUI = (activeMachine != nullptr);
 
+    // Initialize MIDI (device selection is done in UI)
     if (midiInput.initialize()) {
-        midiInput.listDevices();
         midiInput.loadMappings();
-
-        int deviceCount = midiInput.getDeviceCount();
-        if (deviceCount > 0) {
-            std::cout << "\nSelect MIDI input device:\n";
-            std::cout << "  0. None (keyboard only)\n";
-            for (int i = 0; i < deviceCount; i++) {
-                std::cout << "  " << (i+1) << ". " << midiInput.getDeviceName(i) << "\n";
-            }
-            std::cout << "Choice: ";
-
-            int choice;
-            if (std::cin >> choice) {
-                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                if (choice >= 1 && choice <= deviceCount) {
-                    if (midiInput.selectDevice(choice - 1)) {
-                        std::cout << "MIDI device selected.\n" << std::endl;
-                        midiInput.start();
-                    }
-                } else if (choice == 0) {
-                    std::cout << "No MIDI device selected.\n" << std::endl;
-                } else {
-                    std::cout << "Invalid choice.\n" << std::endl;
-                }
-            }
-        } else {
-            std::cout << "No MIDI devices found.\n" << std::endl;
-        }
+        std::cout << "MIDI initialized. Use TAB in UI to select MIDI device.\n" << std::endl;
     } else {
         std::cout << "Failed to initialize MIDI.\n" << std::endl;
     }
@@ -155,6 +129,7 @@ signal(SIGINT, signalHandler);
 
     if (usePBSynthUI) {
         PBSynthUI pui(activeMachine, &machineManager);
+        pui.setMidiInput(&midiInput);
         pui.init();
         pui.draw();
 

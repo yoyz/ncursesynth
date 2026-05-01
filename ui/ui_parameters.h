@@ -1,7 +1,7 @@
 #ifndef UI_PARAMETERS_H
 #define UI_PARAMETERS_H
 
-#include "../synth/synth_architecture.h"
+#include "machine/Ncursesynth/synth/synth_architecture.h"
 
 enum class Parameter {
     // LEFT COLUMN - Oscillator (row 6)

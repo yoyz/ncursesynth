@@ -1,10 +1,11 @@
 #include "pbsynth_ui.h"
 #include "../machine/Machine.h"
+#include "../midi/midi_input.h"
 #include <cmath>
 #include <cstring>
 
 PBSynthUI::PBSynthUI(Machine* mach, MachineManager* mgr)
-    : selectedControl(0), menuSelection(0), engineIndex(0), machine(mach), machineManager(mgr), screenRows(0), screenCols(0),
+    : selectedControl(0), menuSelection(0), engineIndex(0), midiDeviceIndex(-1), machine(mach), machineManager(mgr), midiInput(nullptr), screenRows(0), screenCols(0),
       lastMidiNote(-1), lastMidiVel(0), midiActivity(false) {
     initControls();
 }
@@ -68,6 +69,8 @@ void PBSynthUI::init() {
     noecho();
     keypad(stdscr, TRUE);
     start_color();
+    nodelay(stdscr, TRUE);  // Non-blocking input
+    timeout(50);  // 50ms timeout for getch
     getmaxyx(stdscr, screenRows, screenCols);
 }
 
@@ -159,7 +162,23 @@ void PBSynthUI::drawMenuBar() {
     if (menuSelection == 1) attroff(A_REVERSE);
     
     if (menuSelection == 2) attron(A_REVERSE);
-    mvprintw(row, col + 25, "[MIDI: None]");
+    // Show MIDI device name
+    std::string midiName = "None";
+    if (midiInput && midiDeviceIndex >= 0) {
+        int deviceCount = midiInput->getDeviceCount();
+        // Only call getDeviceName if index is valid
+        if (midiDeviceIndex < deviceCount) {
+            std::string name = midiInput->getDeviceName(midiDeviceIndex);
+            if (!name.empty()) {
+                midiName = name;
+                // Truncate long names
+                if (midiName.length() > 20) {
+                    midiName = midiName.substr(0, 17) + "...";
+                }
+            }
+        }
+    }
+    mvprintw(row, col + 25, "[MIDI: %s]", midiName.c_str());
     if (menuSelection == 2) attroff(A_REVERSE);
     
     // Instructions
@@ -246,7 +265,43 @@ void PBSynthUI::handleInput(int ch) {
     }
     
     if (menuSelection == 2) {
-        // MIDI device selection - future
+        // MIDI device selection
+        if (!midiInput) return;
+        
+        int deviceCount = midiInput->getDeviceCount();
+        
+        switch (ch) {
+            case KEY_LEFT:
+                // Switch to previous device (wrapping around)
+                if (deviceCount > 0) {
+                    midiDeviceIndex = (midiDeviceIndex - 1 + deviceCount + 1) % (deviceCount + 1);
+                    if (midiDeviceIndex == deviceCount) {
+                        // "None" selected
+                        midiInput->stop();
+                        midiInput->selectDevice(-1);
+                    } else {
+                        midiInput->selectDevice(midiDeviceIndex);
+                        midiInput->setMappingMachine(machine);
+                        midiInput->start();
+                    }
+                }
+                break;
+            case KEY_RIGHT:
+                // Switch to next device (wrapping around)
+                if (deviceCount > 0) {
+                    midiDeviceIndex = (midiDeviceIndex + 1) % (deviceCount + 1);
+                    if (midiDeviceIndex == deviceCount) {
+                        // "None" selected
+                        midiInput->stop();
+                        midiInput->selectDevice(-1);
+                    } else {
+                        midiInput->selectDevice(midiDeviceIndex);
+                        midiInput->setMappingMachine(machine);
+                        midiInput->start();
+                    }
+                }
+                break;
+        }
         return;
     }
     

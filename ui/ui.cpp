@@ -5,7 +5,7 @@
 #include "ui_draw.h"
 #include "ui_input.h"
 #include "ui_constants.h"
-#include "../preset/preset_manager.h"
+#include "machine/Ncursesynth/preset/preset_manager.h"
 #include <ncurses.h>
 #include <chrono>
 #include <map>

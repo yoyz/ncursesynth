@@ -3,7 +3,7 @@
 
 #include <atomic>
 #include <thread>
-#include "../synth/synth_architecture.h"
+#include "machine/Ncursesynth/synth/synth_architecture.h"
 #include "ui_parameters.h"
 
 enum class UIMode {

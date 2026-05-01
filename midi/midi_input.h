@@ -8,7 +8,7 @@
 #include <vector>
 #include <string>
 #include <set>
-#include "../synth/synth_architecture.h"
+#include "machine/Ncursesynth/synth/synth_architecture.h"
 #include "../machine/Machine.h"
 #include "midi_mapping.h"
 

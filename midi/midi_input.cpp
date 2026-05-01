@@ -60,6 +60,14 @@ bool MidiInput::selectDevice(int port) {
     if (!initialized || !midiIn) return false;
     
     try {
+        if (port < 0) {
+            // Deselect - close port but keep initialized
+            if (midiIn->isPortOpen()) {
+                midiIn->closePort();
+            }
+            selectedPort = -1;
+            return true;
+        }
         if (port >= 0 && port < static_cast<int>(midiIn->getPortCount())) {
             if (midiIn->isPortOpen()) {
                 midiIn->closePort();

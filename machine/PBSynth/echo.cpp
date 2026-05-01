@@ -100,6 +100,9 @@ void Echo::process(mfloat *in, mfloat *out, int n) {
 	int i;
 	//return;
 
+	if (!buffer || parameters.echoLength <= 0)
+	    return;
+
 	if ((parameters.echoLength - position) <= n)
 	for (i = 0; i < n; i++) {
 		

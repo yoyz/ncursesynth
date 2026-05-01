@@ -5,7 +5,7 @@
 #include "ui_constants.h"
 #include "midi/midi_input.h"
 #include "midi/midi_mapping.h"
-#include "../preset/preset_manager.h"
+#include "machine/Ncursesynth/preset/preset_manager.h"
 #include <ncurses.h>
 
 
