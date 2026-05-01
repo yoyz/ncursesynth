@@ -21,15 +21,27 @@ int AudioEngine::audioCallback(const void* inputBuffer, void* outputBuffer,
     AudioEngine* engine = static_cast<AudioEngine*>(userData);
     float* out = static_cast<float*>(outputBuffer);
 
-    if (engine->machine) {
+    Machine* machine = engine->machine;
+    if (machine) {
         for (unsigned int i = 0; i < framesPerBuffer; i++) {
-            int32_t sample = engine->machine->tick();
+            int32_t sample = 0;
+            try {
+                sample = machine->tick();
+            } catch (...) {
+                // Silently ignore errors to prevent crash
+                sample = 0;
+            }
             out[i] = std::max(-0.95f, std::min(0.95f, sample / 1280.0f));
         }
     } else if (engine->synth) {
         for (unsigned int i = 0; i < framesPerBuffer; i++) {
             float sample = engine->synth->process();
             out[i] = std::max(-0.95f, std::min(0.95f, sample));
+        }
+    } else {
+        // No machine or synth - output silence
+        for (unsigned int i = 0; i < framesPerBuffer; i++) {
+            out[i] = 0.0f;
         }
     }
 
@@ -79,6 +91,10 @@ void AudioEngine::stop() {
 }
 
 void AudioEngine::setMachine(Machine* m) {
+    // Reset the old machine before switching
+    if (machine && machine != m) {
+        machine->reset();
+    }
     machine = m;
     if (m) {
         m->init();
