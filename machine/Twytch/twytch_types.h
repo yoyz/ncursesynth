@@ -65,4 +65,15 @@
 #define TRIG_TIME_DURATION 161
 #endif
 
+#define OSC3_TYPE 22
+#define OSC4_TYPE 23
+#define OSC3_AMP 33
+#define OSC4_AMP 34
+#define OSC1_UNISON 76
+#define OSC2_UNISON 77
+#define OSC1_UNISONDT 78
+#define OSC2_UNISONDT 79
+#define FILTER1_SATURATION 54
+#define FILTER1_FEEDBACK 56
+
 #endif

@@ -145,7 +145,7 @@ void TwytchsynthMachine::setI(int what, int val)
 
     if (what == NOTE_ON && val == 1) {
         if (midiDebug_) std::cerr << ">>> NoteOn TWYTCH NOTE=" << note << std::endl;
-        int adjustedNote = note + osc1_scale - noteShift;
+        int adjustedNote = note - noteShift;
         engine->noteOn(adjustedNote, velocity / 127.0f);
         note_on = 1;
         if (midiDebug_) std::cerr << "  NOTE on -> " << adjustedNote << std::endl;
@@ -153,7 +153,7 @@ void TwytchsynthMachine::setI(int what, int val)
 
     if (what == NOTE_ON && val == 0) {
         if (midiDebug_) std::cerr << ">>> NoteOff TWYTCH NOTE=" << note << std::endl;
-        int adjustedNote = note + osc1_scale - noteShift;
+        int adjustedNote = note - noteShift;
         engine->noteOff(adjustedNote);
         note_on = 0;
         if (midiDebug_) std::cerr << "  NOTE off -> " << adjustedNote << std::endl;
@@ -174,8 +174,22 @@ void TwytchsynthMachine::setI(int what, int val)
         twytchhelmmopo::Value* ctrl = engine->getControl("osc 2 detune");
         if (ctrl) ctrl->set(f_val);
     }
-    if (what == OSC1_SCALE) osc1_scale = val;
-    if (what == OSC2_SCALE) osc2_scale = val;
+    if (what == OSC1_SCALE) {
+        osc1_scale = val;
+        twytchhelmmopo::Value* ctrl = engine->getControl("osc_1_transpose");
+        if (ctrl) {
+            float semitones = (val - 64) / 64.0f * 24.0f;
+            ctrl->set(semitones);
+        }
+    }
+    if (what == OSC2_SCALE) {
+        osc2_scale = val;
+        twytchhelmmopo::Value* ctrl = engine->getControl("osc_2_transpose");
+        if (ctrl) {
+            float semitones = (val - 64) / 64.0f * 24.0f;
+            ctrl->set(semitones);
+        }
+    }
 
     if (what == ADSR_ENV0_ATTACK) {
         adsr_env0_attack = val;

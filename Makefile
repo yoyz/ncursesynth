@@ -41,7 +41,9 @@ SOURCES = main.cpp \
           ui/ui_draw_util.cpp \
           ui/ui_input.cpp \
           ui/ui_constants.cpp \
+          ui/machine_ui.cpp \
           ui/pbsynth_ui.cpp \
+          ui/twytch_ui.cpp \
           midi/midi_input.cpp \
           midi/midi_mapping.cpp \
           machine/Cursynth/CursynthMachine.cpp \

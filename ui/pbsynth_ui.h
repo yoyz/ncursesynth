@@ -1,13 +1,7 @@
 #ifndef PBSYNTH_UI_H
 #define PBSYNTH_UI_H
 
-#include <string>
-#include <vector>
-#include <ncursesw/ncurses.h>
-#include "../machine/Machine.h"
-#include "../machine/MachineManager.h"
-
-class MidiInput;
+#include "machine_ui.h"
 
 namespace PBSynthParam {
     enum Osc1 {
@@ -53,53 +47,25 @@ namespace PBSynthParam {
     };
 }
 
-struct PBSynthControl {
-    std::string name;
-    int param;
-    int row;
-    int col;
-    float value;
-    float minVal;
-    float maxVal;
-};
-
-class PBSynthUI {
+class PBSynthUI : public MachineUI {
 private:
-    int selectedControl;
-    int menuSelection;  // 0=normal, 1=engine, 2=midi
-    int engineIndex;  // current engine index
-    int midiDeviceIndex;  // current MIDI device index
-    std::vector<PBSynthControl> controls;
-    Machine* machine;
-    MachineManager* machineManager;
-    MidiInput* midiInput;
-    int screenRows, screenCols;
-
-    std::string midiMonitorText;
-    int lastMidiNote;
-    int lastMidiVel;
-    bool midiActivity;
-
-    void initControls();
-    void drawColumnHeader(int col, const char* title);
-    void drawControl(int index, bool selected);
-    void drawSlider(int row, int col, const char* name, float value, bool selected);
-    void drawMidiMonitor();
-    void drawMenuBar();
+    void initControls() override;
+    void drawColumnHeader(int col, const char* title) override;
+    void drawControl(int index, bool selected) override;
+    void drawSlider(int row, int col, const char* name, float value, bool selected) override;
+    void updateControlValues() override;
 
 public:
     PBSynthUI(Machine* mach, MachineManager* mgr = nullptr);
     ~PBSynthUI();
 
-    void init();
-    void draw();
-    void handleInput(int ch);
-    void updateValues();
-    void setMidiNote(int note, int vel) { lastMidiNote = note; lastMidiVel = vel; midiActivity = true; }
-    bool isActive() const { return true; }
+    void init() override;
+    void draw() override;
+    void handleInput(int ch) override;
+    void updateValues() override;
 
-    void setControlValue(int paramId, float value);
-    void setMidiInput(MidiInput* midi) { midiInput = midi; }
+    using MachineUI::setMidiNote;
+    using MachineUI::setControlValue;
 };
 
 #endif
