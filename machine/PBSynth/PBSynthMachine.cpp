@@ -7,6 +7,7 @@ PBSynthMachine::PBSynthMachine(int polyphony)
       lfo_depth(0), lfo_depth_shift(20), lfo_speed(0),
       trig_time_mode(0), trig_time_duration(0), trig_time_duration_sample(0)
 {
+    setName("PBSynth");
     DPRINTF("PBSynthMachine::PBSynthMachine()");
     voices.resize(polyphony_);
     buffer_f = nullptr;
