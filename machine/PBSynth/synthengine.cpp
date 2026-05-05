@@ -1,8 +1,10 @@
 #include <stdio.h>
+#include "mytypes.h"
 #include <stdlib.h>
 #include <string.h>
 
 #include "synthengine.h"
+#include "filter.h"
 #include "archdep.h"
 
 SynthEngine::SynthEngine(int samplesPerTick, long max_delaylen) {

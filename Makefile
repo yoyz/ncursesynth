@@ -148,10 +148,13 @@ midi_learn: midi/midi_learn.cpp midi/cc_map.h midi/midi_protocol.h
 midi_client: midi/midi_client.cpp
 	$(CXX) $(CXXFLAGS) -o midi/midi_client midi/midi_client.cpp -lpthread
 
-test: midi/midi_learn midi/midi_client
-	@echo "Build complete. Run:"
-	@echo "  ./midi/midi_learn         (start server in terminal 1)"
-	@echo "  ./midi/midi_client prologue --loop  (start client in terminal 2)"
+.PHONY: midi_learn midi_client
 
-clean_midi:
+test_runner:
+	$(MAKE) -C test test_runner
+
+test: test_runner
+	./test/test_runner --fft --report text
 	rm -f midi/midi_learn midi/midi_client
+
+.PHONY: test_runner test
