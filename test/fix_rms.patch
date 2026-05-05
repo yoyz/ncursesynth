@@ -1,0 +1,14 @@
+--- a/test_runner.cpp
++++ b/test_runner.cpp
+@@ -362,7 +362,14 @@ bool TestRunner::executeVolumeSilenceTest(Machine* machine, bool verbose) {
+     audioDriver_->stop();
+     
+     std::vector<float> audio = audioDriver_->getCapturedData();
+-    float rms = FFTAnalyzer::computeRMS(audio, 48000.0f);
++    float rms = 0.0f;
++    for (const auto& s : audio) {
++        rms += s * s;
++    }
++    rms = std::sqrt(rms / audio.size());
+ 
+     bool passed = rms < 0.001f;
