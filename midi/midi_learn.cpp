@@ -1,0 +1,1037 @@
+/**
+ * MIDI Learn Tool - server
+ * Receives MIDI messages from midi_client via TCP port 8765.
+ * Displays learned entries and lets user assign parameters.
+ *
+ * Usage:
+ *   ./midi/midi_learn [--mapping FILE] [--port NUM] [--show-unknown]
+ *   ./midi/midi_learn --add CC,PARAM,DEF  (repeatable)
+ */
+
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <map>
+#include <vector>
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
+#include <ctime>
+#include <cstdarg>
+#include <unistd.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <signal.h>
+#include <iomanip>
+#include <cerrno>
+#include <climits>
+
+#include "cc_map.h"
+#include "midi_protocol.h"
+#include "../machine/Parameter.h"
+
+#ifdef USE_RTMIDI
+#include <rtmidi/RtMidi.h>
+#endif
+
+#define LEARN_PORT  8765
+
+enum RunMode {
+    MODE_TCP,
+    MODE_MIDI
+};
+
+struct EEntry {
+    int cc;
+    std::string pname;
+    int minVal, maxVal, lastVal, defVal;
+    std::string type;
+    int status; // 0=waiting 1=learned 2=assigned 3=ignored 4=unsure
+    bool isNRPN;
+    int nrpnMSB, nrpnLSB;
+    bool warn;
+    std::string warnMsg;
+    EEntry() : cc(0), minVal(INT_MAX), maxVal(INT_MIN), lastVal(0), defVal(64),
+               type("fader"), status(0), isNRPN(false), nrpnMSB(0), nrpnLSB(0), warn(false) {}
+};
+
+static volatile sig_atomic_t g_quit = false;
+static std::string g_mapfile = "";
+static int g_port = LEARN_PORT;
+static bool g_showUnknown = false;
+static bool g_enableNRPN = false;
+static std::map<int, EEntry> g_entries;
+static std::map<int, std::string> g_csvMapping;
+static RunMode g_mode = MODE_TCP;
+static int g_midiDevice = -1;
+static bool g_listenAllMidi = true;
+static std::string g_csvFile = "";
+static int g_lastCC = -1;
+
+static void signal_handler(int) { g_quit = true; }
+
+static const char* dtypeStr(int mn, int mx) {
+    if (mx < 0) return "waiting";
+    if (mn >= 127) return "momentary";
+    if (mn <= 0 && mx == 127) return "toggle";
+    if (mx - mn <= 10 && (mn == 0 || mx == 127)) return "toggle";
+    return "fader";
+}
+
+static bool isTTY() { return isatty(STDOUT_FILENO) && isatty(STDIN_FILENO); }
+static std::string getParamName(int cc);
+static void showParamMenu();
+static bool assignFromMenu(int idx);
+
+static std::vector<std::string> g_validParams;
+
+static bool hasKey() {
+    fd_set fd; struct timeval tv;
+    FD_ZERO(&fd); FD_SET(STDIN_FILENO, &fd);
+    tv.tv_sec = 0; tv.tv_usec = 0;
+    return select(STDIN_FILENO + 1, &fd, NULL, NULL, &tv) > 0;
+}
+
+static int getKey() {
+    fd_set fd; struct timeval tv;
+    FD_ZERO(&fd); FD_SET(STDIN_FILENO, &fd);
+    tv.tv_sec = 0; tv.tv_usec = 0;
+    if (select(STDIN_FILENO + 1, &fd, NULL, NULL, &tv) <= 0) return -1;
+    char buf[16];
+    ssize_t n = read(STDIN_FILENO, buf, sizeof(buf) - 1);
+    if (n <= 0) return -1;
+    buf[n] = 0;
+    if (buf[0] == 27) return 27;
+    return buf[0];
+}
+
+static void refreshTable(const char* modeStr, int& selEntry, int totalValid) {
+    std::cout << "\033[H";
+    if (!isTTY()) {
+        std::cout << "\n=== MIDI Learn Server (TCP port " << g_port << ") ===" << std::endl;
+    }
+    int sr = selEntry;
+    if (sr < 0 || sr >= totalValid) sr = 0;
+    int i = 0;
+    int row = 5;
+    for (auto it = g_entries.begin(); it != g_entries.end(); ++it, ++i) {
+        const EEntry& e = it->second;
+        if (e.status == 3) continue;
+        const char* t = e.maxVal < 0 ? "waiting" : dtypeStr(e.minVal, e.maxVal);
+        const char* s = "waiting";
+        switch (e.status) {
+            case 0: s = "waiting"; break;
+            case 1: s = "learned"; break;
+            case 2: s = "assigned"; break;
+            case 4: s = "unsure"; break;
+        }
+        std::string csvName = getParamName(e.cc);
+        std::string displayPname = e.pname.empty() ? csvName : e.pname;
+        if (displayPname.size() > 15) displayPname = displayPname.substr(0, 15);
+        std::string act = (e.status == 1 || e.status == 4) ? "[?]" : "";
+        std::cout << ((i == sr) ? "\033[7m " : " " )
+                  << std::setw(3) << (int)e.cc << " "
+                  << "\033[m│" << std::setw(4) << e.lastVal << " "
+                  << "│" << std::setw(5) << e.minVal << " "
+                  << "│" << std::setw(5) << e.maxVal << " "
+                  << "│" << std::setw(8) << t
+                  << " │" << std::setw(8) << s
+                  << " │" << std::setw(15) << displayPname
+                  << "\n";
+        row++;
+        if (row >= 23) break;
+    }
+    std::cout << "\033[m\r\nKeys: q=quit a=save s=save&quit ?=unsure, d=delete" << std::endl;
+    std::cout << "       Enter=assign param, c=CUTOFF r=RESONANCE v=VOLUME" << std::endl;
+    std::cout.flush();
+}
+
+static void saveMappingFile(const std::string& path) {
+    std::ofstream f(path);
+    if (!f.is_open()) {
+        std::cerr << "error: cannot write " << path << std::endl;
+        return;
+    }
+    f << "# MIDI Learn Mapping" << std::endl;
+    f << "# auto-generated by midi_learn tool" << std::endl;
+    f << "# Format: cc,parameter_name,min_val,max_val,default_val" << std::endl;
+    f << std::endl;
+    int n = 0;
+    for (auto it = g_entries.begin(); it != g_entries.end(); ++it) {
+        const EEntry& e = it->second;
+        if (e.status == 3) continue;
+        if (e.warn) f << "# WARNING: " << e.pname << " is not in the known parameter list." << std::endl;
+        if (e.isNRPN) {
+            f << "# NRPN:" << e.nrpnMSB << "/" << e.nrpnLSB;
+            int equiv = nrpnToEquivCC(e.nrpnMSB, e.nrpnLSB);
+            if (equiv >= 0) f << " equivCC=" << equiv;
+            f << std::endl;
+        }
+        f << e.cc << "," << e.pname << "," << e.minVal << "," << e.maxVal << "," << e.defVal << std::endl;
+        n++;
+    }
+    f.close();
+    std::cout << "Saved " << n << " entries to " << path << std::endl;
+}
+
+static void loadMappingFile(const std::string& path) {
+    std::ifstream f(path);
+    if (!f.is_open()) {
+        std::cout << "Note: " << path << " not found (creating fresh entries)" << std::endl;
+        return;
+    }
+    std::string line;
+    while (std::getline(f, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        std::istringstream iss(line);
+        std::string cs, pn, ms, xs, ds;
+        if (std::getline(iss, cs, ',') && std::getline(iss, pn, ',') &&
+            std::getline(iss, ms, ',') && std::getline(iss, xs, ',') && std::getline(iss, ds)) {
+            try {
+                int cc = std::stoi(cs);
+                int mn = std::stoi(ms);
+                int mx = std::stoi(xs);
+                int df = std::stoi(ds);
+                EEntry e;
+                e.cc = cc; e.pname = pn; e.minVal = mn; e.maxVal = mx;
+                e.defVal = df; e.status = 2; e.type = "fader";
+                g_entries[cc] = e;
+            } catch (...) {}
+        }
+    }
+}
+
+static void loadCSVMapping(const std::string& path) {
+    std::ifstream f(path);
+    if (!f.is_open()) {
+        std::cerr << "Warning: CSV file " << path << " not found." << std::endl;
+        return;
+    }
+    std::string line;
+    std::getline(f, line);
+    int lineNum = 0;
+    int loaded = 0;
+    while (std::getline(f, line)) {
+        lineNum++;
+        if (line.empty()) continue;
+        std::vector<std::string> cols;
+        std::string col;
+        std::istringstream iss(line);
+        while (std::getline(iss, col, ',')) {
+            cols.push_back(col);
+        }
+        if (cols.size() < 6) continue;
+        try {
+            if (!cols[5].empty()) {
+                int cc = std::stoi(cols[5]);
+                std::string paramName = cols[3];
+                g_csvMapping[cc] = paramName;
+                loaded++;
+            }
+        } catch (...) {}
+    }
+    std::cout << "Loaded " << loaded << " CC mappings from " << path << std::endl;
+}
+
+static std::string getParamName(int cc) {
+    auto it = g_csvMapping.find(cc);
+    if (it != g_csvMapping.end()) {
+        return it->second;
+    }
+    return "";
+}
+
+static bool loadParamList(const std::string& path) {
+    std::ifstream f(path);
+    if (!f.is_open()) {
+        std::cerr << "Warning: param file " << path << " not found" << std::endl;
+        return false;
+    }
+    std::string line;
+    while (std::getline(f, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        g_validParams.push_back(line);
+    }
+    std::cout << "Loaded " << g_validParams.size() << " parameters from " << path << std::endl;
+    return true;
+}
+
+static void showParamMenu() {
+    if (g_validParams.empty()) {
+        std::cout << "No parameters loaded." << std::endl;
+        return;
+    }
+
+    const int cols = 4;
+    const int colWidth = 22;
+    int rows = (g_validParams.size() + cols - 1) / cols;
+
+    std::cout << "\n=== Select Parameter ===" << std::endl;
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+            int idx = r + c * rows;
+            if (idx < (int)g_validParams.size()) {
+                std::cout << std::setw(3) << (idx + 1) << ". "
+                         << std::setw(colWidth) << std::left << g_validParams[idx] << std::right;
+            }
+        }
+        std::cout << std::endl;
+    }
+    std::cout << "Enter number (0 to cancel): " << std::flush;
+    
+    std::string input;
+    char c;
+    while (read(STDIN_FILENO, &c, 1) == 1) {
+        if (c == '\n' || c == '\r') {
+            break;
+        }
+        if (c == 27) { // ESC
+            std::cout << "\nCancelled." << std::endl;
+            return;
+        }
+        input += c;
+    }
+    
+    if (input.empty()) {
+        std::cout << "\nCancelled." << std::endl;
+        return;
+    }
+    
+    try {
+        int idx = std::stoi(input);
+        if (idx == 0) {
+            std::cout << "Cancelled." << std::endl;
+            return;
+        }
+        assignFromMenu(idx);
+    } catch (...) {
+        std::cout << "Invalid input." << std::endl;
+    }
+}
+
+static void printAssignments() {
+    std::cout << "\n=== Current Assignments ===" << std::endl;
+    std::cout << "CC    | Parameter" << std::endl;
+    std::cout << "------+------------" << std::endl;
+    for (auto& pair : g_entries) {
+        if (pair.second.status == 2 && !pair.second.pname.empty()) {
+            std::cout << std::setw(4) << pair.first << " | " << pair.second.pname << std::endl;
+        }
+    }
+    std::cout << "Total: " << g_entries.size() << " entries" << std::endl;
+}
+
+static bool assignFromMenu(int idx) {
+    if (idx <= 0 || (size_t)idx > g_validParams.size()) return false;
+    std::string param = g_validParams[idx - 1];
+    if (g_lastCC < 0 || g_entries.find(g_lastCC) == g_entries.end()) return false;
+
+    // Remove any existing CC that has this same parameter assigned
+    for (auto it = g_entries.begin(); it != g_entries.end(); ++it) {
+        if (it->first != g_lastCC && it->second.pname == param && it->second.status == 2) {
+            std::cout << "Removed old CC " << it->first << " (was " << param << ")" << std::endl;
+            it->second.status = 3; // mark as deleted
+        }
+    }
+
+    EEntry& e = g_entries[g_lastCC];
+    e.pname = param;
+    e.status = 2;
+    std::cout << "Assigned " << param << " to CC " << g_lastCC << std::endl;
+    return true;
+}
+
+static void initParamsFromMachineParam() {
+    g_validParams.push_back("CUTOFF");
+    g_validParams.push_back("RESONANCE");
+    g_validParams.push_back("FILTER_ENV_AMOUNT");
+    g_validParams.push_back("HPF_FREQ");
+    g_validParams.push_back("AMP_ATTACK");
+    g_validParams.push_back("AMP_DECAY");
+    g_validParams.push_back("AMP_SUSTAIN");
+    g_validParams.push_back("AMP_RELEASE");
+    g_validParams.push_back("FILTER_ATTACK");
+    g_validParams.push_back("FILTER_DECAY");
+    g_validParams.push_back("FILTER_SUSTAIN");
+    g_validParams.push_back("FILTER_RELEASE");
+    g_validParams.push_back("VOLUME");
+
+    g_validParams.push_back("OSC_1_WAVEFORM");
+    g_validParams.push_back("OSC_1_VOLUME");
+    g_validParams.push_back("OSC_1_PHASE");
+    g_validParams.push_back("OSC_1_PHASE_SYNC");
+    g_validParams.push_back("OSC_2_WAVEFORM");
+    g_validParams.push_back("OSC_2_VOLUME");
+    g_validParams.push_back("OSC_2_PHASE");
+    g_validParams.push_back("OSC_2_PHASE_SYNC");
+    g_validParams.push_back("OSC_CROSS_MOD");
+    g_validParams.push_back("OSC_MIX");
+    g_validParams.push_back("OSC_2_TRANSPOSE");
+    g_validParams.push_back("OSC_2_TUNE");
+
+    g_validParams.push_back("LFO_1_WAVEFORM");
+    g_validParams.push_back("LFO_1_FREQUENCY");
+    g_validParams.push_back("LFO_1_AMOUNT");
+    g_validParams.push_back("LFO_2_WAVEFORM");
+    g_validParams.push_back("LFO_2_FREQUENCY");
+    g_validParams.push_back("LFO_2_AMOUNT");
+
+    g_validParams.push_back("FILTER_TYPE");
+    g_validParams.push_back("FILTER_CUTOFF");
+    g_validParams.push_back("FILTER_RESONANCE");
+    g_validParams.push_back("FILTER_KEYTRACK");
+    g_validParams.push_back("FILTER_ENV_DEPTH");
+
+    g_validParams.push_back("FILTER_ENV_ATTACK");
+    g_validParams.push_back("FILTER_ENV_DECAY");
+    g_validParams.push_back("FILTER_ENV_SUSTAIN");
+    g_validParams.push_back("FILTER_ENV_RELEASE");
+
+    g_validParams.push_back("DELAY_TIME");
+    g_validParams.push_back("DELAY_FEEDBACK");
+    g_validParams.push_back("DELAY_DRY_WET");
+    g_validParams.push_back("REVERB_AMOUNT");
+    g_validParams.push_back("REVERB_DRY_WET");
+    g_validParams.push_back("CHORUS_RATE");
+    g_validParams.push_back("CHORUS_DEPTH");
+    g_validParams.push_back("CHORUS_DRY_WET");
+    g_validParams.push_back("DISTORTION_DRIVE");
+    g_validParams.push_back("DISTORTION_DRY_WET");
+
+    g_validParams.push_back("POLYPHONY");
+    g_validParams.push_back("LEGATO");
+    g_validParams.push_back("PORTAMENTO_TIME");
+    g_validParams.push_back("PORTAMENTO_TYPE");
+    g_validParams.push_back("PITCH_BEND_RANGE");
+    g_validParams.push_back("UNISON_VOICES");
+    g_validParams.push_back("UNISON_SPREAD");
+
+    g_validParams.push_back("MOD_SOURCE_1");
+    g_validParams.push_back("MOD_SCALE_1");
+    g_validParams.push_back("MOD_DESTINATION_1");
+    g_validParams.push_back("MOD_SOURCE_2");
+    g_validParams.push_back("MOD_SCALE_2");
+    g_validParams.push_back("MOD_DESTINATION_2");
+    g_validParams.push_back("MOD_SOURCE_3");
+    g_validParams.push_back("MOD_SCALE_3");
+    g_validParams.push_back("MOD_DESTINATION_3");
+
+    std::cout << "Loaded " << g_validParams.size() << " parameters from MachineParam" << std::endl;
+}
+
+static void showParamHelp() {
+    const int cols = 4;
+    const int colWidth = 22;
+    int rows = (g_validParams.size() + cols - 1) / cols;
+
+    std::cout << "\n=== Available Parameter Names ===" << std::endl;
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+            int idx = r + c * rows;
+            if (idx < (int)g_validParams.size()) {
+                std::cout << std::setw(3) << (idx + 1) << ". "
+                         << std::setw(colWidth) << std::left << g_validParams[idx] << std::right;
+            }
+        }
+        std::cout << std::endl;
+    }
+    std::cout << "\nQuick keys: c=CUTOFF, r=RESONANCE, f=FILTER_ENV_AMOUNT, h=HPF_FREQ" << std::endl;
+    std::cout << "            a=AMP_ATTACK, d=AMP_DECAY, s=AMP_SUSTAIN, x=AMP_RELEASE" << std::endl;
+    std::cout << "            v=VOLUME" << std::endl;
+    std::cout << "Press key to assign, or ESC to cancel..." << std::endl;
+}
+
+static bool assignParamByKey(int key, std::string& param) {
+    switch (key) {
+        case 'c': case 'C': param = "CUTOFF"; return true;
+        case 'r': case 'R': param = "RESONANCE"; return true;
+        case 'f': case 'F': param = "FILTER_ENV_AMOUNT"; return true;
+        case 'h': case 'H': param = "HPF_FREQ"; return true;
+        case 'a': param = "AMP_ATTACK"; return true;
+        case 'd': param = "AMP_DECAY"; return true;
+        case 's': param = "AMP_SUSTAIN"; return true;
+        case 'x': param = "AMP_RELEASE"; return true;
+        case 'v': case 'V': param = "VOLUME"; return true;
+    }
+    for (size_t i = 0; i < g_validParams.size(); i++) {
+        if (key == g_validParams[i][0] || key == g_validParams[i][0] + 32) {
+            param = g_validParams[i];
+            return true;
+        }
+    }
+    return false;
+}
+
+#ifdef USE_RTMIDI
+static int runMidiMode() {
+    RtMidiIn* midiIn = nullptr;
+    try {
+        midiIn = new RtMidiIn();
+        unsigned int nPorts = midiIn->getPortCount();
+        if (nPorts == 0) {
+            std::cerr << "No MIDI input devices found." << std::endl;
+            delete midiIn;
+            return 1;
+        }
+
+        if (g_midiDevice >= 0 && (unsigned int)g_midiDevice < nPorts) {
+            std::cout << "Opening MIDI device: " << midiIn->getPortName(g_midiDevice) << std::endl;
+            midiIn->openPort(g_midiDevice);
+        } else {
+            std::cout << "Available MIDI devices:" << std::endl;
+            for (unsigned int i = 0; i < nPorts; i++) {
+                std::cout << "  " << i << ": " << midiIn->getPortName(i) << std::endl;
+            }
+            std::cout << "\nOpening ALL MIDI devices..." << std::endl;
+            for (unsigned int i = 0; i < nPorts; i++) {
+                std::cout << "  Opening: " << midiIn->getPortName(i) << std::endl;
+                midiIn->openPort(i);
+            }
+        }
+
+        midiIn->ignoreTypes(false, false, false);
+        std::cout << "\n=== MIDI Learn (MIDI mode) ===" << std::endl;
+        std::cout << "NRPN: " << (g_enableNRPN ? "enabled" : "disabled") << std::endl;
+        std::cout << "Mapping file: " << g_mapfile << std::endl;
+        if (!g_csvFile.empty()) {
+            std::cout << "CSV mapping: " << g_csvFile << std::endl;
+            std::cout << "CSV params: " << g_csvMapping.size() << std::endl;
+        }
+        std::cout << "Known entries: " << g_entries.size() << std::endl;
+        std::cout << "\nMove controls on your MIDI device..." << std::endl;
+std::cout << "Keys: q=quit a=assign s=save p=print h=help" << std::endl;
+        std::cout.flush();
+
+        bool waitingForNRPN = false;
+        int nrpnMSB = 0, nrpnLSB = 0;
+
+        while (!g_quit) {
+            if (hasKey()) {
+                int k = getKey();
+                if (k == 'q' || k == 'Q') break;
+                if (k == 'a' || k == 'A') {
+                    if (g_lastCC < 0) {
+                        std::cout << "\nNo CC received yet. Move a control first." << std::endl;
+                    } else {
+                        showParamMenu();
+                    }
+                    continue;
+                }
+                if (k == 's' || k == 'S') { saveMappingFile(g_mapfile); break; }
+                if (k == 'p' || k == 'P') { printAssignments(); }
+                if (k == 'h' || k == 'H' || k == '?') {
+                    std::cout << "\n=== Help ===" << std::endl;
+                    std::cout << "  q - quit" << std::endl;
+                    std::cout << "  a - assign parameter to last CC" << std::endl;
+                    std::cout << "  s - save mapping file" << std::endl;
+                    std::cout << "  p - print current assignments" << std::endl;
+                    std::cout << "  h - show this help" << std::endl;
+                    std::cout << "  ? - show this help" << std::endl;
+                }
+            }
+
+            std::vector<unsigned char> message;
+            double stamp = midiIn->getMessage(&message);
+            if (stamp > 0.0 && message.size() >= 3) {
+                int status = message[0];
+                int data1 = message[1];
+                int data2 = message[2];
+                int ch = status & 0x0F;
+                int type = status & 0xF0;
+
+                if (type == 0xB0) {
+                    if (g_enableNRPN) {
+                        if (data1 == 99) {
+                            nrpnMSB = data2;
+                            waitingForNRPN = true;
+                        } else if (data1 == 98 && waitingForNRPN) {
+                            nrpnLSB = data2;
+                        } else if (data1 == 6 && waitingForNRPN) {
+                            int nrpn = (nrpnMSB << 7) | nrpnLSB;
+                            std::cout << "NRPN " << nrpnMSB << ":" << nrpnLSB << " = " << data2 << std::endl;
+                            if (g_entries.find(nrpn + 10000) == g_entries.end()) {
+                                EEntry e;
+                                e.cc = nrpn + 10000;
+                                e.isNRPN = true;
+                                e.nrpnMSB = nrpnMSB;
+                                e.nrpnLSB = nrpnLSB;
+                                e.minVal = e.maxVal = data2;
+                                e.lastVal = data2;
+                                e.status = 1;
+                                g_entries[nrpn + 10000] = e;
+                            } else {
+                                EEntry& e = g_entries[nrpn + 10000];
+                                if (data2 < e.minVal) e.minVal = data2;
+                                if (data2 > e.maxVal) e.maxVal = data2;
+                                e.lastVal = data2;
+                                if (e.status == 0) e.status = 1;
+                            }
+                            waitingForNRPN = false;
+                        }
+                    } else {
+                        int cc = data1;
+                        g_lastCC = cc;
+                        std::string param = getParamName(cc);
+                        if (!param.empty()) {
+                            std::cout << "CC " << cc << " = " << data2 << " [" << param << "] (ch " << (ch+1) << ")" << std::endl;
+                        } else {
+                            std::cout << "CC " << cc << " = " << data2 << " (ch " << (ch+1) << ")" << std::endl;
+                        }
+                        if (g_entries.find(cc) == g_entries.end()) {
+                            EEntry e;
+                            e.cc = cc;
+                            e.minVal = e.maxVal = data2;
+                            e.lastVal = data2;
+                            e.status = 1;
+                            g_entries[cc] = e;
+                        } else {
+                            EEntry& e = g_entries[cc];
+                            if (data2 < e.minVal) e.minVal = data2;
+                            if (data2 > e.maxVal) e.maxVal = data2;
+                            e.lastVal = data2;
+                            if (e.status == 0) e.status = 1;
+                        }
+                    }
+                } else if (type == 0x90 && data2 > 0) {
+                    std::cout << "Note ON  " << data1 << " vel " << data2 << " (ch " << (ch+1) << ")" << std::endl;
+                } else if (type == 0x80) {
+                    std::cout << "Note OFF " << data1 << " (ch " << (ch+1) << ")" << std::endl;
+                }
+                std::cout.flush();
+            }
+            usleep(10000);
+        }
+
+        delete midiIn;
+        return 0;
+    } catch (RtMidiError& e) {
+        std::cerr << "MIDI error: " << e.getMessage() << std::endl;
+        if (midiIn) delete midiIn;
+        return 1;
+    }
+}
+#endif
+
+static void printUsage() {
+    std::cout << "MIDI Learn Tool - TCP server and MIDI input listener" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Usage: midi_learn [MODE] [OPTIONS]" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Modes (default: --tcp-mode):" << std::endl;
+    std::cout << "  --tcp-mode      Listen for MIDI messages via TCP (default)" << std::endl;
+    std::cout << "  --midi-mode     Listen to MIDI input device" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Options:" << std::endl;
+    std::cout << "  --device NUM    MIDI device index (default: 0, use -1 for all)" << std::endl;
+    std::cout << "  --mapping FILE  Mapping output file (required)" << std::endl;
+    std::cout << "  --csv FILE      CSV mapping file (e.g., mapping/midiclient/berhringer_deepmind_12.csv)" << std::endl;
+    std::cout << "  --add CC,PARAM,DEF  Non-interactively add entry (repeatable)" << std::endl;
+    std::cout << "  --btn CC,PARAM,DEF  Same as --add but as toggle" << std::endl;
+    std::cout << "  --momentary CC,PARAM,DEF Same as --add but as momentary" << std::endl;
+    std::cout << "  --show-unknown  Show unmapped CCs and unmapped parameters" << std::endl;
+    std::cout << "  --nrpn          Enable NRPN mode" << std::endl;
+    std::cout << "  --port NUM      TCP server port (default: " << LEARN_PORT << ")" << std::endl;
+    std::cout << "  --help          Show this help" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Examples:" << std::endl;
+    std::cout << "  # MIDI mode with DeepMind12" << std::endl;
+    std::cout << "  ./midi/midi_learn --midi-mode --device 1 --mapping mapping/my_synth.txt" << std::endl;
+    std::cout << std::endl;
+    std::cout << "  # With CSV reference" << std::endl;
+    std::cout << "  ./midi/midi_learn --midi-mode --device 1 --mapping mapping/my_synth.txt --csv mapping/midiclient/berhringer_deepmind_12.csv" << std::endl;
+    std::cout << std::endl;
+    std::cout << "  # TCP mode (default)" << std::endl;
+    std::cout << "  ./midi/midi_learn --mapping mapping/my_synth.txt" << std::endl;
+    std::cout << std::endl;
+    std::cout << "  # Pre-load mappings" << std::endl;
+    std::cout << "  ./midi/midi_learn --mapping mapping/my_synth.txt --add 43,CUTOFF,64 --add 44,RESONANCE,0" << std::endl;
+}
+
+int main(int argc, char* argv[]) {
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+    signal(SIGPIPE, SIG_IGN);
+
+    for (int i = 1; i < argc; i++) {
+        std::string a = argv[i];
+        if (a == "--tcp-mode") { g_mode = MODE_TCP; }
+        else if (a == "--midi-mode") { g_mode = MODE_MIDI; }
+        else if (a == "--device") { if (i + 1 < argc) g_midiDevice = std::stoi(argv[++i]); g_listenAllMidi = false; }
+        else if (a == "--mapping") { if (i + 1 < argc) g_mapfile = argv[++i]; }
+        else if (a == "--add") {
+            if (i + 1 < argc) {
+                std::string arg = argv[++i];
+                std::istringstream iss(arg);
+                std::string cc_s, pn, ds;
+                std::getline(iss, cc_s, ',');
+                std::getline(iss, pn, ',');
+                std::getline(iss, ds);
+                int cc = std::stoi(cc_s);
+                int def = (ds.size() == 0) ? 64 : std::stoi(ds);
+                EEntry e;
+                e.cc = cc; e.pname = pn; e.minVal = 0; e.maxVal = 127;
+                e.defVal = def; e.status = 2; e.type = "fader";
+                g_entries[cc] = e;
+            }
+        }
+        else if (a == "--btn") {
+            if (i + 1 < argc) {
+                std::string arg = argv[++i];
+                std::istringstream iss(arg);
+                std::string cc_s, pn, ds;
+                std::getline(iss, cc_s, ',');
+                std::getline(iss, pn, ',');
+                std::getline(iss, ds);
+                int cc = std::stoi(cc_s);
+                int def = (ds.size() == 0) ? 64 : std::stoi(ds);
+                EEntry e;
+                e.cc = cc; e.pname = pn; e.minVal = 0; e.maxVal = 127;
+                e.defVal = def; e.status = 2; e.type = "toggle";
+                g_entries[cc] = e;
+            }
+        }
+        else if (a == "--momentary") {
+            if (i + 1 < argc) {
+                std::string arg = argv[++i];
+                std::istringstream iss(arg);
+                std::string cc_s, pn, ds;
+                std::getline(iss, cc_s, ',');
+                std::getline(iss, pn, ',');
+                std::getline(iss, ds);
+                int cc = std::stoi(cc_s);
+                int def = (ds.size() == 0) ? 64 : std::stoi(ds);
+                EEntry e;
+                e.cc = cc; e.pname = pn; e.minVal = 127; e.maxVal = 127;
+                e.defVal = def; e.status = 2; e.type = "momentary";
+                g_entries[cc] = e;
+            }
+        }
+        else if (a == "--show-unknown") { g_showUnknown = true; }
+        else if (a == "--nrpn") { g_enableNRPN = true; }
+        else if (a == "--port") { if (i + 1 < argc) g_port = std::stoi(argv[++i]); }
+        else if (a == "--csv") { if (i + 1 < argc) g_csvFile = argv[++i]; }
+        else if (a == "--help") { printUsage(); return 0; }
+    }
+
+    if (g_mapfile.empty()) {
+        std::cerr << "Error: --mapping is required" << std::endl;
+        printUsage();
+        return 1;
+    }
+
+    loadMappingFile(g_mapfile);
+
+    if (!g_csvFile.empty()) {
+        loadCSVMapping(g_csvFile);
+    }
+
+    initParamsFromMachineParam();
+
+    if (g_showUnknown) {
+        std::cout << "Unknown/unmapped parameters:" << std::endl;
+        for (int i = 0; i < CC_DESC_SIZE; i++) {
+            bool mapped = false;
+            for (int j = 0; j < COMMON_CC_MAP_SIZE && !mapped; j++) {
+                if (i == COMMON_CC_MAP[j].cc) mapped = true;
+            }
+            if (!mapped && CC_DESCRIPTIONS[i] && CC_DESCRIPTIONS[i][0]) {
+                std::cout << "  CC " << std::setw(3) << i << ": " << CC_DESCRIPTIONS[i] << std::endl;
+            }
+        }
+    }
+
+    if (g_mode == MODE_MIDI) {
+#ifdef USE_RTMIDI
+        return runMidiMode();
+#else
+        std::cerr << "Error: MIDI mode requires RtMidi. Rebuild with RtMidi support." << std::endl;
+        return 1;
+#endif
+    }
+
+    int server = socket(AF_INET, SOCK_STREAM, 0);
+    if (server < 0) { std::cerr << "\nerror: cannot create server socket" << std::endl; return 1; }
+    int opt_val = 1;
+    setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &opt_val, sizeof(opt_val));
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET; addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons(g_port);
+
+    if (bind(server, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        std::cerr << "error: bind failed" << std::endl;
+        close(server);
+        return 1;
+    }
+    if (listen(server, 8) < 0) {
+        std::cerr << "error: listen failed" << std::endl;
+        close(server);
+        return 1;
+    }
+
+    std::cout << "\n=== MIDI Learn Server (TCP port " << g_port << ") ===" << std::endl;
+    std::cout << "NRPN: " << (g_enableNRPN ? "enabled" : "disabled") << std::endl;
+    std::cout << "Mapping file: " << g_mapfile << std::endl;
+    std::cout << "Known entries: " << g_entries.size() << std::endl;
+    std::cout << "\nConnect with: ./midi/midi_client prologue" << std::endl;
+    std::cout << "Or manually: echo \"cc 42 64\" | nc 127.0.0.1 " << g_port << std::endl;
+std::cout << "Keys: q=quit a=assign s=save p=print h=help" << std::endl;
+    std::cout.flush();
+
+    int selEntry = 0;
+    int totalValid = 0;
+    for (auto it = g_entries.begin(); it != g_entries.end(); ++it) {
+        if (it->second.status != 3) totalValid++;
+    }
+    if (selEntry >= totalValid) selEntry = 0;
+
+    while (!g_quit) {
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(server, &fds);
+        FD_SET(STDIN_FILENO, &fds);
+        int mx = (server > STDIN_FILENO) ? server : STDIN_FILENO;
+        struct timeval tv;
+        tv.tv_sec = 0; tv.tv_usec = 300000; // 300ms
+        int ret = select(mx + 1, &fds, NULL, NULL, &tv);
+        if (ret < 0 && errno != EINTR) break;
+
+        // Check keyboard
+        if (FD_ISSET(STDIN_FILENO, &fds) && hasKey()) {
+            int k = getKey();
+            if (k == 'q' || k == 'Q') break;
+            if (k == 's' || k == 'S') saveMappingFile(g_mapfile);
+            if (k == 'a' || k == 'A') {
+                // Find selected entry CC
+                int selCC = -1;
+                int cnt = 0;
+                for (auto it = g_entries.begin(); it != g_entries.end(); ++it) {
+                    if (it->second.status != 3 && cnt == selEntry) {
+                        selCC = it->first;
+                        break;
+                    }
+                    if (it->second.status != 3) cnt++;
+                }
+                if (selCC >= 0) {
+                    g_lastCC = selCC;
+                    showParamMenu();
+                }
+            }
+            if (k == 'p' || k == 'P') printAssignments();
+            if (k == 'h' || k == 'H' || k == '?') {
+                std::cout << "\n=== Help ===" << std::endl;
+                std::cout << "  q - quit" << std::endl;
+                std::cout << "  a - assign parameter to selected entry" << std::endl;
+                std::cout << "  s - save mapping file" << std::endl;
+                std::cout << "  p - print current assignments" << std::endl;
+                std::cout << "  h - show this help" << std::endl;
+                std::cout << "  ? - show this help" << std::endl;
+                std::cout << "  Up/Down - navigate entries" << std::endl;
+            }
+            if (k == 'd') {
+                // Delete current entry
+                selEntry = 0;
+                for (auto it = g_entries.begin(); it != g_entries.end(); ++it) {
+                    if (it->second.status != 3 && selEntry == 0) {
+                        it->second.status = 3;
+                        std::cout << "Deleted CC " << it->second.cc << " (" << it->second.pname << ")" << std::endl;
+                        break;
+                    }
+                    if (it->second.status != 3) { selEntry++; }
+                }
+            }
+            if (k == 27) {
+                // Check for arrow keys
+                if (hasKey()) {
+                    char k2; (void)read(STDIN_FILENO, &k2, 1);
+                    if (hasKey()) {
+                        char k3; (void)read(STDIN_FILENO, &k3, 1);
+                        if (k2 == '[') {
+                            if (k3 == 'A') { // Up
+                                selEntry--;
+                                if (selEntry < 0) selEntry = 0;
+                            }
+                            if (k3 == 'B') { // Down
+                                selEntry++;
+                                if (selEntry >= totalValid) selEntry = totalValid - 1;
+                                if (selEntry < 0) selEntry = 0;
+                            }
+                        }
+                    }
+                }
+            }
+            if (k == ' ') {
+                // Mark as assigned
+                selEntry = 0;
+                for (auto it = g_entries.begin(); it != g_entries.end(); ++it) {
+                    if (it->second.status != 3 && selEntry == 0) {
+                        it->second.status = 2;
+                        std::cout << "Assigned CC " << it->second.cc << std::endl;
+                        break;
+                    }
+                    if (it->second.status != 3) { selEntry++; }
+                }
+            }
+            if (k == 'l') {
+                // Unmark as learned
+                selEntry = 0;
+                for (auto it = g_entries.begin(); it != g_entries.end(); ++it) {
+                    if (it->second.status != 3 && selEntry == 0) {
+                        it->second.status = 1;
+                        std::cout << "Re-marked CC " << it->second.cc << " as learned." << std::endl;
+                        break;
+                    }
+                    if (it->second.status != 3) { selEntry++; }
+                }
+            }
+            // Enter - manual param entry
+            if (k == 10 || k == 13) {
+                std::cout << "\nEnter parameter name (or press key for quick assign):" << std::endl;
+                showParamHelp();
+                int pk = getKey();
+                if (pk == 27) {
+                    std::cout << "Cancelled." << std::endl;
+                } else {
+                    std::string newParam;
+                    if (assignParamByKey(pk, newParam)) {
+                        selEntry = 0;
+                        for (auto it = g_entries.begin(); it != g_entries.end(); ++it) {
+                            if (it->second.status != 3 && selEntry == 0) {
+                                it->second.pname = newParam;
+                                it->second.status = 2;
+                                std::cout << "Assigned " << newParam << " to CC " << it->second.cc << std::endl;
+                                break;
+                            }
+                            if (it->second.status != 3) { selEntry++; }
+                        }
+                    } else if (pk >= 33 && pk <= 126) {
+                        // Manual entry - read rest of line
+                        selEntry = 0;
+                        for (auto it = g_entries.begin(); it != g_entries.end(); ++it) {
+                            if (it->second.status != 3 && selEntry == 0) {
+                                it->second.pname = std::string(1, (char)pk);
+                                it->second.status = 2;
+                                std::cout << "Assigned " << it->second.pname << " to CC " << it->second.cc << std::endl;
+                                break;
+                            }
+                            if (it->second.status != 3) { selEntry++; }
+                        }
+                    }
+                }
+            }
+            // Quick param assignment keys
+            if (k == 'c' || k == 'C' || k == 'r' || k == 'R' || k == 'v' || k == 'V' ||
+                k == 'f' || k == 'F' || k == 'h' || k == 'H') {
+                std::string newParam;
+                if (assignParamByKey(k, newParam)) {
+                    selEntry = 0;
+                    for (auto it = g_entries.begin(); it != g_entries.end(); ++it) {
+                        if (it->second.status != 3 && selEntry == 0) {
+                            it->second.pname = newParam;
+                            it->second.status = 2;
+                            std::cout << "Assigned " << newParam << " to CC " << it->second.cc << std::endl;
+                            break;
+                        }
+                        if (it->second.status != 3) { selEntry++; }
+                    }
+                }
+            }
+            // Amp envelope quick keys
+            if (k == 'a' || k == 'd' || k == 's' || k == 'x') {
+                std::string newParam;
+                if (assignParamByKey(k, newParam)) {
+                    selEntry = 0;
+                    for (auto it = g_entries.begin(); it != g_entries.end(); ++it) {
+                        if (it->second.status != 3 && selEntry == 0) {
+                            it->second.pname = newParam;
+                            it->second.status = 2;
+                            std::cout << "Assigned " << newParam << " to CC " << it->second.cc << std::endl;
+                            break;
+                        }
+                        if (it->second.status != 3) { selEntry++; }
+                    }
+                }
+            }
+        }
+
+        // Check server
+        if (FD_ISSET(server, &fds)) {
+            struct sockaddr_in ca; socklen_t cl = sizeof(ca);
+            int c = accept(server, (struct sockaddr*)&ca, &cl);
+            if (c < 0) continue;
+            std::string ip = inet_ntoa(ca.sin_addr);
+            std::cout << "\nClient from " << ip << " connected" << std::endl;
+
+            int connected = 1;
+            while (!g_quit && connected) {
+                std::string msg = readLenMsg(c);
+                if (msg.empty()) { close(c); connected = 0; break; }
+
+                int msgType, msgCC, msgMsb, msgLsb, msgVal;
+                memset(&msgType, 0, sizeof(msgType));
+                if (!parseMidMessage(msg, msgType, msgCC, msgMsb, msgLsb, msgVal)) {
+                    std::string err = "error: parse failed\r\n";
+                    (void)write(c, err.c_str(), err.size());
+                    close(c); break;
+                }
+
+                if (msgType == 0) { // CC
+                    int cc = msgCC; int val = msgVal;
+                    auto it = g_entries.find(cc);
+                    if (it == g_entries.end()) {
+                        EEntry e;
+                        e.cc = cc; e.lastVal = val; e.minVal = val; e.maxVal = val;
+                        e.status = 0; e.type = "fader";
+                        g_entries[cc] = e;
+                    } else {
+                        it->second.lastVal = val;
+                        it->second.minVal = (std::min)(it->second.minVal, val);
+                        it->second.maxVal = (std::max)(it->second.maxVal, val);
+                        if (it->second.minVal <= 0 && it->second.maxVal >= 127) it->second.type = "toggle";
+                        if (it->second.minVal >= 127) it->second.type = "momentary";
+                        if (val > it->second.minVal && it->second.status == 0) it->second.status = 1;
+                    }
+                    std::string ok("ok\r\n");
+                    (void)write(c, ok.c_str(), ok.size());
+                    std::cout << "CC " << cc << " = " << val << std::endl;
+                } else if (msgType == 1) { // NRPN
+                    int equiv = nrpnToEquivCC(msgMsb, msgLsb);
+                    if (equiv >= 0) {
+                        auto it = g_entries.find(equiv);
+                        if (it != g_entries.end()) {
+                            it->second.lastVal = msgVal;
+                            it->second.minVal = (std::min)(it->second.minVal, msgVal);
+                            it->second.maxVal = (std::max)(it->second.maxVal, msgVal);
+                        }
+                    }
+                    std::string ok("ok\r\n");
+                    (void)write(c, ok.c_str(), ok.size());
+                    std::cout << "NRPN(" << msgMsb << "," << msgLsb << ") = " << msgVal
+                              << " -> CC" << equiv << std::endl;
+                } else if (msgType == 2) { // quit
+                    close(c);
+                    connected = 0;
+                    break;
+                }
+
+                // Recount valid
+                totalValid = 0;
+                for (auto it = g_entries.begin(); it != g_entries.end(); ++it) {
+                    if (it->second.status != 3) totalValid++;
+                }
+                if (selEntry >= totalValid) selEntry = totalValid > 0 ? totalValid - 1 : 0;
+            }
+        }
+
+        // Refresh display
+        refreshTable("learning", selEntry, totalValid);
+    }
+
+    std::cout << "\nQuit." << std::endl;
+    close(server);
+    return 0;
+}

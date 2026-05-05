@@ -44,6 +44,8 @@ SOURCES = main.cpp \
           ui/machine_ui.cpp \
           ui/pbsynth_ui.cpp \
           ui/twytch_ui.cpp \
+          ui/ncursesynth_ui.cpp \
+          ui/cursynth_ui.cpp \
           midi/midi_input.cpp \
           midi/midi_mapping.cpp \
           machine/Cursynth/CursynthMachine.cpp \
@@ -138,3 +140,18 @@ run: $(TARGET)
 	./$(TARGET)
 
 .PHONY: all clean run
+
+# MIDI Learn Tool targets
+midi_learn: midi/midi_learn.cpp midi/cc_map.h midi/midi_protocol.h
+	$(CXX) $(CXXFLAGS) -DUSE_RTMIDI -o midi/midi_learn midi/midi_learn.cpp -lrtmidi -lpthread -lm
+
+midi_client: midi/midi_client.cpp
+	$(CXX) $(CXXFLAGS) -o midi/midi_client midi/midi_client.cpp -lpthread
+
+test: midi/midi_learn midi/midi_client
+	@echo "Build complete. Run:"
+	@echo "  ./midi/midi_learn         (start server in terminal 1)"
+	@echo "  ./midi/midi_client prologue --loop  (start client in terminal 2)"
+
+clean_midi:
+	rm -f midi/midi_learn midi/midi_client

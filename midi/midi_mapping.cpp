@@ -2,6 +2,8 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <dirent.h>
+#include <algorithm>
 #include "machine/Ncursesynth/synth/synth_architecture.h"
 
 MidiMapping::MidiMapping(const std::string& mappingName, const std::string& mappingFile)
@@ -71,34 +73,111 @@ bool MappingManager::loadMappings() {
         dirPath = "mapping";
     }
 
+    bool indexFileFound = false;
+
+    // First, try to load from index.txt
     std::ifstream indexFile(dirPath + "/index.txt");
-    if (!indexFile.is_open()) {
-        std::cerr << "No mapping index file found at: " << dirPath << "/index.txt" << std::endl;
-        return false;
+    if (indexFile.is_open()) {
+        indexFileFound = true;
+        std::cout << "Loading mappings from index.txt: " << dirPath << "/index.txt" << std::endl;
+        std::string line;
+        while (std::getline(indexFile, line)) {
+            if (line.empty() || line[0] == '#') continue;
+
+            std::istringstream iss(line);
+            std::string name, filename;
+
+            if (std::getline(iss, name, '=') && std::getline(iss, filename)) {
+                std::cout << "  Found: " << name << "=" << filename << std::endl;
+                auto mapping = std::make_unique<MidiMapping>();
+                mapping->setName(name);
+                mapping->setFilename(filename);
+                if (mapping->loadFromFile(dirPath + "/" + filename)) {
+                    std::cout << "    Loaded " << name << " with " << mapping->getMappings().size() << " entries" << std::endl;
+                    availableMappings.push_back(std::move(mapping));
+                }
+            }
+        }
+        indexFile.close();
+        std::cout << "  Total from index.txt: " << availableMappings.size() << std::endl;
+    } else {
+        std::cout << "index.txt not found, skipping" << std::endl;
     }
 
-    std::string line;
-    while (std::getline(indexFile, line)) {
-        if (line.empty() || line[0] == '#') continue;
+   // Auto-discover all valid .txt files in addition to index.txt
+    std::vector<std::string> files;
+    
+    // Read all files in directory
+    DIR* dir = opendir(dirPath.c_str());
+    if (dir != nullptr) {
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != nullptr) {
+            std::string name = entry->d_name;
+            if (name.length() > 4 && name.substr(name.length() - 4) == ".txt") {
+                // Skip index.txt and parameters.txt
+                if (name != "index.txt" && name != "parameters.txt") {
+                    files.push_back(name);
+                }
+            }
+        }
+        closedir(dir);
+    }
 
-        std::istringstream iss(line);
-        std::string name, filename;
+    // Sort alphabetically for consistent ordering
+    std::sort(files.begin(), files.end());
 
-        if (std::getline(iss, name, '=') && std::getline(iss, filename)) {
-            auto mapping = std::make_unique<MidiMapping>();
-            mapping->setName(name);
-            mapping->setFilename(filename);
-            if (mapping->loadFromFile(dirPath + "/" + filename)) {
+    // Try to load each file
+    for (const auto& filename : files) {
+        std::string filenameStr = dirPath + "/" + filename;
+        auto mapping = std::make_unique<MidiMapping>();
+        mapping->setName(filename.substr(0, filename.length() - 4)); // Remove .txt extension
+        mapping->setFilename(filename);
+        
+        if (mapping->loadFromFile(filenameStr)) {
+            std::cout << "  Loaded " << mapping->getName() << " with " << mapping->getMappings().size() << " entries" << std::endl;
+            // Only add if mapping has at least one valid CC entry
+            if (mapping->hasAnyMappings()) {
                 availableMappings.push_back(std::move(mapping));
             }
         }
-    }
+     }
 
-    if (!availableMappings.empty()) {
-        currentMappingIndex = 0;
-    }
+     // Sort alphabetically for consistent ordering
+     std::sort(files.begin(), files.end());
 
-    return !availableMappings.empty();
+     // Try to load each file
+     for (const auto& filename : files) {
+         std::string filenameStr = dirPath + "/" + filename;
+         auto mapping = std::make_unique<MidiMapping>();
+         mapping->setName(filename.substr(0, filename.length() - 4)); // Remove .txt extension
+         mapping->setFilename(filename);
+         
+         if (mapping->loadFromFile(filenameStr)) {
+             std::cout << "  Loaded " << mapping->getName() << " with " << mapping->getMappings().size() << " entries" << std::endl;
+             // Only add if mapping has at least one valid CC entry
+             if (mapping->hasAnyMappings()) {
+                 availableMappings.push_back(std::move(mapping));
+             }
+         }
+     }
+
+     if (!availableMappings.empty()) {
+         currentMappingIndex = 0;
+     }
+
+     return !availableMappings.empty();
+}
+
+// Debug override - prints loaded mappings
+void MappingManager::printMappings() {
+    for (size_t i = 0; i < availableMappings.size(); i++) {
+        MidiMapping* m = availableMappings[i].get();
+        std::cout << "Mapping " << i << ": " << m->getName() << " (" << m->getFilename() << ")" << std::endl;
+        const auto& mappings = m->getMappings();
+        for (const auto& entry : mappings) {
+            std::cout << "  CC " << entry.first << " -> " << entry.second.parameterName << std::endl;
+        }
+    }
 }
 
 void MappingManager::setCurrentMapping(int index) {

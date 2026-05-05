@@ -30,6 +30,9 @@ public:
     virtual float getF(int index) override;
     virtual int checkI(int index, int value) override;
     virtual const char* getDisplayString(int index) override;
+
+    int getKeyOn() const { return noteOn_; }
+    int getLastNote() const { return params_[MachineParam::NOTE_HZ]; }
 };
 
 #endif

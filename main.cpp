@@ -18,6 +18,8 @@
 #include "machine/Twytch/TwytchsynthMachine.h"
 #include "ui/pbsynth_ui.h"
 #include "ui/twytch_ui.h"
+#include "ui/ncursesynth_ui.h"
+#include "ui/cursynth_ui.h"
 
 std::atomic<bool> running(true);
 
@@ -82,7 +84,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-signal(SIGINT, signalHandler);
+    signal(SIGINT, signalHandler);
     
     std::cout << "ncursesynth - Virtual Analog Synthesizer\n";
     std::cout << "TAB: Switch Engine | ARROWS: Navigate Params | Q: Quit\n\n";
@@ -124,33 +126,11 @@ signal(SIGINT, signalHandler);
     MidiInput midiInput(synth);
     synth->setMidiInput(&midiInput);
 
-    // If using PBSynth, set machine for MIDI
-    PBSynthMachine* pbsynthMachine = dynamic_cast<PBSynthMachine*>(activeMachine);
-    if (pbsynthMachine) {
-        midiInput.setMachine(pbsynthMachine);
-        midiInput.setMappingMachine(pbsynthMachine);
-    }
-
-    // If using Cursynth, set machine for MIDI
-    CursynthMachine* cursynthMachine = dynamic_cast<CursynthMachine*>(activeMachine);
-    if (cursynthMachine) {
-        midiInput.setMachine(cursynthMachine);
-        midiInput.setMappingMachine(cursynthMachine);
-    }
-
-    // If using Twytch, set machine for MIDI
-    TwytchsynthMachine* twytchMachine = dynamic_cast<TwytchsynthMachine*>(activeMachine);
-    if (twytchMachine) {
-        midiInput.setMachine(twytchMachine);
-        midiInput.setMappingMachine(twytchMachine);
-    }
-
-    // Use PBSynth-style UI for all machines
-    bool usePBSynthUI = (activeMachine != nullptr);
+    // Load mappings (always, regardless of MIDI status)
+    midiInput.loadMappings();
 
     // Initialize MIDI
     if (midiInput.initialize()) {
-        midiInput.loadMappings();
 
         // If --midi-port specified, try to select that device
         if (!midiPort.empty()) {
@@ -199,100 +179,121 @@ signal(SIGINT, signalHandler);
     std::cout << "UI launching...\n" << std::endl;
     std::cout << "Press Ctrl+C to exit\n" << std::endl;
 
-    if (usePBSynthUI) {
-        TwytchsynthMachine* twytchMachine = dynamic_cast<TwytchsynthMachine*>(activeMachine);
+    std::unique_ptr<MachineUI> ui;
 
-        std::unique_ptr<MachineUI> ui;
-        if (twytchMachine) {
-            ui.reset(new TwytchUI(activeMachine, &machineManager));
-        } else {
-            ui.reset(new PBSynthUI(activeMachine, &machineManager));
-        }
-        ui->setMidiInput(&midiInput);
-        ui->setMidiDeviceIndex(midiInput.getSelectedPort());
-        ui->init();
-        ui->draw();
+    TwytchsynthMachine* twytchMachine = dynamic_cast<TwytchsynthMachine*>(activeMachine);
+    PBSynthMachine* pbsynthMachine = dynamic_cast<PBSynthMachine*>(activeMachine);
+    CursynthMachine* cursynthMachine = dynamic_cast<CursynthMachine*>(activeMachine);
+    NcursesynthMachine* ncursesynthMachine = dynamic_cast<NcursesynthMachine*>(activeMachine);
 
-        int ch;
-        Machine* lastMachine = activeMachine;
-        while ((ch = getch()) != 'q' && ch != 'Q' && ch != 27) {
-            if (ch != ERR) {
-                ui->handleInput(ch);
-            }
-            ui->updateValues();
-
-            // Get current active machine from manager
-            activeMachine = machineManager.getCurrentMachine();
-            const MachineManager& mgr = machineManager;
-            int currentEngineIndex = mgr.getCurrentMachine();
-
-            // If machine changed, update audio engine and create new UI
-            if (activeMachine != lastMachine) {
-                audioEngine.setMachine(activeMachine);
-
-                // Also update MIDI machine
-                PBSynthMachine* pbsynthMachine = dynamic_cast<PBSynthMachine*>(activeMachine);
-                CursynthMachine* cursynthMachine = dynamic_cast<CursynthMachine*>(activeMachine);
-                TwytchsynthMachine* newTwytchMachine = dynamic_cast<TwytchsynthMachine*>(activeMachine);
-
-                if (pbsynthMachine) {
-                    midiInput.setMachine(pbsynthMachine);
-                    midiInput.setMappingMachine(pbsynthMachine);
-                } else if (cursynthMachine) {
-                    midiInput.setMachine(cursynthMachine);
-                    midiInput.setMappingMachine(cursynthMachine);
-                } else if (newTwytchMachine) {
-                    midiInput.setMachine(newTwytchMachine);
-                    midiInput.setMappingMachine(newTwytchMachine);
-                }
-
-                // Create new UI for the new machine type
-                int currentMidiDeviceIndex = ui->getMidiDeviceIndex();
-                if (newTwytchMachine) {
-                    ui.reset(new TwytchUI(activeMachine, &machineManager));
-                } else {
-                    ui.reset(new PBSynthUI(activeMachine, &machineManager));
-                }
-                ui->setMidiInput(&midiInput);
-                ui->setEngineIndex(currentEngineIndex);
-                ui->setMidiDeviceIndex(currentMidiDeviceIndex);
-
-                lastMachine = activeMachine;
-            }
-
-            if (activeMachine) {
-                // Cast and check keyon
-                PBSynthMachine* pbsynthMachine = dynamic_cast<PBSynthMachine*>(activeMachine);
-                CursynthMachine* cursynthMachine = dynamic_cast<CursynthMachine*>(activeMachine);
-                TwytchsynthMachine* twytchMachine = dynamic_cast<TwytchsynthMachine*>(activeMachine);
-
-                if (pbsynthMachine && pbsynthMachine->getKeyOn()) {
-                    ui->setMidiNote(pbsynthMachine->getLastNote(), 127);
-                } else if (cursynthMachine && cursynthMachine->getKeyOn()) {
-                    ui->setMidiNote(cursynthMachine->getLastNote(), 127);
-                } else if (twytchMachine && twytchMachine->getKeyOn()) {
-                    ui->setMidiNote(twytchMachine->getLastNote(), 127);
-                }
-            }
-
-            ui->draw();
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        }
-
-        endwin();
+    if (twytchMachine) {
+        ui.reset(new TwytchUI(activeMachine, &machineManager));
+    } else if (pbsynthMachine) {
+        ui.reset(new PBSynthUI(activeMachine, &machineManager));
+    } else if (cursynthMachine) {
+        ui.reset(new CursynthUI(activeMachine, &machineManager));
+    } else if (ncursesynthMachine) {
+        ui.reset(new NcursesynthUI(activeMachine, &machineManager));
     } else {
-        UI ui(synth);
-        ui.start();
-
-        while (running && ui.isRunning()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-
-        std::cout << "\nShutting down..." << std::endl;
-        midiInput.stop();
-        ui.stop();
+        ui.reset(new TwytchUI(activeMachine, &machineManager));
     }
 
+    ui->setMidiInput(&midiInput);
+    ui->setMidiDeviceIndex(midiInput.getSelectedPort());
+    ui->init();
+    ui->draw();
+
+    Machine* lastMachine = activeMachine;
+    while (running && ui->isActive()) {
+        int ch = getch();
+        
+        if (ch != ERR) {
+            ui->handleInput(ch);
+        }
+        ui->updateValues();
+
+        activeMachine = machineManager.getCurrentMachine();
+        int currentEngineIndex = machineManager.getCurrentMachineIndex();
+
+        // If machine changed, update audio engine and create new UI
+        (void)currentEngineIndex; // Suppress unused warning
+        if (activeMachine != lastMachine) {
+            audioEngine.setMachine(activeMachine);
+
+            // Save state before engine switch
+            int savedMenuSelection = ui->getMenuSelection();
+            int savedMenuIndex = ui->getMenuIndex();
+            int savedMidiDeviceIndex = ui->getMidiDeviceIndex();
+
+            // Also update MIDI machine
+            PBSynthMachine* pbsynthMachine2 = dynamic_cast<PBSynthMachine*>(activeMachine);
+            CursynthMachine* cursynthMachine2 = dynamic_cast<CursynthMachine*>(activeMachine);
+            TwytchsynthMachine* twytchMachine2 = dynamic_cast<TwytchsynthMachine*>(activeMachine);
+            NcursesynthMachine* ncursesynthMachine2 = dynamic_cast<NcursesynthMachine*>(activeMachine);
+
+            if (pbsynthMachine2) {
+                midiInput.setMachine(pbsynthMachine2);
+                midiInput.setMappingMachine(pbsynthMachine2);
+                pbsynthMachine2->init();
+            } else if (cursynthMachine2) {
+                midiInput.setMachine(cursynthMachine2);
+                midiInput.setMappingMachine(cursynthMachine2);
+                cursynthMachine2->init();
+            } else if (twytchMachine2) {
+                midiInput.setMachine(twytchMachine2);
+                midiInput.setMappingMachine(twytchMachine2);
+                twytchMachine2->init();
+            } else if (ncursesynthMachine2) {
+                midiInput.setMachine(ncursesynthMachine2);
+                midiInput.setMappingMachine(ncursesynthMachine2);
+                ncursesynthMachine2->init();
+            }
+
+            // Create new UI for the new machine type
+            if (twytchMachine2) {
+                ui.reset(new TwytchUI(activeMachine, &machineManager));
+            } else if (pbsynthMachine2) {
+                ui.reset(new PBSynthUI(activeMachine, &machineManager));
+            } else if (cursynthMachine2) {
+                ui.reset(new CursynthUI(activeMachine, &machineManager));
+            } else if (ncursesynthMachine2) {
+                ui.reset(new NcursesynthUI(activeMachine, &machineManager));
+            }
+            ui->setMidiInput(&midiInput);
+            ui->setMenuIndex(savedMenuIndex);
+            ui->setMenuSelection(savedMenuSelection);
+            ui->setMidiDeviceIndex(savedMidiDeviceIndex);
+
+            lastMachine = activeMachine;
+        }
+
+        if (activeMachine) {
+            // Cast and check keyon
+            PBSynthMachine* pbsynthMachine3 = dynamic_cast<PBSynthMachine*>(activeMachine);
+            CursynthMachine* cursynthMachine3 = dynamic_cast<CursynthMachine*>(activeMachine);
+            TwytchsynthMachine* twytchMachine3 = dynamic_cast<TwytchsynthMachine*>(activeMachine);
+            NcursesynthMachine* ncursesynthMachine3 = dynamic_cast<NcursesynthMachine*>(activeMachine);
+
+            if (pbsynthMachine3 && pbsynthMachine3->getKeyOn()) {
+                ui->setMidiNote(pbsynthMachine3->getLastNote(), 127);
+            } else if (cursynthMachine3 && cursynthMachine3->getKeyOn()) {
+                ui->setMidiNote(cursynthMachine3->getLastNote(), 127);
+            } else if (twytchMachine3 && twytchMachine3->getKeyOn()) {
+                ui->setMidiNote(twytchMachine3->getLastNote(), 127);
+            } else if (ncursesynthMachine3 && ncursesynthMachine3->getKeyOn()) {
+                ui->setMidiNote(ncursesynthMachine3->getLastNote(), 127);
+            }
+        }
+
+        ui->draw();
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    endwin();
+
+    std::cout << "\nShutting down..." << std::endl;
+    midiInput.stop();
+    ui->stop();
     audioEngine.shutdown();
     
     std::cout << "Virtual Synthesizer exited cleanly." << std::endl;

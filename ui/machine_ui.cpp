@@ -1,6 +1,7 @@
 #include "machine_ui.h"
 #include "ui_layout.h"
 #include "../midi/midi_input.h"
+#include "../midi/midi_mapping.h"
 #include <cmath>
 #include <cstring>
 #include <chrono>
@@ -9,7 +10,7 @@ MachineUI::MachineUI(Machine* mach, MachineManager* mgr)
     : selectedControl(0), machine(mach), machineManager(mgr),
       midiInput(nullptr), screenRows(0), screenCols(0),
       lastMidiNote(-1), lastMidiVel(0), midiActivity(false),
-      menuSelection(0), engineIndex(0), midiDeviceIndex(-1) {
+      menuSelection(0), menuIndex(0), midiDeviceIndex(-1), mappingIndex(0) {
 }
 
 MachineUI::~MachineUI() {
@@ -42,11 +43,11 @@ void MachineUI::drawMenuBar() {
     int row = 2;
     int col = 2;
 
-    if (menuSelection == 1) attron(A_REVERSE);
+    if (menuSelection == 1 && menuIndex == 0) attron(A_REVERSE);
     mvprintw(row, col, "[ENGINE: %s]", machine ? machine->getName().c_str() : "None");
-    if (menuSelection == 1) attroff(A_REVERSE);
+    if (menuSelection == 1 && menuIndex == 0) attroff(A_REVERSE);
 
-    if (menuSelection == 2) attron(A_REVERSE);
+    if (menuSelection == 1 && menuIndex == 1) attron(A_REVERSE);
     std::string midiName = "None";
     if (midiInput && midiDeviceIndex >= 0) {
         int deviceCount = midiInput->getDeviceCount();
@@ -61,10 +62,28 @@ void MachineUI::drawMenuBar() {
         }
     }
     mvprintw(row, col + 25, "[MIDI: %s]", midiName.c_str());
-    if (menuSelection == 2) attroff(A_REVERSE);
+    if (menuSelection == 1 && menuIndex == 1) attroff(A_REVERSE);
+
+    if (menuSelection == 1 && menuIndex == 2) attron(A_REVERSE);
+    std::string mapName = "None";
+    if (midiInput) {
+        auto* mm = midiInput->getMappingManager();
+        if (mm && mm->getMappingCount() > 0) {
+            mapName = mm->getMappingName(mm->getCurrentMappingIndex());
+            if (mapName.length() > 20) {
+                mapName = mapName.substr(0, 17) + "...";
+            }
+        }
+    }
+    mvprintw(row, col + 50, "[MAPPING: %s]", mapName.c_str());
+    if (menuSelection == 1 && menuIndex == 2) attroff(A_REVERSE);
 
     attron(A_DIM);
-    mvprintw(row, col + 50, "(TAB: Menu | ARROWS: Navigate)");
+    if (menuSelection == 0) {
+        mvprintw(row, col + 80, "(TAB: Menu | ARROWS: Navigate)");
+    } else {
+        mvprintw(row, col + 80, "(LEFT/RIGHT: Switch | TAB: Params)");
+    }
     attroff(A_DIM);
 }
 
@@ -109,34 +128,67 @@ void MachineUI::drawMidiMonitor() {
 
 void MachineUI::handleInput(int ch) {
     if (ch == '\t') {
-        menuSelection = (menuSelection + 1) % 3;
+        menuSelection = (menuSelection == 0) ? 1 : 0;
         return;
     }
 
     if (menuSelection == 1) {
-        if (ch == KEY_LEFT && machineManager) {
-            engineIndex = (engineIndex - 1 + machineManager->getMachineCount()) % machineManager->getMachineCount();
-        } else if (ch == KEY_RIGHT && machineManager) {
-            engineIndex = (engineIndex + 1) % machineManager->getMachineCount();
+        if (ch == KEY_UP) {
+            menuIndex = (menuIndex - 1 + 3) % 3;
+            return;
+        } else if (ch == KEY_DOWN) {
+            menuIndex = (menuIndex + 1) % 3;
+            return;
+        }
+
+        if (ch == KEY_LEFT || ch == KEY_RIGHT) {
+            if (menuIndex == 0 && machineManager) {
+                int mc = machineManager->getMachineCount();
+                int curr = machineManager->getCurrentMachineIndex();
+                if (mc > 0) {
+                    if (ch == KEY_LEFT) {
+                        machineManager->setCurrentMachine((curr - 1 + mc) % mc);
+                    } else {
+                        machineManager->setCurrentMachine((curr + 1) % mc);
+                    }
+                }
+            } else if (menuIndex == 1 && midiInput) {
+                int dc = midiInput->getDeviceCount();
+                if (dc > 0) {
+                    if (ch == KEY_LEFT) {
+                        midiDeviceIndex = (midiDeviceIndex - 1 + dc) % dc;
+                    } else {
+                        midiDeviceIndex = (midiDeviceIndex + 1) % dc;
+                    }
+                    midiInput->selectDevice(midiDeviceIndex);
+                    midiInput->setMappingMachine(machine);
+                    if (!midiInput->isRunning()) {
+                        midiInput->start();
+                    }
+                }
+            } else if (menuIndex == 2 && midiInput) {
+                auto* mm = midiInput->getMappingManager();
+                if (mm && mm->getMappingCount() > 0) {
+                    int mc = mm->getMappingCount();
+                    if (ch == KEY_LEFT) {
+                        mm->setCurrentMapping((mm->getCurrentMappingIndex() - 1 + mc) % mc);
+                    } else {
+                        mm->setCurrentMapping((mm->getCurrentMappingIndex() + 1) % mc);
+                    }
+                }
+            }
         }
         return;
     }
 
-    if (menuSelection == 2) {
-        if (ch == KEY_LEFT && midiInput) {
-            midiDeviceIndex = (midiDeviceIndex - 1 + midiInput->getDeviceCount()) % midiInput->getDeviceCount();
-        } else if (ch == KEY_RIGHT && midiInput) {
-            midiDeviceIndex = (midiDeviceIndex + 1) % midiInput->getDeviceCount();
-        }
-        return;
-    }
-
-    handleNavigation(ch);
-    if (ch >= '0' && ch <= '9') {
-        float val = (ch == '0') ? 1.0f : (ch - '0') / 10.0f;
-        if (selectedControl >= 0 && selectedControl < (int)controls.size()) {
-            controls[selectedControl].value = val;
-            machine->setI(controls[selectedControl].param, (int)(val * 128));
+    if (menuSelection == 0) {
+        handleNavigation(ch);
+        if (ch >= '0' && ch <= '9') {
+            float val = (ch == '0') ? 1.0f : (ch - '0') / 10.0f;
+            if (selectedControl >= 0 && selectedControl < (int)controls.size()) {
+                controls[selectedControl].value = val;
+                machine->setI(controls[selectedControl].param, (int)(val * 128));
+            }
         }
     }
 }
@@ -187,4 +239,12 @@ void MachineUI::setControlValue(int paramId, float value) {
             break;
         }
     }
+}
+
+MappingManager* MachineUI::getMappingManager() {
+    return midiInput ? midiInput->getMappingManager() : nullptr;
+}
+
+void MachineUI::stop() {
+    endwin();
 }

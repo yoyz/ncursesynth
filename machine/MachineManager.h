@@ -20,6 +20,7 @@ public:
     void setEngineDirectory(const std::string& dir);
     void registerMachine(Machine* machine);
     void setCurrentMachine(int index);
+    int getCurrentMachineIndex() const { return currentMachine_; }
     int getCurrentMachine() const { return currentMachine_; }
     int getMachineCount() const { return machines_.size(); }
 

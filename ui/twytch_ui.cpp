@@ -97,8 +97,10 @@ void TwytchUI::draw() {
         mvprintw(screenRows - 3, 2, "TAB: Menu | ARROWS: Navigate | 1-9: Set Value | PAGEUP/DOWN: Adjust | Q: Quit");
     } else if (menuSelection == 1) {
         mvprintw(screenRows - 3, 2, "LEFT/RIGHT: Switch Engine | TAB: Menu | Q: Quit");
-    } else {
+    } else if (menuSelection == 2) {
         mvprintw(screenRows - 3, 2, "LEFT/RIGHT: Switch MIDI | TAB: Menu | Q: Quit");
+    } else {
+        mvprintw(screenRows - 3, 2, "LEFT/RIGHT: Switch Mapping | TAB: Menu | Q: Quit");
     }
     attroff(A_DIM);
 
@@ -153,38 +155,9 @@ void TwytchUI::drawSlider(int row, int col, const char* name, float value, bool 
 }
 
 void TwytchUI::handleInput(int ch) {
-    if (ch == '\t') {
-        menuSelection = (menuSelection + 1) % 3;
-        return;
-    }
-
-    if (menuSelection == 1 && machineManager) {
-        if (ch == KEY_LEFT || ch == KEY_RIGHT) {
-            int count = machineManager->getMachineCount();
-            int newIndex = (ch == KEY_LEFT) ? (engineIndex - 1 + count) % count : (engineIndex + 1) % count;
-            machineManager->setCurrentMachine(newIndex);
-            menuSelection = 0;
-            selectedControl = 0;
-        }
-        return;
-    }
-
-    if (menuSelection == 2) {
-        if (!midiInput) return;
-
-        int deviceCount = midiInput->getDeviceCount();
-
-        if (ch == KEY_LEFT || ch == KEY_RIGHT) {
-            midiDeviceIndex = (midiDeviceIndex + (ch == KEY_RIGHT ? 1 : -1) + deviceCount + 1) % (deviceCount + 1);
-            if (midiDeviceIndex == deviceCount) {
-                midiInput->stop();
-                midiInput->selectDevice(-1);
-            } else {
-                midiInput->selectDevice(midiDeviceIndex);
-                midiInput->setMappingMachine(machine);
-                midiInput->start();
-            }
-        }
+    // Only handle parameter navigation when NOT in menu mode
+    if (menuSelection == 1) {
+        MachineUI::handleInput(ch);
         return;
     }
 

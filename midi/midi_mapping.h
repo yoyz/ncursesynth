@@ -36,6 +36,7 @@ public:
 
     bool hasCC(int cc) const { return mappings.find(cc) != mappings.end(); }
     MappingEntry getEntry(int cc) const;
+    bool hasAnyMappings() const { return !mappings.empty(); }
 
     bool loadFromFile(const std::string& path);
 };
@@ -64,6 +65,7 @@ public:
     MappingEntry getMappingEntry(int cc);
 
     bool applyMapping(SynthArchitecture* synth, int cc, float value);
+    void printMappings();  // Debug function to print loaded mappings
 };
 
 #endif

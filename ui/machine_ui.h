@@ -6,6 +6,7 @@
 #include <ncurses.h>
 #include "../machine/Machine.h"
 #include "../machine/MachineManager.h"
+#include "../midi/midi_mapping.h"
 
 class MidiInput;
 
@@ -34,8 +35,9 @@ protected:
     bool midiActivity;
 
     int menuSelection;
-    int engineIndex;
+    int menuIndex;
     int midiDeviceIndex;
+    int mappingIndex;
 
     virtual void initControls() = 0;
     virtual void drawColumnHeader(int col, const char* title) = 0;
@@ -57,13 +59,19 @@ public:
     virtual void handleInput(int ch);
     virtual void updateValues();
     virtual bool isActive() const { return true; }
+    virtual void stop();
 
     void setMidiNote(int note, int vel) { lastMidiNote = note; lastMidiVel = vel; midiActivity = true; }
     void setMidiInput(MidiInput* midi) { midiInput = midi; }
-    void setEngineIndex(int idx) { engineIndex = idx; }
+    void setMenuIndex(int idx) { menuIndex = idx; }
+    void setMenuSelection(int sel) { menuSelection = sel; }
     void setMidiDeviceIndex(int idx) { midiDeviceIndex = idx; }
-    int getEngineIndex() const { return engineIndex; }
+    void setMappingIndex(int idx) { mappingIndex = idx; }
+    int getMenuIndex() const { return menuIndex; }
     int getMidiDeviceIndex() const { return midiDeviceIndex; }
+    int getMappingIndex() const { return mappingIndex; }
+    int getMenuSelection() const { return menuSelection; }
+    class MappingManager* getMappingManager();
 
     virtual void setControlValue(int paramId, float value);
 };

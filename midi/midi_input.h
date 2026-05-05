@@ -54,7 +54,13 @@ public:
     bool getMidiDebug() const { return midiDebug; }
 
     MappingManager* getMappingManager() { return &mappingManager; }
-    bool loadMappings() { return mappingManager.loadMappings(); }
+    bool loadMappings() { 
+        bool result = mappingManager.loadMappings();
+        if (result) {
+            mappingManager.printMappings();
+        }
+        return result; 
+    }
 
     int getLastCC() const { return lastCC; }
     int getLastCCValue() const { return lastCCValue; }
