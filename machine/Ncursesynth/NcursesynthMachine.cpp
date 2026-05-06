@@ -1,9 +1,8 @@
 #include "NcursesynthMachine.h"
 #include <cmath>
 
-NcursesynthMachine::NcursesynthMachine() : synth_(nullptr), noteOn_(0) {
+NcursesynthMachine::NcursesynthMachine() : synth_(nullptr), noteOn_(0), noteFrequency_(440.0f), midiNote_(69) {
     setName("Ncursesynth");
-    // Create synth with default polyphony (8 voices) and sample rate
     synth_ = new SynthArchitecture(8, 48000.0f);
     for (int i = 0; i < MachineParam::PERFORMANCE_COUNT; i++) {
         params_[i] = 0;
@@ -34,19 +33,26 @@ int32_t NcursesynthMachine::tick() {
 void NcursesynthMachine::noteOn() {
     noteOn_ = 1;
     if (synth_) {
-        synth_->noteOn(440.0f);
+        synth_->noteOn(noteFrequency_);
     }
 }
 
 void NcursesynthMachine::noteOff() {
     noteOn_ = 0;
     if (synth_) {
-        synth_->noteOff(440.0f);
+        synth_->noteOff(noteFrequency_);
     }
 }
 
 void NcursesynthMachine::setI(int index, int value) {
     params_[index] = value;
+    
+    if (index == MachineParam::NOTE_HZ) {
+        midiNote_ = value;
+        noteFrequency_ = 440.0f * std::pow(2.0f, (value - 69.0f) / 12.0f);
+        return;
+    }
+    
     if (!synth_) return;
 
     switch (index) {

@@ -6,6 +6,8 @@
 #include <vector>
 #include <algorithm>
 #include <iostream>
+#include <sstream>
+#include <iomanip>
 #include <stdio.h>
 #include <sys/resource.h>
 #include <chrono>
@@ -319,6 +321,11 @@ bool runNoteReleaseTests(Machine* machine, bool useFFT) {
     double cpuEnd = getCPUTimeForTest();
     double wallEnd = getWallClockTime();
     
+    // Generate silence to ensure note is fully released before next test (10 seconds)
+    for (int i = 0; i < 441000; i++) {
+        machine->tick();
+    }
+    
     // Basic check - if we can trigger note on/off, test passes
     double cpuTime = cpuEnd - cpuStart;
     double wallTime = wallEnd - wallStart;
@@ -327,7 +334,45 @@ bool runNoteReleaseTests(Machine* machine, bool useFFT) {
     return true;
 }
 
-// Test: Octave - verifies basic parameter setting works
+// Helper: trigger a note on a machine
+// ncursesynth: setI(71, note) sets noteFrequency_, then noteOn() uses it
+// PBSynth/Twytch/Cursynth: setI(70, note) + setI(150, 1) triggers the note
+static void triggerNote(Machine* machine, int midiNote, int32_t* samples, int numSamples, int warmupSamples) {
+    // Set the MIDI note
+    machine->setI(71, midiNote);  // NOTE_HZ - for ncursesynth
+    machine->setI(70, midiNote);  // NOTE1 - for PBSynth/Twytch/Cursynth
+    
+    // Trigger note - use noteOn() which works for all engines
+    machine->noteOn();
+    
+    // Warmup
+    for (int i = 0; i < warmupSamples; i++) {
+        machine->tick();
+    }
+    
+    // Capture samples
+    for (int i = 0; i < numSamples; i++) {
+        samples[i] = machine->tick();
+    }
+    
+    // Release note
+    machine->noteOff();
+}
+
+// Helper: generate silence buffer and measure performance
+// 441000 samples = 10 seconds at 48kHz - ensures complete note release
+// Returns the time taken in milliseconds
+static double generateSilence(Machine* machine, int numSamples) {
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < numSamples; i++) {
+        machine->tick();
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    return duration.count();
+}
+
+// Test: Octave - verifies pitch doubling (12 semitones = double frequency)
 bool runOctaveTests(Machine* machine, bool useFFT) {
     (void)useFFT;
     if (!machine) { 
@@ -337,39 +382,69 @@ bool runOctaveTests(Machine* machine, bool useFFT) {
     
     machine->init();
     
-    // Generate a substantial audio buffer (at least 16384 samples)
-    const int numSamples = 16384;
-    std::vector<int32_t> samples(numSamples);
+    const int midiNote = 50;
+    const int numSamples = 32768;  // Large buffer for FFT
+    const int warmupSamples = 4096;
+    const int silenceSamples = 441000;  // 10 seconds at 48kHz - ensures complete note release
     
-    // Capture CPU time before
-    double cpuStart = getCPUTimeForTest();
-    double wallStart = getWallClockTime();
+    // First test: play note at midiNote
+    int32_t* samples1 = new int32_t[numSamples];
+    triggerNote(machine, midiNote, samples1, numSamples, warmupSamples);
     
-    // Test setting a parameter (polyphony)
-    machine->setI(MachineParam::POLYPHONY, 8);
+    // Generate silence to ensure note is released (10 seconds) and measure performance
+    double silenceTime1 = generateSilence(machine, silenceSamples);
     
-    // Test getting parameter back
-    int poly = machine->getI(MachineParam::POLYPHONY);
+    // Second test: play note at midiNote + 12 (one octave higher)
+    int32_t* samples2 = new int32_t[numSamples];
+    triggerNote(machine, midiNote + 12, samples2, numSamples, warmupSamples);
     
-    // Generate samples to ensure the parameter change has effect
+    // Generate silence (10 seconds) and measure performance
+    double silenceTime2 = generateSilence(machine, silenceSamples);
+    
+    // Convert to float and analyze
+    std::vector<float> floatSamples1(numSamples);
+    std::vector<float> floatSamples2(numSamples);
     for (int i = 0; i < numSamples; i++) {
-        samples[i] = machine->tick();
+        floatSamples1[i] = static_cast<float>(samples1[i]) / 640.0f;
+        floatSamples2[i] = static_cast<float>(samples2[i]) / 640.0f;
     }
     
-    // Capture CPU time after
-    double cpuEnd = getCPUTimeForTest();
-    double wallEnd = getWallClockTime();
+    delete[] samples1;
+    delete[] samples2;
     
-    double cpuTime = cpuEnd - cpuStart;
-    double wallTime = wallEnd - wallStart;
+    // Compute FFT for both
+    std::vector<float> magnitudes1, magnitudes2;
+    FFTAnalyzer::compute(floatSamples1.data(), numSamples, magnitudes1);
+    FFTAnalyzer::compute(floatSamples2.data(), numSamples, magnitudes2);
     
-    if (poly >= 0) {
-        printTestResult("octave", true, "Parameter setting works (" + std::to_string(cpuTime) + "s CPU)");
-        return true;
-    } else {
-        printTestResult("octave", false, "Parameter setting failed (" + std::to_string(cpuTime) + "s CPU)");
-        return false;
-    }
+    float freq1 = FFTAnalyzer::findFundamentalFrequency(magnitudes1, 48000.0f);
+    float freq2 = FFTAnalyzer::findFundamentalFrequency(magnitudes2, 48000.0f);
+    
+    // Calculate expected frequencies
+    float expectedFreq1 = 440.0f * std::pow(2.0f, (midiNote - 69.0f) / 12.0f);
+    float expectedFreq2 = 440.0f * std::pow(2.0f, (midiNote + 12 - 69.0f) / 12.0f);
+    
+    // Verify octave relationship: freq2 should be approximately 2x freq1
+    // Allow some tolerance for engines that may have frequency detection issues
+    float ratio = (freq1 > 0) ? (freq2 / freq1) : 0.0f;
+    
+    // Calculate performance: how many seconds of audio can be generated per second of real time
+    // 441000 samples / 1000ms = 441 samples/ms = 441000 samples/second
+    double perf1 = (silenceTime1 > 0) ? (silenceSamples / silenceTime1) : 0.0;  // samples/ms
+    double perf2 = (silenceTime2 > 0) ? (silenceSamples / silenceTime2) : 0.0;  // samples/ms
+    
+    std::ostringstream msg;
+    msg << "note=" << midiNote << " freq=" << std::fixed << std::setprecision(1) << freq1 
+        << "Hz (exp=" << expectedFreq1 << ") note+12=" << (midiNote + 12) 
+        << " freq=" << freq2 << "Hz (exp=" << expectedFreq2 << ") ratio=" 
+        << std::setprecision(3) << ratio << " perf=" << std::setprecision(0) 
+        << ((perf1 + perf2) / 2.0) << " samples/ms";
+    
+    // Pass if both frequencies detected and ratio is close to 2.0 (within 25% tolerance)
+    // Also pass if both frequencies are non-zero but different (meaning pitch changed)
+    bool passed = (freq1 > 0 && freq2 > 0 && std::abs(ratio - 2.0f) < 0.5f);
+    printTestResult("octave", passed, msg.str());
+    return passed;
 }
 
 // Test: CC control - verifies MIDI CC message handling

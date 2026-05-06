@@ -10,13 +10,15 @@ private:
     SynthArchitecture* synth_;
     int params_[MachineParam::PERFORMANCE_COUNT];
     int noteOn_;
+    float noteFrequency_;
+    int midiNote_;
 
 public:
     NcursesynthMachine();
     virtual ~NcursesynthMachine();
 
     void setSynth(SynthArchitecture* synth) { synth_ = synth; }
-    SynthArchitecture* getSynth() { return synth_; }
+    SynthArchitecture* getSynth() const { return synth_; }
 
     virtual void init() override;
     virtual void reset() override;
@@ -32,7 +34,8 @@ public:
     virtual const char* getDisplayString(int index) override;
     
     int getKeyOn() const { return noteOn_; }
-    int getLastNote() const { return noteOn_; }
+    int getLastNote() const { return midiNote_; }
+    float getLastFrequency() const { return noteFrequency_; }
 };
 
 #endif

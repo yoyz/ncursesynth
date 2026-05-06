@@ -1,6 +1,7 @@
 #include "fft_analyzer.h"
 #include <algorithm>
 #include <limits>
+#include <cmath>
 
 // Bit-reverse permutation for FFT
 void FFTAnalyzer::bitReverse(std::vector<std::complex<float>>& buffer, int logSize) {
@@ -9,9 +10,10 @@ void FFTAnalyzer::bitReverse(std::vector<std::complex<float>>& buffer, int logSi
     
     for (int i = 0; i < n; i++) {
         int rev = 0;
+        int temp = i;
         for (int j = 0; j < logSize; j++) {
-            rev = (rev << 1) | (i & 1);
-            i >>= 1;
+            rev = (rev << 1) | (temp & 1);
+            temp >>= 1;
         }
         bitRev[i] = rev;
     }
@@ -57,58 +59,102 @@ void FFTAnalyzer::fft(std::vector<std::complex<float>>& buffer, bool invert) {
 
 // Compute FFT on float32 buffer
 void FFTAnalyzer::compute(const float* buffer, int size, std::vector<float>& magnitudes) {
-    // Allocate complex buffer
-    std::vector<std::complex<float>> complexBuffer(size / 2 + 1);
+    // Round up to power of 2
+    int n = 1;
+    while (n < size) n *= 2;
     
-    // Pad to power of 2 if necessary
-    int bufferSize = 1;
-    while (bufferSize < size) bufferSize *= 2;
-    bufferSize = bufferSize / 2 + 1; // For real-to-complex FFT
+    // Create complex buffer padded to power of 2
+    std::vector<std::complex<float>> complexBuffer(n);
     
-    // Create complex buffer from real samples
-    for (int i = 0; i < bufferSize; i++) {
+    // Copy real samples, zero-pad if needed
+    for (int i = 0; i < size && i < n; i++) {
         complexBuffer[i] = std::complex<float>(buffer[i], 0.0f);
+    }
+    for (int i = size; i < n; i++) {
+        complexBuffer[i] = std::complex<float>(0.0f, 0.0f);
     }
     
     // Apply FFT
     fft(complexBuffer, false);
     
-    // Compute magnitudes and normalize
-    int numBins = bufferSize / 2;
+    // Compute magnitudes (only first size/2 bins are meaningful for real input)
+    int numBins = size / 2;
     for (int i = 0; i < numBins; i++) {
         float mag = std::abs(complexBuffer[i]);
         magnitudes.push_back(mag / numBins);
     }
 }
 
-// Find fundamental frequency using peak detection
+// Find fundamental frequency using autocorrelation-like approach
 float FFTAnalyzer::findFundamentalFrequency(const std::vector<float>& magnitudes, float sampleRate) {
     if (magnitudes.empty()) return 0.0f;
     
-    // Find peak in non-DC bins (skip first bin which is DC component)
-    int peakBin = 1;
-    float peakMag = magnitudes[1];
+    int n = magnitudes.size();
+    float binWidth = sampleRate / (2.0f * n);
     
-    // Look for peak in range 1 to numBins-1
-    for (int i = 2; i < static_cast<int>(magnitudes.size()); i++) {
-        if (magnitudes[i] > peakMag) {
-            peakMag = magnitudes[i];
-            peakBin = i;
+    // Find top peaks
+    struct Peak { int bin; float mag; };
+    std::vector<Peak> peaks;
+    
+    for (int i = 3; i < n - 3; i++) {
+        if (magnitudes[i] > magnitudes[i-1] && 
+            magnitudes[i] > magnitudes[i-2] &&
+            magnitudes[i] > magnitudes[i+1] && 
+            magnitudes[i] > magnitudes[i+2]) {
+            if (magnitudes[i] > 0.001f) { // Noise threshold
+                peaks.push_back({i, magnitudes[i]});
+            }
         }
     }
     
-    // Convert bin to frequency
-    float frequency = getBinFrequency(magnitudes, peakBin, sampleRate);
+    if (peaks.empty()) return 0.0f;
     
-    // Simple harmonic check: if this peak is much smaller than fundamental, look lower
-    float threshold = peakMag * 0.3f;
-    for (int i = peakBin - 1; i >= 2; i--) {
-        if (magnitudes[i] > threshold) {
-            return getBinFrequency(magnitudes, i, sampleRate);
+    // Sort by magnitude (strongest first)
+    std::sort(peaks.begin(), peaks.end(), [](const Peak& a, const Peak& b) {
+        return a.mag > b.mag;
+    });
+    
+    // Find fundamental by checking if peaks are harmonically related
+    for (const auto& peak : peaks) {
+        float peakFreq = peak.bin * binWidth;
+        
+        // Try this peak as fundamental
+        for (const auto& other : peaks) {
+            if (&peak == &other) continue;
+            
+            float ratio = other.bin / static_cast<float>(peak.bin);
+            float expectedRatio = std::round(ratio);
+            
+            // If this peak is a harmonic of the first peak
+            if (std::abs(ratio - expectedRatio) < 0.1f) {
+                return peakFreq; // This is likely the fundamental
+            }
+        }
+        
+        // Try this peak as harmonic of a lower fundamental
+        for (const auto& candidate : peaks) {
+            if (candidate.bin >= peak.bin) continue;
+            
+            float ratio = peak.bin / static_cast<float>(candidate.bin);
+            
+            // Check if ratio is close to an integer (harmonic relationship)
+            float nearestInt = std::round(ratio);
+            if (ratio > 0 && std::abs(ratio - nearestInt) < 0.1f) {
+                // Check if this fundamental has harmonics
+                for (const auto& check : peaks) {
+                    if (check.bin <= candidate.bin) continue;
+                    float checkRatio = check.bin / static_cast<float>(candidate.bin);
+                    if (std::abs(checkRatio - std::round(checkRatio)) < 0.15f) {
+                        // This looks like a valid fundamental
+                        return candidate.bin * binWidth;
+                    }
+                }
+            }
         }
     }
     
-    return frequency;
+    // Fallback to strongest peak
+    return peaks[0].bin * binWidth;
 }
 
 // Convert frequency to MIDI note number
