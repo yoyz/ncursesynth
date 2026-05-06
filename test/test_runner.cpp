@@ -3,7 +3,7 @@
 #include "../machine/Ncursesynth/NcursesynthMachine.h"
 #include "../machine/PBSynth/PBSynthMachine.h"
 #include "../machine/Cursynth/CursynthMachine.h"
-//#include "../machine/Twytch/TwytchsynthMachine.h"
+#include "../machine/Twytch/TwytchsynthMachine.h"
 #include <iostream>
 #include <iomanip>
 #include <atomic>
@@ -53,7 +53,7 @@ static const char* g_testDescriptions[] = {
 };
 
 TestRunner::TestRunner(const std::string& outputDir, bool verbose)
-    : reporter_(outputDir), engines_({"ncursesynth", "pbsynth", "cursynth"}), verbose_(verbose), quiet_(false), running_(false), results_() {}
+    : reporter_(outputDir), engines_({"ncursesynth", "pbsynth", "cursynth", "twytch"}), verbose_(verbose), quiet_(false), running_(false), results_() {}
 
 TestRunner::~TestRunner() {
     std::lock_guard<std::mutex> lock(g_machineMutex_);
@@ -95,7 +95,10 @@ bool TestRunner::runSingleEngine(const std::string& engineName,
         machine = new PBSynthMachine();
     } else if (engineName == "cursynth") {
         machine = new CursynthMachine(8);
+    } else if (engineName == "twytch") {
+        machine = new TwytchsynthMachine();
     } 
+
 
     if (!machine) {
         std::cerr << "  [ERROR] Failed to create machine for " << engineName << std::endl;
@@ -135,6 +138,8 @@ bool TestRunner::runAllEngines(const std::vector<std::string>& testNames,
             machine = new PBSynthMachine();
         } else if (name == "cursynth") {
             machine = new CursynthMachine(8);
+        }  else if (name == "twytch") {
+            machine = new TwytchsynthMachine();
         }         
 
         if (!machine) {
@@ -228,56 +233,53 @@ bool TestRunner::runAllTests(Machine* machine, bool useFFT, const std::vector<st
 bool TestRunner::executeSoundProductionTest(Machine* machine, bool verbose) {
     if (!machine) {
         std::cout << "  [SKIP] No machine provided" << std::endl;
-        return true;
+        results_.push_back({"sound", false, "No machine provided", 0, 0, 0, false, 0, 0});
+        return false;
     }
     
-    (void)verbose;
-    results_.push_back({"sound", true, "", 0, 0, 0, false, 0, 0});
-    std::cout << "  [PASS] Machine can generate audio" << std::endl;
-    return true;
+    bool passed = runSoundProductionTests(machine, verbose);
+    results_.push_back({"sound", passed, "", 0, 0, 0, false, 0, 0});
+    std::cout << "  " << (passed ? "[PASS]" : "[FAIL]") << " Machine can generate audio" << std::endl;
+    return passed;
 }
 
 bool TestRunner::executeNoteOnOffTest(Machine* machine, bool verbose) {
     if (!machine) {
         std::cout << "  [SKIP] No machine provided" << std::endl;
-        return true;
+        results_.push_back({"note_on_off", false, "No machine provided", 0, 0, 0, false, 0, 0});
+        return false;
     }
     
-    (void)verbose;
-    results_.push_back({"note_on_off", true, "", 0, 0, 0, false, 0, 0});
-    if (!machine) {
-        std::cout << "  [SKIP] No machine provided" << std::endl;
-        return true;
-    }
-    
-    (void)verbose;
-    machine->setI(150, 1);
-    machine->setI(70, 60);
-    
-    std::cout << "  [PASS] Note On/Off working" << std::endl;
-    return true;
+    bool passed = runNoteOnTests(machine, verbose);
+    results_.push_back({"note_on_off", passed, "", 0, 0, 0, false, 0, 0});
+    std::cout << "  " << (passed ? "[PASS]" : "[FAIL]") << " Note On/Off working" << std::endl;
+    return passed;
 }
 
 bool TestRunner::executeCCControlTest(Machine* machine, bool verbose) {
     if (!machine) {
         std::cout << "  [SKIP] No machine provided" << std::endl;
-        return true;
+        results_.push_back({"cc_control", false, "No machine provided", 0, 0, 0, false, 0, 0});
+        return false;
     }
     
-    (void)verbose;
-    std::cout << "  [PASS] CC control available" << std::endl;
-    return true;
+    bool passed = runCCControlTests(machine, verbose);
+    results_.push_back({"cc_control", passed, "", 0, 0, 0, false, 0, 0});
+    std::cout << "  " << (passed ? "[PASS]" : "[FAIL]") << " CC control available" << std::endl;
+    return passed;
 }
 
 bool TestRunner::executePolyphonyTest(Machine* machine, bool verbose) {
     if (!machine) {
         std::cout << "  [SKIP] No machine provided" << std::endl;
-        return true;
+        results_.push_back({"polyphony", false, "No machine provided", 0, 0, 0, false, 0, 0});
+        return false;
     }
     
-    (void)verbose;
-    std::cout << "  [PASS] Polyphony supported" << std::endl;
-    return true;
+    bool passed = runPolyphonyTests(machine, verbose);
+    results_.push_back({"polyphony", passed, "", 0, 0, 0, false, 0, 0});
+    std::cout << "  " << (passed ? "[PASS]" : "[FAIL]") << " Polyphony supported" << std::endl;
+    return passed;
 }
 
 bool TestRunner::executeOctaveVerificationTest(Machine* machine, int midiNote, bool verbose) {
@@ -285,55 +287,66 @@ bool TestRunner::executeOctaveVerificationTest(Machine* machine, int midiNote, b
     (void)verbose;
     if (!machine) {
         std::cout << "  [SKIP] No machine provided" << std::endl;
-        return true;
+        results_.push_back({"octave", false, "No machine provided", 0, 0, 0, false, 0, 0});
+        return false;
     }
     
-    std::cout << "  [PASS] Octave verification passed" << std::endl;
-    return true;
+    bool passed = runOctaveTests(machine, verbose);
+    results_.push_back({"octave", passed, "", 0, 0, 0, false, 0, 0});
+    std::cout << "  " << (passed ? "[PASS]" : "[FAIL]") << " Octave verification passed" << std::endl;
+    return passed;
 }
 
 bool TestRunner::executeVolumeSilenceTest(Machine* machine, bool verbose) {
     if (!machine) {
         std::cout << "  [SKIP] No machine provided" << std::endl;
-        return true;
+        results_.push_back({"silence", false, "No machine provided", 0, 0, 0, false, 0, 0});
+        return false;
     }
     
-    (void)verbose;
-    std::cout << "  [PASS] Silence test passed" << std::endl;
-    return true;
+    bool passed = runVolumeSilenceTest(machine, verbose);
+    results_.push_back({"silence", passed, "", 0, 0, 0, false, 0, 0});
+    std::cout << "  " << (passed ? "[PASS]" : "[FAIL]") << " Silence test passed" << std::endl;
+    return passed;
 }
 
 bool TestRunner::executeVolumeNoClipTest(Machine* machine, bool verbose) {
     if (!machine) {
         std::cout << "  [SKIP] No machine provided" << std::endl;
-        return true;
+        results_.push_back({"no_clip", false, "No machine provided", 0, 0, 0, false, 0, 0});
+        return false;
     }
     
-    (void)verbose;
-    std::cout << "  [PASS] No-clip test passed" << std::endl;
-    return true;
+    bool passed = runVolumeNoClipTest(machine, verbose);
+    results_.push_back({"no_clip", passed, "", 0, 0, 0, false, 0, 0});
+    std::cout << "  " << (passed ? "[PASS]" : "[FAIL]") << " No-clip test passed" << std::endl;
+    return passed;
 }
 
 bool TestRunner::executeNoteReleaseTest(Machine* machine, bool verbose) {
     if (!machine) {
         std::cout << "  [SKIP] No machine provided" << std::endl;
-        return true;
+        results_.push_back({"note_release", false, "No machine provided", 0, 0, 0, false, 0, 0});
+        return false;
     }
     
-    (void)verbose;
-    std::cout << "  [PASS] Note release test passed" << std::endl;
-    return true;
+    bool passed = runNoteOffTests(machine, verbose);
+    results_.push_back({"note_release", passed, "", 0, 0, 0, false, 0, 0});
+    std::cout << "  " << (passed ? "[PASS]" : "[FAIL]") << " Note release test passed" << std::endl;
+    return passed;
 }
 
 bool TestRunner::executeFilterEnvelopeTest(Machine* machine, bool verbose) {
     if (!machine) {
         std::cout << "  [SKIP] No machine provided" << std::endl;
-        return true;
+        results_.push_back({"filter_env", false, "No machine provided", 0, 0, 0, false, 0, 0});
+        return false;
     }
     
-    (void)verbose;
-    std::cout << "  [PASS] Filter envelope test passed" << std::endl;
-    return true;
+    bool passed = runFilterEnvelopeTests(machine, verbose);
+    results_.push_back({"filter_env", passed, "", 0, 0, 0, false, 0, 0});
+    std::cout << "  " << (passed ? "[PASS]" : "[FAIL]") << " Filter envelope test passed" << std::endl;
+    return passed;
 }
 
 

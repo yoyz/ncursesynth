@@ -437,6 +437,18 @@ void CursynthMachine::applyCC(int cc, float normalized, const std::string& param
     }
 }
 
+void CursynthMachine::noteOn()
+{
+    if (engine == nullptr) return;
+    setI(NOTE_ON, 1);
+    setI(NOTE1, note);
+}
+
+void CursynthMachine::noteOff()
+{
+    if (engine == nullptr) return;
+    setI(NOTE_ON, 0);
+}
 
 Sint32 CursynthMachine::tick()
 {

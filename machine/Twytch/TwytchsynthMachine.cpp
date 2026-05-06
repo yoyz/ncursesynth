@@ -305,6 +305,19 @@ const char* TwytchsynthMachine::getMachineParamCharStar(int machineParam, int pa
 }
 
 
+void TwytchsynthMachine::noteOn()
+{
+    if (engine == nullptr) return;
+    setI(NOTE_ON, 1);
+    setI(NOTE1, note);
+}
+
+void TwytchsynthMachine::noteOff()
+{
+    if (engine == nullptr) return;
+    setI(NOTE_ON, 0);
+}
+
 void TwytchsynthMachine::reset()
 {
     sample_num = 0;

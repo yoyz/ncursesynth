@@ -37,10 +37,12 @@ const char * getMachineParamCharStar(int machineParam,int paramValue);
   int getLastNote() const { return note; }
   int getKeyOn() const { return note_on; }
 
-  void applyCC(int cc, float normalized, const std::string& paramName) override;
+ void applyCC(int cc, float normalized, const std::string& paramName) override;
+  void noteOn() override;
+  void noteOff() override;
 
- protected:
-   int polyphony_;
+  protected:
+    int polyphony_;
 
    mopocursynth::CursynthEngine * engine;
 

@@ -27,10 +27,12 @@ class TwytchsynthMachine : public Machine
    void reset();
    Sint32  tick();
 
-   void setI(int what,int val);
-   void setF(int what,float val);
-   int  getI(int what);
-   int  checkI(int what,int val);
+    void setI(int what,int val);
+    void setF(int what,float val);
+    int  getI(int what);
+    int  checkI(int what,int val);
+    void noteOn();
+    void noteOff();
 
    const char * getMachineParamCharStar(int machineParam,int paramValue);
 

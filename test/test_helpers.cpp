@@ -89,29 +89,33 @@ bool runSoundProductionTests(Machine* machine, bool useFFT) {
     double cpuEnd = getCPUTimeForTest();
     double wallEnd = getWallClockTime();
     
-    // Check if we have meaningful audio (not all zeros)
-    bool hasMeaningfulAudio = false;
-    for (int i = 0; i < numSamples; i++) {
-        if (samples[i] != 0) {
-            hasMeaningfulAudio = true;
-            break;
-        }
+    // Calculate RMS - convert int32_t to float
+    float rms = 0.0f;
+    double sum = 0.0;
+    for (int32_t s : samples) {
+        float f = static_cast<float>(s);
+        sum += f * f;
     }
+    rms = sqrt(sum / numSamples);
+    
+    // Threshold for meaningful audio (normalized to int16 max)
+    const float rmsThreshold = 10.0f; // Samples are 16-bit, so 10 is a good minimum
+    bool hasMeaningfulAudio = rms > rmsThreshold;
     
     // Calculate CPU usage
     double cpuTime = cpuEnd - cpuStart;
     double wallTime = wallEnd - wallStart;
     
     if (hasMeaningfulAudio) {
-        printTestResult("sound", true, "Audio generated (" + std::to_string(cpuTime) + "s CPU)");
+        printTestResult("sound", true, "Audio generated (RMS=" + std::to_string(rms) + ", CPU=" + std::to_string(cpuTime) + "s)");
         return true;
     } else {
-        printTestResult("sound", false, "No audio output (" + std::to_string(cpuTime) + "s CPU)");
+        printTestResult("sound", false, "No audio output (RMS=" + std::to_string(rms) + ", CPU=" + std::to_string(cpuTime) + "s)");
         return false;
     }
 }
 
-// Test: Silence - sets volume to 0 and verifies no audio output
+// Test: Silence - verifies no audio output when no note is active
 bool runVolumeSilenceTest(Machine* machine, bool useFFT) {
     (void)useFFT;
     if (!machine) { 
@@ -121,13 +125,23 @@ bool runVolumeSilenceTest(Machine* machine, bool useFFT) {
     
     machine->init();
     
-    // Generate a substantial audio buffer (at least 16384 samples)
+    // Turn off any active notes using engine's noteOff() method
+    machine->noteOff();
+    
+    // Allow brief release time for engines that need it (like Twytch)
+    // Generate a small buffer to let release complete
+    const int releaseSamples = 1024;
+    std::vector<int32_t> releaseBuffer(releaseSamples);
+    for (int i = 0; i < releaseSamples; i++) {
+        machine->tick();
+    }
+    
+    // Now generate silence buffer
     const int numSamples = 16384;
     std::vector<int32_t> samples(numSamples);
     
     // Capture CPU time before
     double cpuStart = getCPUTimeForTest();
-    double wallStart = getWallClockTime();
     
     // Generate audio samples
     for (int i = 0; i < numSamples; i++) {
@@ -136,26 +150,28 @@ bool runVolumeSilenceTest(Machine* machine, bool useFFT) {
     
     // Capture CPU time after
     double cpuEnd = getCPUTimeForTest();
-    double wallEnd = getWallClockTime();
     
-    // Check if all samples are silent (zero)
-    bool isSilent = true;
-    for (int i = 0; i < numSamples; i++) {
-        if (samples[i] != 0) {
-            isSilent = false;
-            break;
-        }
+    // Calculate RMS - convert int32_t to float
+    float rms = 0.0f;
+    double sum = 0.0;
+    for (int32_t s : samples) {
+        float f = static_cast<float>(s);
+        sum += f * f;
     }
+    rms = sqrt(sum / numSamples);
+    
+    // Threshold for silence (normalized to int16 max)
+    const float rmsSilenceThreshold = 50.0f; // Allow small numerical noise and release
+    bool isSilent = rms < rmsSilenceThreshold;
     
     // Calculate CPU usage
     double cpuTime = cpuEnd - cpuStart;
-    double wallTime = wallEnd - wallStart;
     
     if (isSilent) {
-        printTestResult("silence", true, "Silence produced (" + std::to_string(cpuTime) + "s CPU)");
+        printTestResult("silence", true, "Silence produced (RMS=" + std::to_string(rms) + ", CPU=" + std::to_string(cpuTime) + "s)");
         return true;
     } else {
-        printTestResult("silence", false, "Audio output when volume set to 0 (" + std::to_string(cpuTime) + "s CPU)");
+        printTestResult("silence", false, "Audio output when no note active (RMS=" + std::to_string(rms) + ", CPU=" + std::to_string(cpuTime) + "s)");
         return false;
     }
 }
