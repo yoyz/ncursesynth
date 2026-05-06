@@ -135,6 +135,8 @@ $(TARGET): $(OBJECTS)
 
 clean:
 	rm -f $(OBJECTS) $(TARGET)
+	rm -f test/test_runner test/*.o test/tmp/*.o
+	rm -rf test/tmp
 
 run: $(TARGET)
 	./$(TARGET)

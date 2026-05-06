@@ -85,16 +85,21 @@ public:
 
     // FFT-based test methods
     bool runFrequencyVerificationTests(Machine* machine, bool useFFT);
-    bool runAllTests(Machine* machine);
+    bool runAllTests(Machine* machine, bool useFFT = false, const std::vector<std::string>& testNames = {});
     bool runOctaveVerificationTests(Machine* machine);
     bool runVolumeTests(Machine* machine);
     void addTestResult(const std::string& name, bool passed);
-    bool runNoteReleaseTests(Machine* machine);
-    bool runFilterEnvelopeTests(Machine* machine);
-    bool runSoundProductionTests(Machine* machine);
+    bool runNoteReleaseTests(Machine* machine, bool useFFT);
+    bool runFilterEnvelopeTests(Machine* machine, bool useFFT);
     bool runNoteOnOffTests(Machine* machine);
-    bool runCCControlTests(Machine* machine);
-    bool runPolyphonyTests(Machine* machine);
+    bool runCCControlTests(Machine* machine, bool useFFT);
+    bool runNoteOffTests(Machine* machine, bool useFFT);
+    bool runSoundProductionTests(Machine* machine, bool useFFT);
+    bool runVolumeSilenceTest(Machine* machine, bool useFFT);
+    bool runVolumeNoClipTest(Machine* machine, bool useFFT);
+    bool runNoteOnTests(Machine* machine, bool useFFT);
+    bool runOctaveTests(Machine* machine, bool useFFT);
+    bool runPolyphonyTests(Machine* machine, bool useFFT);
     bool runEngineSwitchingTests(Machine* machine);
     bool runEngineInitTests(Machine* machine);
 
@@ -121,3 +126,14 @@ private:
 };
 
 #endif
+
+// Global test functions (implemented in test_helpers.cpp)
+bool runSoundProductionTests(Machine* machine, bool useFFT);
+bool runVolumeSilenceTest(Machine* machine, bool useFFT);
+bool runVolumeNoClipTest(Machine* machine, bool useFFT);
+bool runNoteOnTests(Machine* machine, bool useFFT);
+bool runNoteOffTests(Machine* machine, bool useFFT);
+bool runOctaveTests(Machine* machine, bool useFFT);
+bool runCCControlTests(Machine* machine, bool useFFT);
+bool runPolyphonyTests(Machine* machine, bool useFFT);
+bool runFilterEnvelopeTests(Machine* machine, bool useFFT);

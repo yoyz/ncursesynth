@@ -1,0 +1,349 @@
+================================================================================
+MIDI LEARN TOOL - USER DOCUMENTATION
+================================================================================
+
+OVERVIEW
+--------
+The midi_learn tool provides an interactive way to map MIDI CC (Control
+Change) and NRPN messages from hardware synthesizers to ncursesynth
+parameters. It creates mapping files for use with virtual_synth.
+
+Two modes:
+  1. TCP Mode  - Receives MIDI messages from midi_client via TCP port 8765
+  2. MIDI Mode - Listens directly to MIDI input devices (requires RtMidi)
+
+The midi_client tool is a synthesizer simulator for testing that reads
+CC/NRPN mappings from CSV files in the mapping/midiclient/ directory:
+  - Korg Prologue (55 params)
+  - Novation Summit/Peak (74 params)
+  - Arturia PolyBrute (68 params)
+  - Behringer DeepMind 12 (110 params)
+
+================================================================================
+BUILDING THE TOOLS
+================================================================================
+
+From the ncursesynth root directory:
+
+    make midi_learn    # Build the server
+    make midi_client   # Build the client simulator
+    make clean_midi    # Clean build artifacts
+
+Output binaries:
+    midi/midi_learn   (server)
+    midi/midi_client   (synthesizer simulator)
+
+================================================================================
+MIDI_LEARN SERVER
+================================================================================
+
+USAGE
+-----
+    ./midi/midi_learn [MODE] [OPTIONS]
+
+REQUIRED OPTIONS
+----------------
+    --mapping FILE    Output mapping file (required)
+                      If file exists, loads existing entries
+                      If file doesn't exist, creates it on save
+
+MODES (default: --tcp-mode)
+-------
+    --tcp-mode      Listen for MIDI messages via TCP (default)
+    --midi-mode     Listen to MIDI input device
+
+OPTIONS
+-------
+    --device NUM    MIDI device index (use -1 for all)
+    --csv FILE      CSV reference file showing synth control names
+                    (e.g., mapping/midiclient/berhringer_deepmind_12.csv)
+    --add CC,PARAM,DEF  Non-interactively add entry (repeatable)
+    --btn CC,PARAM,DEF  Same as --add but as toggle
+    --momentary CC,PARAM,DEF Same as --add but as momentary
+    --show-unknown  Show unmapped CCs and unmapped parameters
+    --nrpn          Enable NRPN mode
+    --port NUM      TCP server port (default: 8765)
+    --help          Show this help
+
+EXAMPLES
+--------
+    # MIDI mode - listen to DeepMind12
+    ./midi/midi_learn --midi-mode --device 1 --mapping mapping/my_synth.txt
+
+    # With CSV reference for display
+    ./midi/midi_learn --midi-mode --device 1 --mapping mapping/my_synth.txt \
+        --csv mapping/midiclient/berhringer_deepmind_12.csv
+
+    # TCP mode (for testing with midi_client)
+    ./midi/midi_learn --tcp-mode --mapping mapping/my_synth.txt
+
+    # Pre-load mappings
+    ./midi/midi_learn --mapping mapping/my_synth.txt \
+        --add 43,CUTOFF,64 --add 44,RESONANCE,0
+
+================================================================================
+KEYBOARD CONTROLS
+================================================================================
+
+MIDI MODE
+---------
+    q       - Quit
+    a       - Assign parameter to last received CC
+    s       - Save mapping file
+    p       - Print current assignments
+    h       - Show help
+
+ASSIGNMENT WORKFLOW
+-------------------
+1. Move a control on your MIDI device -> CC number and value displayed
+2. Press 'a' to assign a parameter
+3. Type number (1-13) and press Enter
+4. Press 's' to save the mapping file
+
+PARAMETER LIST (from machine/Parameter.h)
+--------------------------------------
+     1. CUTOFF
+     2. RESONANCE
+     3. FILTER_ENV_AMOUNT
+     4. HPF_FREQ
+     5. AMP_ATTACK
+     6. AMP_DECAY
+     7. AMP_SUSTAIN
+     8. AMP_RELEASE
+     9. FILTER_ATTACK
+    10. FILTER_DECAY
+    11. FILTER_SUSTAIN
+    12. FILTER_RELEASE
+    13. VOLUME
+    14. OSC_1_WAVEFORM
+    15. OSC_1_VOLUME
+    16. OSC_1_PHASE
+    17. OSC_1_PHASE_SYNC
+    18. OSC_2_WAVEFORM
+    19. OSC_2_VOLUME
+    20. OSC_2_PHASE
+    21. OSC_2_PHASE_SYNC
+    22. OSC_CROSS_MOD
+    23. OSC_MIX
+    24. OSC_2_TRANSPOSE
+    25. OSC_2_TUNE
+    26. LFO_1_WAVEFORM
+    27. LFO_1_FREQUENCY
+    28. LFO_1_AMOUNT
+    29. LFO_2_WAVEFORM
+    30. LFO_2_FREQUENCY
+    31. LFO_2_AMOUNT
+    32. FILTER_TYPE
+    33. FILTER_CUTOFF
+    34. FILTER_RESONANCE
+    35. FILTER_KEYTRACK
+    36. FILTER_ENV_DEPTH
+    37. FILTER_ENV_ATTACK
+    38. FILTER_ENV_DECAY
+    39. FILTER_ENV_SUSTAIN
+    40. FILTER_ENV_RELEASE
+    41. DELAY_TIME
+    42. DELAY_FEEDBACK
+    43. DELAY_DRY_WET
+    44. REVERB_AMOUNT
+    45. REVERB_DRY_WET
+    46. CHORUS_RATE
+    47. CHORUS_DEPTH
+    48. CHORUS_DRY_WET
+    49. DISTORTION_DRIVE
+    50. DISTORTION_DRY_WET
+    51. POLYPHONY
+    52. LEGATO
+    53. PORTAMENTO_TIME
+    54. PORTAMENTO_TYPE
+    55. PITCH_BEND_RANGE
+    56. UNISON_VOICES
+    57. UNISON_SPREAD
+    58. MOD_SOURCE_1
+    59. MOD_SCALE_1
+    60. MOD_DESTINATION_1
+    61. MOD_SOURCE_2
+    62. MOD_SCALE_2
+    63. MOD_DESTINATION_2
+    64. MOD_SOURCE_3
+    65. MOD_SCALE_3
+    66. MOD_DESTINATION_3
+
+KEY BEHAVIOR
+------------
+- When assigning a parameter (e.g., CUTOFF), removes any previous CC that
+  had that parameter assigned
+- CSV reference (if provided) shows synth control names (e.g., "VCF Freq")
+  alongside CC numbers in the output
+- If no CSV provided, only CC number and value are shown
+
+================================================================================
+MIDI_CLIENT (SYNTH SIMULATOR)
+================================================================================
+
+USAGE
+-----
+    ./midi/midi_client <synth> [MODE] [OPTIONS]
+
+SYNTH PROFILES
+--------------
+    prologue      Korg Prologue (55 CC parameters)
+    summit        Novation Summit/Peak (74 CC parameters)
+    polybrute     Arturia PolyBrute (68 CC parameters)
+    deepmind      Behringer DeepMind 12 (110 CC parameters)
+
+MODES
+-----
+    --loop        Send all CC values in sequence (min, mid, max for each)
+    --demo        Play demo sequence (presets in musical order)
+    --sweep N     Sweep parameter N from min to max
+    --send CC VAL Send single CC message
+    --nrpn MSB LSB VAL  Send NRPN message
+
+OPTIONS
+-------
+    --host IP     Server IP (default: 127.0.0.1)
+    --port NUM    Server port (default: 8765)
+    --help        Show this help
+
+EXAMPLES
+--------
+    # Connect to server and run demo
+    ./midi/midi_client prologue --demo
+
+    # Use different server
+    ./midi/midi_client summit --host 192.168.1.100 --port 8765
+
+    # Sweep parameter index 14
+    ./midi/midi_client summit --sweep 14
+
+    # Send single CC message
+    ./midi/midi_client polybrute --send 66 100
+
+    # Send NRPN message
+    ./midi/midi_client prologue --nrpn 1 0 64
+
+================================================================================
+TCP PROTOCOL
+================================================================================
+
+Connection
+----------
+    Host: 127.0.0.1 (localhost)
+    Port: 8765 (default, configurable via --port)
+
+Message Format
+--------------
+    4 bytes (big-endian) = message length
+    N bytes = JSON payload
+
+Example messages from client to server:
+
+    CC Message:
+    {"type":"cc","cc":43,"value":100}
+
+    NRPN Message:
+    {"type":"nrpn","msb":1,"lsb":0,"value":64}
+
+    Sync Request:
+    {"type":"sync"}
+
+Response from server:
+
+    Entry Update:
+    {"type":"entry","cc":43,"min":0,"max":127,"last":100,"status":"learned"}
+
+    Parameter Assign:
+    {"type":"assign","cc":43,"param":"CUTOFF"}
+
+================================================================================
+TESTING THE TOOLS
+================================================================================
+
+Test 1: Single CC Message
+-------------------------
+Terminal 1:
+    ./midi/midi_learn --mapping mapping/test.txt
+
+Terminal 2:
+    ./midi/midi_client prologue --send 43 100
+
+Result: Server displays CC 43 with value 100.
+
+Test 2: Demo Mode
+-----------------
+Terminal 1:
+    ./midi/midi_learn --mapping mapping/test.txt
+
+Terminal 2:
+    ./midi/midi_client summit --demo
+
+Result: Server receives sequence of CC messages from Summit profile.
+
+Test 3: Real MIDI Device
+------------------------
+Terminal 1:
+    ./midi/midi_learn --midi-mode --device 1 --mapping mapping/my_synth.txt
+
+Result: Move controls on your synth, CC values displayed in real-time.
+
+================================================================================
+OUTPUT MAPPING FILE FORMAT
+================================================================================
+
+The mapping file format (CSV):
+
+    # MIDI Learn Mapping
+    # auto-generated by midi_learn tool
+    # Format: cc,parameter_name,min_val,max_val,default_val
+
+    29,CUTOFF,0,127,64
+    30,RESONANCE,0,127,0
+    37,AMP_ATTACK,0,127,0
+
+This file can be used with virtual_synth:
+
+    ./virtual_synth --mapping mapping/my_synth.txt
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Connection refused
+    - Ensure midi_learn is running first
+    - Check port matches (default 8765)
+
+No CC messages received
+    - Verify MIDI device is connected
+    - Check MIDI device index with --device
+
+Unknown parameter warning
+    - Parameter not in database but valid
+    - Can still save and use with ncursesynth
+
+Tool won't compile
+    - Run from ncursesynth root directory
+    - Check dependencies: g++, pthread
+
+Permission denied (ALSA)
+    - Add yourself to audio group: sudo usermod -a -G audio $USER
+    - Log out and back in
+
+================================================================================
+FILES
+================================================================================
+
+Source Files:
+    midi/midi_learn.cpp      - MIDI learn tool (server)
+    midi/midi_client.cpp     - Synthesizer simulator (client)
+    midi/cc_map.h            - Parameter database
+    midi/midi_protocol.h     - TCP communication protocol
+    mapping/parameters.txt   - Available parameter list
+    mapping/midiclient/      - Synth CSV profiles
+
+Output:
+    midi/midi_learn          - Server binary
+    midi/midi_client         - Client binary
+
+Related:
+    AGENTS.md                - Project documentation

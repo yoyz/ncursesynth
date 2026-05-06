@@ -1,12 +1,16 @@
 CXX = g++
-CXXFLAGS = -std=c++14 -pthread -frtti -I../. -I../machine -I../ui -I../audio -I../midi -I../bank -Wall -Wextra -O2
+CXXFLAGS = -std=c++14 -pthread -frtti -I../. -I../machine -I../ui -I../audio -I../midi -I../bank -Wall -Wextra -Wno-unused-function -O2
 LDFLAGS = -lportaudio -lpthread -lm -Wl,--no-as-needed -lstdc++
 
 .PHONY: all clean
 
 all: test_runner
 
-test_runner: test_runner.o fake_audio_driver.o fft_analyzer.o test_reporter.o midi_simulator.o test_engine.o tmp/MachineManager.o tmp/ncursesynth_machine.o tmp/pbsynth_machine.o tmp/pbsynth_synthengine.o tmp/pbsynth_osctab.o tmp/pbsynth_lfo.o tmp/pbsynth_osc.o tmp/pbsynth_envtab.o tmp/pbsynth_filter.o tmp/pbsynth_coeff.o tmp/pbsynth_echo.o tmp/pbsynth_env.o tmp/pbsynth_lfotab.o tmp/ncursesynth_moog_filter.o tmp/ncursesynth_high_pass_filter.o tmp/ncursesynth_korgms20_filter.o tmp/ncursesynth_oberheim_sem_filter.o tmp/ncursesynth_svf_filter.o tmp/ncursesynth_saw_oscillator.o tmp/ncursesynth_adsr_envelope.o tmp/ncursesynth_flexible_envelope.o tmp/ncursesynth_synth_architecture.o tmp/ncursesynth_voice.o tmp/ncursesynth_delay.o tmp/ncursesynth_reverb.o tmp/ncursesynth_chorus.o tmp/ncursesynth_distortion.o tmp/ncursesynth_effect_chain.o tmp/ncursesynth_preset_manager.o tmp/cursynth_cursynth_machine.o tmp/cursynth_cursynth_engine.o tmp/cursynth_cursynth_strings.o tmp/cursynth_delay.o tmp/cursynth_envelope.o tmp/cursynth_filter.o tmp/cursynth_linear_slope.o tmp/cursynth_midi_lookup.o tmp/cursynth_mono_panner.o tmp/cursynth_operators.o tmp/cursynth_oscillator.o tmp/cursynth_processor.o tmp/cursynth_processor_router.o tmp/cursynth_send_receive.o tmp/cursynth_smooth_filter.o tmp/cursynth_smooth_value.o tmp/cursynth_step_generator.o tmp/cursynth_trigger_operators.o tmp/cursynth_value.o tmp/cursynth_voice_handler.o tmp/cursynth_feedback.o tmp/cursynth_wave.o
+test_runner: test_runner.o fake_audio_driver.o fft_analyzer.o test_reporter.o midi_simulator.o test_engine.o test_helpers.o tmp/MachineManager.o tmp/ncursesynth_machine.o tmp/pbsynth_machine.o tmp/pbsynth_synthengine.o tmp/pbsynth_osctab.o tmp/pbsynth_lfo.o tmp/pbsynth_osc.o tmp/pbsynth_envtab.o tmp/pbsynth_filter.o tmp/pbsynth_coeff.o tmp/pbsynth_echo.o tmp/pbsynth_env.o tmp/pbsynth_lfotab.o tmp/ncursesynth_moog_filter.o tmp/ncursesynth_high_pass_filter.o tmp/ncursesynth_korgms20_filter.o tmp/ncursesynth_oberheim_sem_filter.o tmp/ncursesynth_svf_filter.o tmp/ncursesynth_saw_oscillator.o tmp/ncursesynth_adsr_envelope.o tmp/ncursesynth_flexible_envelope.o tmp/ncursesynth_synth_architecture.o tmp/ncursesynth_voice.o tmp/ncursesynth_delay.o tmp/ncursesynth_reverb.o tmp/ncursesynth_chorus.o tmp/ncursesynth_distortion.o tmp/ncursesynth_effect_chain.o tmp/ncursesynth_preset_manager.o tmp/cursynth_cursynth_machine.o tmp/cursynth_cursynth_engine.o tmp/cursynth_cursynth_strings.o tmp/cursynth_delay.o tmp/cursynth_envelope.o tmp/cursynth_filter.o tmp/cursynth_linear_slope.o tmp/cursynth_midi_lookup.o tmp/cursynth_mono_panner.o tmp/cursynth_operators.o tmp/cursynth_oscillator.o tmp/cursynth_processor.o tmp/cursynth_processor_router.o tmp/cursynth_send_receive.o tmp/cursynth_smooth_filter.o tmp/cursynth_smooth_value.o tmp/cursynth_step_generator.o tmp/cursynth_trigger_operators.o tmp/cursynth_value.o tmp/cursynth_voice_handler.o tmp/cursynth_feedback.o tmp/cursynth_wave.o
+
+# Remove test_runner_main.cpp from build to avoid conflicts
+# test_runner_main.o: test_runner_main.cpp
+# 	$(CXX) $(CXXFLAGS) -c $< -o $@
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
 test_runner.o: test_runner.cpp
@@ -22,6 +26,9 @@ test_reporter.o: test_reporter.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 midi_simulator.o: midi_simulator.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+test_helpers.o: test_helpers.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 test_engine.o: test_engine.cpp
