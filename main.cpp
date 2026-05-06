@@ -181,20 +181,29 @@ int main(int argc, char* argv[]) {
 
     std::unique_ptr<MachineUI> ui;
 
+    // Determine UI type based on active machine
     TwytchsynthMachine* twytchMachine = dynamic_cast<TwytchsynthMachine*>(activeMachine);
     PBSynthMachine* pbsynthMachine = dynamic_cast<PBSynthMachine*>(activeMachine);
     CursynthMachine* cursynthMachine = dynamic_cast<CursynthMachine*>(activeMachine);
     NcursesynthMachine* ncursesynthMachine = dynamic_cast<NcursesynthMachine*>(activeMachine);
 
-    if (twytchMachine) {
-        ui.reset(new TwytchUI(activeMachine, &machineManager));
-    } else if (pbsynthMachine) {
-        ui.reset(new PBSynthUI(activeMachine, &machineManager));
-    } else if (cursynthMachine) {
-        ui.reset(new CursynthUI(activeMachine, &machineManager));
-    } else if (ncursesynthMachine) {
-        ui.reset(new NcursesynthUI(activeMachine, &machineManager));
+    // Use new engine UI if available (engine-specific UI exists)
+    bool useNewEngineUI = twytchMachine || pbsynthMachine || cursynthMachine || ncursesynthMachine;
+
+    if (useNewEngineUI) {
+        if (twytchMachine) {
+            ui.reset(new TwytchUI(activeMachine, &machineManager));
+        } else if (pbsynthMachine) {
+            ui.reset(new PBSynthUI(activeMachine, &machineManager));
+        } else if (cursynthMachine) {
+            ui.reset(new CursynthUI(activeMachine, &machineManager));
+        } else if (ncursesynthMachine) {
+            ui.reset(new NcursesynthUI(activeMachine, &machineManager));
+        } else {
+            ui.reset(new TwytchUI(activeMachine, &machineManager));
+        }
     } else {
+        // Fallback to default UI
         ui.reset(new TwytchUI(activeMachine, &machineManager));
     }
 
@@ -250,16 +259,24 @@ int main(int argc, char* argv[]) {
             }
 
             // Create new UI for the new machine type
-            if (twytchMachine2) {
-                ui.reset(new TwytchUI(activeMachine, &machineManager));
-            } else if (pbsynthMachine2) {
-                ui.reset(new PBSynthUI(activeMachine, &machineManager));
-            } else if (cursynthMachine2) {
-                ui.reset(new CursynthUI(activeMachine, &machineManager));
-            } else if (ncursesynthMachine2) {
-                ui.reset(new NcursesynthUI(activeMachine, &machineManager));
-            }
-            ui->setMidiInput(&midiInput);
+             bool useNewEngineUI = twytchMachine2 || pbsynthMachine2 || cursynthMachine2 || ncursesynthMachine2;
+             if (useNewEngineUI) {
+                 if (twytchMachine2) {
+                     ui.reset(new TwytchUI(activeMachine, &machineManager));
+                 } else if (pbsynthMachine2) {
+                     ui.reset(new PBSynthUI(activeMachine, &machineManager));
+                 } else if (cursynthMachine2) {
+                     ui.reset(new CursynthUI(activeMachine, &machineManager));
+                 } else if (ncursesynthMachine2) {
+                     ui.reset(new NcursesynthUI(activeMachine, &machineManager));
+                 } else {
+                     ui.reset(new TwytchUI(activeMachine, &machineManager));
+                 }
+             } else {
+                 // Fallback to default UI
+                 ui.reset(new TwytchUI(activeMachine, &machineManager));
+             }
+             ui->setMidiInput(&midiInput);
             ui->setMenuIndex(savedMenuIndex);
             ui->setMenuSelection(savedMenuSelection);
             ui->setMidiDeviceIndex(savedMidiDeviceIndex);
@@ -268,22 +285,22 @@ int main(int argc, char* argv[]) {
         }
 
         if (activeMachine) {
-            // Cast and check keyon
-            PBSynthMachine* pbsynthMachine3 = dynamic_cast<PBSynthMachine*>(activeMachine);
-            CursynthMachine* cursynthMachine3 = dynamic_cast<CursynthMachine*>(activeMachine);
-            TwytchsynthMachine* twytchMachine3 = dynamic_cast<TwytchsynthMachine*>(activeMachine);
-            NcursesynthMachine* ncursesynthMachine3 = dynamic_cast<NcursesynthMachine*>(activeMachine);
+             // Cast and check keyon for MIDI monitor
+             PBSynthMachine* pbsynthMachine3 = dynamic_cast<PBSynthMachine*>(activeMachine);
+             CursynthMachine* cursynthMachine3 = dynamic_cast<CursynthMachine*>(activeMachine);
+             TwytchsynthMachine* twytchMachine3 = dynamic_cast<TwytchsynthMachine*>(activeMachine);
+             NcursesynthMachine* ncursesynthMachine3 = dynamic_cast<NcursesynthMachine*>(activeMachine);
 
-            if (pbsynthMachine3 && pbsynthMachine3->getKeyOn()) {
-                ui->setMidiNote(pbsynthMachine3->getLastNote(), 127);
-            } else if (cursynthMachine3 && cursynthMachine3->getKeyOn()) {
-                ui->setMidiNote(cursynthMachine3->getLastNote(), 127);
-            } else if (twytchMachine3 && twytchMachine3->getKeyOn()) {
-                ui->setMidiNote(twytchMachine3->getLastNote(), 127);
-            } else if (ncursesynthMachine3 && ncursesynthMachine3->getKeyOn()) {
-                ui->setMidiNote(ncursesynthMachine3->getLastNote(), 127);
-            }
-        }
+             if (pbsynthMachine3 && pbsynthMachine3->getKeyOn()) {
+                 ui->setMidiNote(pbsynthMachine3->getLastNote(), 127);
+             } else if (cursynthMachine3 && cursynthMachine3->getKeyOn()) {
+                 ui->setMidiNote(cursynthMachine3->getLastNote(), 127);
+             } else if (twytchMachine3 && twytchMachine3->getKeyOn()) {
+                 ui->setMidiNote(twytchMachine3->getLastNote(), 127);
+             } else if (ncursesynthMachine3 && ncursesynthMachine3->getKeyOn()) {
+                 ui->setMidiNote(ncursesynthMachine3->getLastNote(), 127);
+             }
+         }
 
         ui->draw();
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
