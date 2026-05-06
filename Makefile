@@ -111,7 +111,6 @@ SOURCES = main.cpp audio/audio_engine.cpp \
           machine/Twytch/twytchhelm_reverb_comb.cpp \
           machine/Twytch/twytchhelm_sample_decay_lookup.cpp \
           machine/Twytch/twytchhelm_simple_delay.cpp \
-          machine/Twytch/twytchhelm_smooth_filter.cpp \
           machine/Twytch/twytchhelm_smooth_value.cpp \
           machine/Twytch/twytchhelm_state_variable_filter.cpp \
           machine/Twytch/twytchhelm_step_generator.cpp \
@@ -120,71 +119,13 @@ SOURCES = main.cpp audio/audio_engine.cpp \
           machine/Twytch/twytchhelm_trigger_random.cpp \
           machine/Twytch/twytchhelm_value.cpp \
           machine/Twytch/twytchhelm_value_switch.cpp \
-          machine/Twytch/twytchhelm_voice_handler.cpp
+          machine/Twytch/twytchhelm_voice_handler.cpp \
+          machine/Twytch/twytchhelm_smooth_filter.cpp \
 
 OBJECTS = $(SOURCES:.cpp=.o)
 
 TEST_CXXFLAGS = -std=c++14 -pthread -frtti -I. -I../machine -I../ui -I../audio -I../midi -I../bank -Wall -Wextra -Wno-unused-function -O2
 TEST_LDFLAGS = -lportaudio -lpthread -lm -Wl,--no-as-needed -lstdc++
-
-TEST_SOURCES = test/test_runner.cpp \
-               test/fake_audio_driver.cpp \
-               test/fft_analyzer.cpp \
-               test/test_reporter.cpp \
-               test/midi_simulator.cpp \
-               test/test_helpers.cpp \
-               test/test_engine.cpp \
-               machine/MachineManager.cpp \
-               machine/Ncursesynth/NcursesynthMachine.cpp \
-               machine/PBSynth/PBSynthMachine.cpp \
-               machine/PBSynth/synthengine.cpp \
-               machine/PBSynth/osctab.cpp \
-               machine/PBSynth/lfo.cpp \
-               machine/PBSynth/osc.cpp \
-               machine/PBSynth/envtab.cpp \
-               machine/PBSynth/filter.cpp \
-               machine/PBSynth/coeff.cpp \
-               machine/PBSynth/echo.cpp \
-               machine/PBSynth/env.cpp \
-               machine/PBSynth/lfotab.cpp \
-               machine/Ncursesynth/filters/moog_filter.cpp \
-               machine/Ncursesynth/filters/high_pass_filter.cpp \
-               machine/Ncursesynth/filters/korgms20_filter.cpp \
-               machine/Ncursesynth/filters/oberheim_sem_filter.cpp \
-               machine/Ncursesynth/filters/svf_filter.cpp \
-               machine/Ncursesynth/oscillators/saw_oscillator.cpp \
-               machine/Ncursesynth/envelopes/adsr_envelope.cpp \
-               machine/Ncursesynth/envelopes/flexible_envelope.cpp \
-               machine/Ncursesynth/synth/synth_architecture.cpp \
-               machine/Ncursesynth/synth/voice.cpp \
-               machine/Ncursesynth/effects/delay.cpp \
-               machine/Ncursesynth/effects/reverb.cpp \
-               machine/Ncursesynth/effects/chorus.cpp \
-               machine/Ncursesynth/effects/distortion.cpp \
-               machine/Ncursesynth/effects/effect_chain.cpp \
-               machine/Ncursesynth/preset/preset_manager.cpp \
-               machine/Cursynth/CursynthMachine.cpp \
-               machine/Cursynth/cursynth_engine.cpp \
-               machine/Cursynth/cursynth_strings.cpp \
-               machine/Cursynth/delay.cpp \
-               machine/Cursynth/envelope.cpp \
-               machine/Cursynth/filter.cpp \
-               machine/Cursynth/linear_slope.cpp \
-               machine/Cursynth/midi_lookup.cpp \
-               machine/Cursynth/mono_panner.cpp \
-               machine/Cursynth/operators.cpp \
-               machine/Cursynth/oscillator.cpp \
-               machine/Cursynth/processor.cpp \
-               machine/Cursynth/processor_router.cpp \
-               machine/Cursynth/send_receive.cpp \
-               machine/Cursynth/smooth_filter.cpp \
-               machine/Cursynth/smooth_value.cpp \
-               machine/Cursynth/step_generator.cpp \
-               machine/Cursynth/trigger_operators.cpp \
-               machine/Cursynth/value.cpp \
-               machine/Cursynth/voice_handler.cpp \
-               machine/Cursynth/feedback.cpp \
-               machine/Cursynth/wave.cpp
 
 TEST_MACHINE_OBJECTS = machine/MachineManager.o \
                        machine/Ncursesynth/NcursesynthMachine.o \
@@ -220,6 +161,7 @@ TEST_MACHINE_OBJECTS = machine/MachineManager.o \
                        machine/Cursynth/cursynth_strings.o \
                        machine/Cursynth/delay.o \
                        machine/Cursynth/envelope.o \
+                       machine/Cursynth/feedback.o \
                        machine/Cursynth/filter.o \
                        machine/Cursynth/linear_slope.o \
                        machine/Cursynth/midi_lookup.o \
@@ -231,12 +173,63 @@ TEST_MACHINE_OBJECTS = machine/MachineManager.o \
                        machine/Cursynth/send_receive.o \
                        machine/Cursynth/smooth_filter.o \
                        machine/Cursynth/smooth_value.o \
+                       machine/Twytch/twytchhelm_smooth_filter.o \
                        machine/Cursynth/step_generator.o \
                        machine/Cursynth/trigger_operators.o \
                        machine/Cursynth/value.o \
                        machine/Cursynth/voice_handler.o \
-                       machine/Cursynth/feedback.o \
-                       machine/Cursynth/wave.o
+                       machine/Cursynth/wave.o \
+                       machine/Twytch/twytchhelm_helm_engine.o \
+                       machine/Twytch/twytchhelm_helm_module.o \
+                       machine/Twytch/twytchhelm_helm_oscillators.o \
+                       machine/Twytch/twytchhelm_helm_voice_handler.o \
+                       machine/Twytch/twytchhelm_helm_lfo.o \
+                       machine/Twytch/twytchhelm_envelope.o \
+                       machine/Twytch/twytchhelm_processor.o \
+                       machine/Twytch/twytchhelm_processor_router.o \
+                       machine/Twytch/twytchhelm_ladder_filter.o \
+                       machine/Twytch/twytchhelm_state_variable_filter.o \
+                       machine/Twytch/twytchhelm_mono_panner.o \
+                       machine/Twytch/twytchhelm_delay.o \
+                       machine/Twytch/twytchhelm_simple_delay.o \
+                       machine/Twytch/twytchhelm_reverb.o \
+                       machine/Twytch/twytchhelm_reverb_comb.o \
+                       machine/Twytch/twytchhelm_reverb_all_pass.o \
+                       machine/Twytch/twytchhelm_noise_oscillator.o \
+                       machine/Twytch/twytchhelm_fixed_point_oscillator.o \
+                       machine/Twytch/twytchhelm_oscillator.o \
+                       machine/Twytch/twytchhelm_operators.o \
+                       machine/Twytch/twytchhelm_value.o \
+                       machine/Twytch/twytchhelm_smooth_value.o \
+                       machine/Twytch/twytchhelm_linear_slope.o \
+                       machine/Twytch/twytchhelm_step_generator.o \
+                       machine/Twytch/twytchhelm_midi_lookup.o \
+                       machine/Twytch/twytchhelm_magnitude_lookup.o \
+                       machine/Twytch/twytchhelm_resonance_lookup.o \
+                       machine/Twytch/twytchhelm_resonance_cancel.o \
+                       machine/Twytch/twytchhelm_formant_manager.o \
+                       machine/Twytch/twytchhelm_gate.o \
+                       machine/Twytch/twytchhelm_arpeggiator.o \
+                       machine/Twytch/twytchhelm_stutter.o \
+                       machine/Twytch/twytchhelm_portamento_slope.o \
+                       machine/Twytch/twytchhelm_feedback.o \
+                       machine/Twytch/twytchhelm_distortion.o \
+                       machine/Twytch/twytchhelm_bit_crush.o \
+                       machine/Twytch/twytchhelm_dc_filter.o \
+                       machine/Twytch/twytchhelm_biquad_filter.o \
+                       machine/Twytch/twytchhelm_bypass_router.o \
+                       machine/Twytch/twytchhelm_fixed_point_wave.o \
+                       machine/Twytch/twytchhelm_memory.o \
+                       machine/Twytch/twytchhelm_peak_meter.o \
+                       machine/Twytch/twytchhelm_detune_lookup.o \
+                       machine/Twytch/twytchhelm_sample_decay_lookup.o \
+                       machine/Twytch/twytchhelm_trigger_operators.o \
+                       machine/Twytch/twytchhelm_trigger_random.o \
+                       machine/Twytch/twytchhelm_value_switch.o \
+                       machine/Twytch/twytchhelm_helm_common.o \
+                       machine/Twytch/twytchhelm_voice_handler.o \
+                       machine/Twytch/twytchhelm_alias.o \
+                       machine/Twytch/TwytchsynthMachine.o
 
 TEST_OBJECTS = test_runner.o \
                fake_audio_driver.o \
@@ -272,7 +265,6 @@ test: test/test_runner.o test/fake_audio_driver.o test/fft_analyzer.o test/test_
 
 test_runner.o fake_audio_driver.o fft_analyzer.o test_reporter.o midi_simulator.o test_helpers.o test_engine.o: %.o: test/%.cpp
 	$(CXX) $(TEST_CXXFLAGS) -c $< -o $@
-
 
 
 # Test runner with execution
