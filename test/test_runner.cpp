@@ -3,6 +3,7 @@
 #include "../machine/Ncursesynth/NcursesynthMachine.h"
 #include "../machine/PBSynth/PBSynthMachine.h"
 #include "../machine/Cursynth/CursynthMachine.h"
+//#include "../machine/Twytch/TwytchsynthMachine.h"
 #include <iostream>
 #include <iomanip>
 #include <atomic>
@@ -55,7 +56,9 @@ TestRunner::TestRunner(const std::string& outputDir, bool verbose)
     : reporter_(outputDir), engines_({"ncursesynth", "pbsynth", "cursynth"}), verbose_(verbose), quiet_(false), running_(false), results_() {}
 
 TestRunner::~TestRunner() {
+    std::lock_guard<std::mutex> lock(g_machineMutex_);
     if (g_activeMachine_) {
+        std::cerr << "[DEBUG] Deleting g_activeMachine_" << std::endl;
         delete g_activeMachine_;
         g_activeMachine_ = nullptr;
     }
@@ -92,7 +95,7 @@ bool TestRunner::runSingleEngine(const std::string& engineName,
         machine = new PBSynthMachine();
     } else if (engineName == "cursynth") {
         machine = new CursynthMachine(8);
-    }
+    } 
 
     if (!machine) {
         std::cerr << "  [ERROR] Failed to create machine for " << engineName << std::endl;
@@ -102,7 +105,6 @@ bool TestRunner::runSingleEngine(const std::string& engineName,
     machine->init();
     std::cout << "  [INFO] Machine " << engineName << " initialized" << std::endl;
 
-    std::lock_guard<std::mutex> lock(g_machineMutex_);
     g_activeMachine_ = machine;
     g_running_.store(true);
 
@@ -113,13 +115,9 @@ bool TestRunner::runSingleEngine(const std::string& engineName,
     }
 
     std::cout << "\n=== All Tests Complete ===" << std::endl;
-
-    {
-        std::lock_guard<std::mutex> lock2(g_machineMutex_);
-        g_activeMachine_ = nullptr;
-        g_running_.store(false);
-    }
     delete machine;
+    g_activeMachine_ = nullptr;
+    g_running_.store(false);
     return true;
 }
 
@@ -137,8 +135,8 @@ bool TestRunner::runAllEngines(const std::vector<std::string>& testNames,
             machine = new PBSynthMachine();
         } else if (name == "cursynth") {
             machine = new CursynthMachine(8);
-        }
-        
+        }         
+
         if (!machine) {
             std::cerr << "  [ERROR] Failed to create machine for " << name << std::endl;
             allSuccess = false;
@@ -153,6 +151,7 @@ bool TestRunner::runAllEngines(const std::vector<std::string>& testNames,
         }
         
         delete machine;
+        g_activeMachine_ = nullptr;
     }
 
     return allSuccess;
@@ -170,6 +169,13 @@ bool TestRunner::runAllTests(Machine* machine, bool useFFT, const std::vector<st
     };
     
     bool allPassed = true;
+    
+    if (g_activeMachine_ != nullptr) {
+        std::cout << "  [WARN] g_activeMachine_ not reset, cleaning up" << std::endl;
+        std::lock_guard<std::mutex> lock(g_machineMutex_);
+        g_activeMachine_ = nullptr;
+        g_running_.store(false);
+    }
     
     if (shouldRunTest("sound")) {
         std::cout << "  [RUN] sound" << std::endl;
@@ -475,10 +481,10 @@ int main(int argc, char** argv) {
         success = runner.runSingleEngine(engine, tests, useFFT);
     }
     
-    std::cout << "\n=== Test Summary ===" << std::endl;
-    std::cout << "Passed: " << runner.getPassedCount() << std::endl;
-    std::cout << "Failed: " << runner.getFailedCount() << std::endl;
-    std::cout << "Rate: " << std::fixed << std::setprecision(1) << runner.getPassRate() << "%" << std::endl;
+    std::cout << "\n=== Test Summary ===" << std::endl << std::flush;
+    std::cout << "Passed: " << runner.getPassedCount() << std::endl << std::flush;
+    std::cout << "Failed: " << runner.getFailedCount() << std::endl << std::flush;
+    std::cout << "Rate: " << std::fixed << std::setprecision(1) << runner.getPassRate() << "%" << std::endl << std::flush;
     
     return success ? 0 : 1;
 }
