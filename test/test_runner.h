@@ -94,12 +94,6 @@ public:
     bool runNoteOnOffTests(Machine* machine);
     bool runCCControlTests(Machine* machine, bool useFFT);
     bool runNoteOffTests(Machine* machine, bool useFFT);
-    bool runSoundProductionTests(Machine* machine, bool useFFT);
-    bool runVolumeSilenceTest(Machine* machine, bool useFFT);
-    bool runVolumeNoClipTest(Machine* machine, bool useFFT);
-    bool runNoteOnTests(Machine* machine, bool useFFT);
-    bool runOctaveTests(Machine* machine, bool useFFT);
-    bool runPolyphonyTests(Machine* machine, bool useFFT);
     bool runEngineSwitchingTests(Machine* machine);
     bool runEngineInitTests(Machine* machine);
 

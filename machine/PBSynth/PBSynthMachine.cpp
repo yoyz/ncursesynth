@@ -157,6 +157,28 @@ void PBSynthMachine::reset()
  trig_time_duration_sample=0;
 }
 
+void PBSynthMachine::noteOn()
+{
+    if (voices.empty()) return;
+    // Trigger note on current voice
+    voices[currentVoice].noteOnTime = sample_num;
+    voices[currentVoice].keyon = 1;
+    voices[currentVoice].note = 60; // MIDI note C4 (440Hz)
+    if (voices[currentVoice].se) {
+        voices[currentVoice].se->getEnvelope(0)->trigger();
+    }
+}
+
+void PBSynthMachine::noteOff()
+{
+    if (voices.empty()) return;
+    // Stop note on current voice
+    voices[currentVoice].keyon = 0;
+    if (voices[currentVoice].se) {
+        voices[currentVoice].se->getEnvelope(0)->release();
+    }
+}
+
 int PBSynthMachine::checkI(int what,int val)
 {
   switch (what)

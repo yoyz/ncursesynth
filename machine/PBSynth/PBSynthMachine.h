@@ -33,6 +33,8 @@ class PBSynthMachine : public Machine
 
    void init();
    void reset();
+   void noteOn();
+   void noteOff();
    Sint32  tick();
    Fixed  tick_fixed();
    Fixed  * tick_fixed_buffer();

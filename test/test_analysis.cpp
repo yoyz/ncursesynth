@@ -1,5 +1,6 @@
 #include "test_analysis.h"
 #include <algorithm>
+#include <complex>
 #include <limits>
 
 // Bit-reverse permutation for FFT

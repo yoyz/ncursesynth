@@ -3,6 +3,8 @@
 
 NcursesynthMachine::NcursesynthMachine() : synth_(nullptr), noteOn_(0) {
     setName("Ncursesynth");
+    // Create synth with default polyphony (8 voices) and sample rate
+    synth_ = new SynthArchitecture(8, 48000.0f);
     for (int i = 0; i < MachineParam::PERFORMANCE_COUNT; i++) {
         params_[i] = 0;
     }
