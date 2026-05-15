@@ -2,10 +2,13 @@
 #include <iostream>
 #define SAM 64
 
+static constexpr int OUTPUT_AMPLITUDE = 4000;
+
 PBSynthMachine::PBSynthMachine(int polyphony)
     : polyphony_(polyphony), currentVoice(0), cutoff(125), resonance(10),
       lfo_depth(0), lfo_depth_shift(20), lfo_speed(0),
-      trig_time_mode(0), trig_time_duration(0), trig_time_duration_sample(0)
+      trig_time_mode(0), trig_time_duration(0), trig_time_duration_sample(0),
+      osc1_scale(0), osc2_scale(0)
 {
     setName("PBSynth");
     DPRINTF("PBSynthMachine::PBSynthMachine()");
@@ -67,8 +70,14 @@ void PBSynthMachine::init()
         voice.se->reset();
         voice.se->setPBSynthFilter24dB(1);
 
-        voice.se->getEnvelope(0)->setADSR(0.2f, 0.2f, 1.0f, 0.2f);
-        voice.se->getEnvelope(1)->setADSR(0.2f, 0.2f, 1.0f, 0.2f);
+        voice.se->getEnvelope(0)->setA(-1.0f);
+        voice.se->getEnvelope(0)->setD(-1.0f + 127.0f / 128.0f);
+        voice.se->getEnvelope(0)->setS(64.0f / 128.0f);
+        voice.se->getEnvelope(0)->setR(-1.0f + 64.0f / 128.0f);
+        voice.se->getEnvelope(1)->setA(-1.0f);
+        voice.se->getEnvelope(1)->setD(-1.0f + 127.0f / 128.0f);
+        voice.se->getEnvelope(1)->setS(64.0f / 128.0f);
+        voice.se->getEnvelope(1)->setR(-1.0f + 64.0f / 128.0f);
 
         voice.note = -1;
         voice.keyon = 0;
@@ -81,6 +90,9 @@ void PBSynthMachine::init()
     note = 60;
     freq = 440.0;
     keyon = 0;
+    osc1_scale = 0;
+    osc2_scale = 0;
+    amp_volume = 90; // 70%
 }
 
 const char * PBSynthMachine::getMachineParamCharStar(int machineParam,int paramValue)
@@ -160,22 +172,44 @@ void PBSynthMachine::reset()
 void PBSynthMachine::noteOn()
 {
     if (voices.empty()) return;
-    // Trigger note on current voice
-    voices[currentVoice].noteOnTime = sample_num;
-    voices[currentVoice].keyon = 1;
-    voices[currentVoice].note = 60; // MIDI note C4 (440Hz)
-    if (voices[currentVoice].se) {
-        voices[currentVoice].se->getEnvelope(0)->trigger();
+
+    int targetVoice = -1;
+    for (int i = 0; i < polyphony_; i++) {
+        if (voices[i].keyon == 0) {
+            targetVoice = i;
+            break;
+        }
     }
+
+    if (targetVoice == -1) {
+        int lowestNote = -1;
+        for (int i = 0; i < polyphony_; i++) {
+            if (lowestNote == -1 || voices[i].note < lowestNote) {
+                lowestNote = voices[i].note;
+                targetVoice = i;
+            }
+        }
+        voices[targetVoice].se->reset();
+    }
+
+    PBSynthVoice& v = voices[targetVoice];
+    v.index = 0;
+    v.se->triggerNoteOsc(0, note + osc1_scale - 2);
+    v.se->triggerNoteOsc(1, note + osc2_scale - 2);
+    v.note = note;
+    v.keyon = 1;
+    keyon = 1;
 }
 
 void PBSynthMachine::noteOff()
 {
     if (voices.empty()) return;
-    // Stop note on current voice
-    voices[currentVoice].keyon = 0;
-    if (voices[currentVoice].se) {
-        voices[currentVoice].se->getEnvelope(0)->release();
+
+    for (auto& v : voices) {
+        if (v.keyon && v.note == note) {
+            v.se->releaseNote();
+            break;
+        }
     }
 }
 
@@ -260,7 +294,7 @@ int PBSynthMachine::getI(int what)
   }
   if (what == ADSR_ENV1_SUSTAIN) {
       float s = se->getEnvelope(1)->getS();
-      return (int)((s - 1.0f) / 2.0f * 127);
+      return (int)((s + 1.0f) / 2.0f * 127);
   }
   if (what == ADSR_ENV1_RELEASE) {
       float r = se->getEnvelope(1)->getR();
@@ -299,8 +333,7 @@ int PBSynthMachine::getI(int what)
       return (int)((d + 1.0f) / 2.0f * 127);
   }
   if (what == AMP) {
-      float v = se->getParameter(SENGINE_AMPLEVEL);
-      return (int)(v * 127);
+      return amp_volume;
   }
   return 0;
 }
@@ -404,20 +437,18 @@ void PBSynthMachine::setI(int what,int val)
     if (what==OSC2_TYPE)           { osc2_type = val; for (auto& v : voices) if(v.se) v.se->getPBSynthOscillator(1)->setWave(this->checkI(OSC2_TYPE,val)); }
     if (what==OSC1_DETUNE)         { osc1_detune = val; for (auto& v : voices) if(v.se) v.se->getPBSynthOscillator(0)->setDetune(this->checkI(OSC1_DETUNE,val)+64); }
     if (what==OSC2_DETUNE)         { osc2_detune = val; for (auto& v : voices) if(v.se) v.se->getPBSynthOscillator(1)->setDetune(this->checkI(OSC2_DETUNE,val)+64); }
-    if (what==OSC1_SCALE)          osc1_scale=val;
-    if (what==OSC2_SCALE)          osc2_scale=val;
+    if (what==OSC1_SCALE)          osc1_scale=(int)((val / 127.0f) * 48.0f - 24.0f);
+    if (what==OSC2_SCALE)          osc2_scale=(int)((val / 127.0f) * 48.0f - 24.0f);
 
 
-    if (what==ADSR_ENV0_ATTACK)    { for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setA(-1+f_val); }
-    if (what==ADSR_ENV0_DECAY)     { for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setD(-1+f_val); }
-    if (what==ADSR_ENV0_SUSTAIN)   { for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setS( f_val); }
-    if (what==ADSR_ENV0_RELEASE)   { for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setR(-1+f_val); }
-
-
-    if (what==ADSR_ENV1_ATTACK)    { for (auto& v : voices) if(v.se) v.se->getEnvelope(1)->setA(-1+f_val); }
-    if (what==ADSR_ENV1_DECAY)     { for (auto& v : voices) if(v.se) v.se->getEnvelope(1)->setD(-1+f_val); }
-    if (what==ADSR_ENV1_SUSTAIN)   { for (auto& v : voices) if(v.se) v.se->getEnvelope(1)->setS( 1+f_val); }
-    if (what==ADSR_ENV1_RELEASE)   { for (auto& v : voices) if(v.se) v.se->getEnvelope(1)->setR(-1+f_val); }
+    if (what==ADSR_ENV0_ATTACK)    { for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setA((f_val*2.0f)-1.0f); }
+    if (what==ADSR_ENV0_DECAY)     { for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setD((f_val*2.0f)-1.0f); }
+    if (what==ADSR_ENV0_SUSTAIN)   { for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setS((f_val*2.0f)-1.0f); }
+    if (what==ADSR_ENV0_RELEASE)   { for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setR((f_val*2.0f)-1.0f); }
+    if (what==ADSR_ENV1_ATTACK)    { for (auto& v : voices) if(v.se) v.se->getEnvelope(1)->setA((f_val*2.0f)-1.0f); }
+    if (what==ADSR_ENV1_DECAY)     { for (auto& v : voices) if(v.se) v.se->getEnvelope(1)->setD((f_val*2.0f)-1.0f); }
+    if (what==ADSR_ENV1_SUSTAIN)   { for (auto& v : voices) if(v.se) v.se->getEnvelope(1)->setS((f_val*2.0f)-1.0f); }
+    if (what==ADSR_ENV1_RELEASE)   { for (auto& v : voices) if(v.se) v.se->getEnvelope(1)->setR((f_val*2.0f)-1.0f); }
 
     //if (what==VCO_MIX)             SE.setParameter(SENGINE_OSCMIX,1.0f/val);
     //if (what==VCO_MIX)             SE.setParameter(SENGINE_ENV2_TO_CUTOFF,1.0f/(val+1));
@@ -435,6 +466,8 @@ void PBSynthMachine::setI(int what,int val)
         note=val;
         if (midiDebug_) std::cerr << "PBSynth: NOTE1 set to " << val << std::endl;
     }
+
+    if (what==AMP) amp_volume = val;
 
     if (what==FILTER1_CUTOFF) {
       for (auto& v : voices) if(v.se) v.se->setParameter(SENGINE_FILTFREQ,(f_val*2)-1);
@@ -490,6 +523,7 @@ Sint32 PBSynthMachine::tick()
 {
     Sint32 total_output = 0;
     int voiceCount = 0;
+    float volScale = (float)amp_volume / 127.0f;
 
     for (auto& voice : voices) {
         if (voice.keyon && voice.se != nullptr) {
@@ -499,7 +533,7 @@ Sint32 PBSynthMachine::tick()
             if (voice.index == 0) {
                 voice.se->process(voice.buffer_f, SAM);
                 for (int i = 0; i < SAM; i++) {
-                    voice.buffer_i[i] = (Sint16)(voice.buffer_f[i] * 1280);
+                    voice.buffer_i[i] = (Sint16)(voice.buffer_f[i] * OUTPUT_AMPLITUDE * volScale);
                 }
             }
 
@@ -514,7 +548,6 @@ Sint32 PBSynthMachine::tick()
             voice.sample_num++;
 
             if (voice.se->isVoiceFinished()) {
-                if (midiDebug_) std::cerr << "  VOICE " << &voice - &voices[0] << " finished release" << std::endl;
                 voice.keyon = 0;
                 voice.note = -1;
             }
@@ -522,7 +555,7 @@ Sint32 PBSynthMachine::tick()
     }
 
     if (voiceCount > 0) {
-        return total_output / voiceCount;
+        return total_output;
     }
 
     return 0;
@@ -537,6 +570,13 @@ Fixed PBSynthMachine::tick_fixed()
 Fixed * PBSynthMachine::tick_fixed_buffer()
 {
     return nullptr;
+}
+
+const char* PBSynthMachine::getDisplayString(int index) {
+    static const char* names[] = {"SQR", "TRGL", "SAW", "NOISE"};
+    if (index == OSC1_TYPE) return names[checkI(OSC1_TYPE, osc1_type)];
+    if (index == OSC2_TYPE) return names[checkI(OSC2_TYPE, osc2_type)];
+    return "";
 }
 
 

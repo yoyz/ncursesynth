@@ -19,7 +19,9 @@ Voice::Voice(float sampleRate)
       baseCutoff(1000.0f),
       resonance(0.5f),
       oscMix(0.5f),
-      osc2Detune(0.0f) {
+      osc2Detune(0.0f),
+      osc1Waveform(Waveform::SAWTOOTH),
+      osc2Waveform(Waveform::SAWTOOTH) {
     
     currentFilter = &moogFilter;
     oscillator1.setWaveform(Waveform::SAWTOOTH);
@@ -53,9 +55,11 @@ void Voice::noteOn(float freq, int id, FilterType filterType,
     filterEnvelopeAmount = filterEnvAmount;
     
     oscillator1.setFrequency(freq);
+    oscillator1.setWaveform(osc1Waveform);
     oscillator1.reset();
     
     oscillator2.setFrequency(freq);
+    oscillator2.setWaveform(osc2Waveform);
     oscillator2.reset();
     
     switch (filterType) {
@@ -152,7 +156,7 @@ float Voice::process() {
     float mixed = osc1_out * (1.0f - oscMix) + osc2_out * oscMix;
     
     float filtered = currentFilter->process(mixed);
-    float output = filtered * ampEnvValue * 0.3f;
+    float output = filtered * ampEnvValue;
     
     return output;
 }
@@ -218,8 +222,13 @@ void Voice::updateFilterEnvelopeAmount(float amount) {
     filterEnvelopeAmount = amount;
 }
 
-void Voice::updateWaveform(Waveform wav) {
+void Voice::updateOsc1Waveform(Waveform wav) {
+    osc1Waveform = wav;
     oscillator1.setWaveform(wav);
+}
+
+void Voice::updateOsc2Waveform(Waveform wav) {
+    osc2Waveform = wav;
     oscillator2.setWaveform(wav);
 }
 

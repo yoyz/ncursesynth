@@ -4,6 +4,8 @@
 
 #define SAM 64
 
+static constexpr int OUTPUT_AMPLITUDE = 8192;
+
 CursynthMachine::CursynthMachine(int polyphony)
     : polyphony_(polyphony), engine(nullptr), cutoff(125), resonance(10),
       trig_time_mode(0), trig_time_duration(0), trig_time_duration_sample(0)
@@ -65,7 +67,7 @@ void CursynthMachine::init()
     engine->getControls().at("cross modulation")->set(0);
     engine->getControls().at("osc 2 transpose")->set(0);
     engine->getControls().at("osc 2 tune")->set(0);
-    engine->getControls().at("volume")->set(0.1);
+    engine->getControls().at("volume")->set(0.5);
     engine->getControls().at("lfo 1 waveform")->set(2);
     engine->getControls().at("lfo 2 waveform")->set(2);
     engine->getControls().at("mod source 1")->set(3);
@@ -76,6 +78,10 @@ void CursynthMachine::init()
     engine->getControls().at("mod scale 2")->set(0);
     engine->getControls().at("lfo 1 frequency")->set(0);
     engine->getControls().at("polyphony")->set((mopocursynth::mopo_float)polyphony_);
+    osc1_type = PICO_CURSYNTH_UPSAW;
+    osc2_type = PICO_CURSYNTH_UPSAW;
+    engine->getControls().at("osc 1 waveform")->set((mopocursynth::mopo_float)PICO_CURSYNTH_UPSAW);
+    engine->getControls().at("osc 2 waveform")->set((mopocursynth::mopo_float)PICO_CURSYNTH_UPSAW);
 
     note = 60;
 }
@@ -289,6 +295,13 @@ void CursynthMachine::setI(int what, int val)
         engine->getControls().at("fil release")->set(f_val * 3);
     }
 
+    if (what == LFO1_WAVEFORM) {
+        engine->getControls().at("lfo 1 waveform")->set((mopocursynth::mopo_float)val);
+    }
+    if (what == LFO2_WAVEFORM) {
+        engine->getControls().at("lfo 2 waveform")->set((mopocursynth::mopo_float)val);
+    }
+
     if (what == LFO1_ENV_AMOUNT) {
         engine->getControls().at("mod scale 1")->set(f_val);
     }
@@ -329,6 +342,10 @@ void CursynthMachine::setI(int what, int val)
         old_note = note;
         note = val;
         if (midiDebug_) std::cerr << "Cursynth: NOTE1 set to " << val << std::endl;
+    }
+
+    if (what == AMP) {
+        engine->getControls().at("volume")->set(f_val);
     }
 }
 
@@ -460,7 +477,7 @@ Sint32 CursynthMachine::tick()
     if (index == 0) {
         engine->process();
         for (int i = 0; i < SAM; i++) {
-            buffer_f[i] = engine->output()->buffer[i] * 8192;
+            buffer_f[i] = engine->output()->buffer[i] * OUTPUT_AMPLITUDE;
             buffer_i[i] = (Sint16)buffer_f[i];
         }
     }
@@ -474,4 +491,10 @@ Sint32 CursynthMachine::tick()
     last_sample = s;
 
     return s;
+}
+
+const char* CursynthMachine::getDisplayString(int index) {
+    if (index == OSC1_TYPE) return getMachineParamCharStar(OSC1_TYPE, osc1_type);
+    if (index == OSC2_TYPE) return getMachineParamCharStar(OSC2_TYPE, osc2_type);
+    return "";
 }

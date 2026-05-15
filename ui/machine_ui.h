@@ -39,11 +39,17 @@ protected:
     int midiDeviceIndex;
     int mappingIndex;
 
+    std::string columnTitles[3];
+
+    static constexpr int HEADER_ROW = 6;
+    static constexpr int CONTROL_ROW_OFFSET = 7;
+    static constexpr int CONTROL_BAR_LEN = 16;
+
     virtual void initControls() = 0;
-    virtual void drawColumnHeader(int col, const char* title) = 0;
-    virtual void drawControl(int index, bool selected) = 0;
-    virtual void drawSlider(int row, int col, const char* name, float value, bool selected) = 0;
-    virtual void updateControlValues() = 0;
+    virtual void drawColumnHeader(int col, const char* title);
+    virtual void drawControl(int index, bool selected);
+    virtual void drawSlider(int row, int col, const char* name, float value, bool selected);
+    virtual void updateControlValues();
 
     void drawMenuBar();
     void drawMidiMonitor();
@@ -74,6 +80,8 @@ public:
     class MappingManager* getMappingManager();
 
     virtual void setControlValue(int paramId, float value);
+
+    const std::vector<MachineControl>& getControls() const { return controls; }
 };
 
 #endif

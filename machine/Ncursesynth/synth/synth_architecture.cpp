@@ -5,24 +5,25 @@
 SynthArchitecture::SynthArchitecture(int polyphony, float rate) 
     : maxPolyphony(polyphony), nextNoteId(0), sampleRate(rate),
       currentFilterType(FilterType::MOOG),
-      currentWaveform(Waveform::SAWTOOTH),
       cutoff(1000.0f),
       hpfCutoff(0.0f),
       resonance(0.5f),
       filterEnvelopeAmount(0.5f),
       ampEnvelopeCurve(EnvelopeCurve::EXPONENTIAL),
       filterEnvelopeCurve(EnvelopeCurve::EXPONENTIAL),
-      ampAttack(0.01f),
-      ampDecay(0.2f),
-      ampSustain(0.7f),
-      ampRelease(0.3f),
-      filtAttack(0.05f),
-      filtDecay(0.3f),
-      filtSustain(0.3f),
+      ampAttack(0.0f),
+      ampDecay(1.0f),
+      ampSustain(0.5f),
+      ampRelease(0.5f),
+      filtAttack(0.0f),
+      filtDecay(1.0f),
+      filtSustain(0.5f),
       filtRelease(0.5f),
-      volume(0.3f),
+      volume(0.7f),
       oscMix(0.5f),
       osc2Detune(0.0f),
+      osc1Waveform(Waveform::SAWTOOTH),
+      osc2Waveform(Waveform::SAWTOOTH),
       presetManager("bank/ncursesynth") {
     
     // Create voices
@@ -83,7 +84,8 @@ void SynthArchitecture::updateAllVoices() {
         voice->updateCutoff(cutoff);
         voice->updateResonance(resonance);
         voice->updateFilterEnvelopeAmount(filterEnvelopeAmount);
-        voice->updateWaveform(currentWaveform);
+        voice->updateOsc1Waveform(osc1Waveform);
+        voice->updateOsc2Waveform(osc2Waveform);
         voice->updateOscMix(oscMix);
         voice->updateOsc2Detune(osc2Detune);
         voice->updateEnvelopeCurves(ampEnvelopeCurve, filterEnvelopeCurve);
@@ -210,8 +212,13 @@ void SynthArchitecture::setFilterEnvelopeAmount(float amount) {
     updateAllVoices();
 }
 
-void SynthArchitecture::setWaveform(Waveform wav) {
-    currentWaveform = wav;
+void SynthArchitecture::setOsc1Waveform(Waveform wav) {
+    osc1Waveform = wav;
+    updateAllVoices();
+}
+
+void SynthArchitecture::setOsc2Waveform(Waveform wav) {
+    osc2Waveform = wav;
     updateAllVoices();
 }
 

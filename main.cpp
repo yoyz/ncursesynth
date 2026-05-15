@@ -9,7 +9,6 @@
 #include <memory>
 #include "audio/audio_engine.h"
 #include "ui/machine_ui.h"
-#include "ui/ui.h"
 #include "midi/midi_input.h"
 #include "machine/MachineManager.h"
 #include "machine/Ncursesynth/NcursesynthMachine.h"
@@ -113,12 +112,11 @@ int main(int argc, char* argv[]) {
     // Get synth reference (for ncursesynth engine)
     SynthArchitecture* synth = audioEngine.getSynth();
 
-    // If using ncursesynth, set synth on the machine and load presets
+    // If using ncursesynth, load presets on the machine's own synth
     NcursesynthMachine* ncSynth = dynamic_cast<NcursesynthMachine*>(activeMachine);
     if (ncSynth) {
-        ncSynth->setSynth(synth);
-        if (synth->getPresetManager()->exists()) {
-            synth->getPresetManager()->loadPreset(0, synth);
+        if (ncSynth->getSynth() && ncSynth->getSynth()->getPresetManager()->exists()) {
+            ncSynth->getSynth()->getPresetManager()->loadPreset(0, ncSynth->getSynth());
         }
     }
 
@@ -146,6 +144,7 @@ int main(int argc, char* argv[]) {
 
             if (selectedIndex >= 0) {
                 midiInput.selectDevice(selectedIndex);
+                midiInput.setMachine(activeMachine);
                 midiInput.setMappingMachine(activeMachine);
                 midiInput.start();
                 std::cout << "MIDI connected to: " << midiInput.getDeviceName(selectedIndex) << "\n" << std::endl;

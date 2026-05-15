@@ -5,7 +5,8 @@
 SynthArchitecture::SynthArchitecture(int polyphony, float rate) 
     : maxPolyphony(polyphony), nextNoteId(0), sampleRate(rate),
       currentFilterType(FilterType::MOOG),
-      currentWaveform(Waveform::SAWTOOTH),
+      osc1Waveform(Waveform::SAWTOOTH),
+      osc2Waveform(Waveform::SAWTOOTH),
       cutoff(1000.0f),
       hpfCutoff(0.0f),
       resonance(0.5f),
@@ -83,7 +84,8 @@ void SynthArchitecture::updateAllVoices() {
         voice->updateCutoff(cutoff);
         voice->updateResonance(resonance);
         voice->updateFilterEnvelopeAmount(filterEnvelopeAmount);
-        voice->updateWaveform(currentWaveform);
+        voice->updateOsc1Waveform(osc1Waveform);
+        voice->updateOsc2Waveform(osc2Waveform);
         voice->updateOscMix(oscMix);
         voice->updateOsc2Detune(osc2Detune);
         voice->updateEnvelopeCurves(ampEnvelopeCurve, filterEnvelopeCurve);
@@ -210,8 +212,13 @@ void SynthArchitecture::setFilterEnvelopeAmount(float amount) {
     updateAllVoices();
 }
 
-void SynthArchitecture::setWaveform(Waveform wav) {
-    currentWaveform = wav;
+void SynthArchitecture::setOsc1Waveform(Waveform wav) {
+    osc1Waveform = wav;
+    updateAllVoices();
+}
+
+void SynthArchitecture::setOsc2Waveform(Waveform wav) {
+    osc2Waveform = wav;
     updateAllVoices();
 }
 

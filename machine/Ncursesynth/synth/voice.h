@@ -42,6 +42,8 @@ private:
     float resonance;
     float oscMix;
     float osc2Detune;
+    Waveform osc1Waveform;
+    Waveform osc2Waveform;
     
 public:
     Voice(float sampleRate = 48000.0f);
@@ -67,7 +69,8 @@ public:
     void updateCutoff(float cutoff);
     void updateResonance(float res);
     void updateFilterEnvelopeAmount(float amount);
-    void updateWaveform(Waveform wav);
+    void updateOsc1Waveform(Waveform wav);
+    void updateOsc2Waveform(Waveform wav);
     void updateOscMix(float mix);
     void updateOsc2Detune(float detune);
     void updateEnvelopeCurves(EnvelopeCurve ampCurve, EnvelopeCurve filtCurve);

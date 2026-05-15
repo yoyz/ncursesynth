@@ -33,6 +33,7 @@ class CursynthMachine : public Machine
    int  checkI(int what,int val);
 
 const char * getMachineParamCharStar(int machineParam,int paramValue);
+const char* getDisplayString(int index) override;
 
   int getLastNote() const { return note; }
   int getKeyOn() const { return note_on; }

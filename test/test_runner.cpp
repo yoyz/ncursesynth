@@ -33,7 +33,9 @@ static const std::vector<std::string> g_availableTests = {
     "octave",
     "cc_control",
     "polyphony",
-    "filter_env"
+    "filter_env",
+    "voice_level",
+    "envelope"
 };
 
 static const char* g_engineDescriptions[] = {
@@ -52,7 +54,9 @@ static const char* g_testDescriptions[] = {
     "Octave progression tests",
     "CC parameter control",
     "Multi-voice handling",
-    "Filter envelope tests"
+    "Filter envelope tests",
+    "Voice level increase with polyphony",
+    "Amplitude envelope A/D/S/R shape"
 };
 
 TestRunner::TestRunner(const std::string& outputDir, bool verbose)
@@ -257,6 +261,22 @@ bool TestRunner::runAllTests(Machine* machine, bool useFFT, const std::vector<st
         bool passed = runFilterEnvelopeTests(machine, useFFT);
         if (passed) passedCount++; else failedCount++;
         results_.push_back({"filter_env", passed, "", 0, 0, 0, false, 0, 0});
+        allPassed = passed && allPassed;
+    }
+    
+    if (shouldRunTest("voice_level")) {
+        std::cout << "  [RUN] voice_level" << std::endl;
+        bool passed = runVoiceLevelTests(machine, useFFT);
+        if (passed) passedCount++; else failedCount++;
+        results_.push_back({"voice_level", passed, "", 0, 0, 0, false, 0, 0});
+        allPassed = passed && allPassed;
+    }
+    
+    if (shouldRunTest("envelope")) {
+        std::cout << "  [RUN] envelope" << std::endl;
+        bool passed = runEnvelopeTests(machine, useFFT);
+        if (passed) passedCount++; else failedCount++;
+        results_.push_back({"envelope", passed, "", 0, 0, 0, false, 0, 0});
         allPassed = passed && allPassed;
     }
     

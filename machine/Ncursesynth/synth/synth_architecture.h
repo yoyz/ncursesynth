@@ -20,7 +20,8 @@ private:
     
     // Global parameters
     FilterType currentFilterType;
-    Waveform currentWaveform;
+    Waveform osc1Waveform;
+    Waveform osc2Waveform;
     float cutoff;
     float hpfCutoff;
     float resonance;
@@ -76,7 +77,9 @@ public:
     void setHPFCutoff(float freq);
     void setResonance(float res);
     void setFilterEnvelopeAmount(float amount);
-    void setWaveform(Waveform wav);
+    void setWaveform(Waveform wav) { setOsc1Waveform(wav); setOsc2Waveform(wav); }
+    void setOsc1Waveform(Waveform wav);
+    void setOsc2Waveform(Waveform wav);
     void setAmpEnvelopeCurve(EnvelopeCurve curve);
     void setFilterEnvelopeCurve(EnvelopeCurve curve);
     
@@ -105,7 +108,9 @@ public:
     float getHPFCutoff() const { return hpfCutoff; }
     float getResonance() const { return resonance; }
     float getFilterEnvelopeAmount() const { return filterEnvelopeAmount; }
-    Waveform getWaveform() const { return currentWaveform; }
+    Waveform getWaveform() const { return osc1Waveform; }
+    Waveform getOsc1Waveform() const { return osc1Waveform; }
+    Waveform getOsc2Waveform() const { return osc2Waveform; }
     EnvelopeCurve getAmpEnvelopeCurve() const { return ampEnvelopeCurve; }
     EnvelopeCurve getFilterEnvelopeCurve() const { return filterEnvelopeCurve; }
     

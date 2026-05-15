@@ -48,6 +48,7 @@ class PBSynthMachine : public Machine
 
     int checkI(int what,int   val);
     const char * getMachineParamCharStar(int machineParam,int paramValue);
+    const char* getDisplayString(int index) override;
 
     void applyCC(int cc, float normalized, const std::string& paramName) override;
 
@@ -83,7 +84,8 @@ class PBSynthMachine : public Machine
 
   float lfo_speed;
 
-  int note;
+  int                   note;
+  int                   amp_volume;
 
   int                   trig_time_mode;
   int                   trig_time_duration;

@@ -333,11 +333,32 @@ To find what control names your engine supports:
    - `"osc 1 waveform"`, `"osc 2 waveform"` - Oscillator waveforms
    - `"osc mix"` - Oscillator mix
 
+### Output Amplitude
+Each engine should define a `OUTPUT_AMPLITUDE` constant for its int32_t output scaling:
+```cpp
+static constexpr int OUTPUT_AMPLITUDE = 8192;  // Typical value
+```
+
+### Discrete Control Display
+Implement `getDisplayString()` for controls with named options (waveforms, filter types):
+```cpp
+const char* getDisplayString(int index) override {
+    if (index == OSC1_TYPE) {
+        static const char* names[] = {"SIN", "SAW", "SQR", "NOISE"};
+        int val = checkI(OSC1_TYPE, osc1_type);
+        return names[val];
+    }
+    return "";
+}
+```
+
 ## Summary Checklist
 
 - [ ] Create `engine_types.h` with parameter IDs and types
 - [ ] Create compatibility headers (Master.h, fix include paths)
 - [ ] Implement Machine with: `setName()`, `getKeyOn()`, `getLastNote()`, `applyCC()`
+- [ ] Define `OUTPUT_AMPLITUDE` constant for tick() output scaling
+- [ ] Implement `getDisplayString()` for discrete controls (waveform, filter type)
 - [ ] In `setI()`: call `engine->getControls().at("name")->set(value)`
 - [ ] Add all source files to Makefile
 - [ ] Register in main.cpp with MIDI forwarding

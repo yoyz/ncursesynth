@@ -35,6 +35,7 @@ class TwytchsynthMachine : public Machine
     void noteOff();
 
    const char * getMachineParamCharStar(int machineParam,int paramValue);
+   const char* getDisplayString(int index) override;
 
    int getLastNote() const { return note; }
    int getKeyOn() const { return note_on; }

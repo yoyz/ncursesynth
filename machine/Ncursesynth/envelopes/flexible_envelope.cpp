@@ -152,12 +152,11 @@ float FlexibleEnvelope::process() {
                 currentStage = EnvelopeStage::SUSTAIN;
             }
             
-            // Apply curve shaping
-            float t = (currentLevel - sustain) / (1.0f - sustain);
-            if (sustain >= 1.0f) t = 0.0f;
-            float shaped = applyCurve(1.0f - t, decayCurve);
-            shaped = sustain + (1.0f - sustain) * shaped;
-            return shaped;
+            // Map currentLevel [1.0..sustain] to progress [0..1], output goes from 1.0 down to sustain
+            float progress = (1.0f - currentLevel) / (1.0f - sustain);
+            if (sustain >= 1.0f) progress = 0.0f;
+            float shaped = applyCurve(progress, decayCurve);
+            return 1.0f - (1.0f - sustain) * shaped;
         }
         
         case EnvelopeStage::SUSTAIN:

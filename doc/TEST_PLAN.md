@@ -4,7 +4,7 @@
 
 Comprehensive automated testing framework for synth engines integration into the virtual_synth main program. The framework provides **headless testing** capabilities without physical audio/MIDI hardware.
 
-**Current Status**: All 9 tests implemented and operational. Tests use FFT-based frequency analysis for pitch verification. Summary reporting now correctly tracks pass/fail counts.
+**Current Status**: All 11 tests implemented and operational (44 test runs × 4 engines). Tests use FFT-based frequency analysis for pitch verification. Summary reporting now correctly tracks pass/fail counts.
 
 ---
 
@@ -79,7 +79,9 @@ static const std::vector<std::string> g_availableTests = {
     "octave",       // Octave/frequency verification via FFT
     "cc_control",   // CC parameter control
     "polyphony",    // Multi-voice handling
-    "filter_env"    // Filter envelope tests
+    "filter_env",   // Filter envelope tests
+    "voice_level",  // Voice level increase with polyphony
+    "envelope"      // Amplitude envelope A/D/S/R shape
 };
 ```
 
@@ -92,28 +94,35 @@ static const std::vector<std::string> g_availableTests = {
 ```
 === Running tests for ncursesynth ===
   [RUN] sound
-  [PASS] sound Audio generated (RMS=12.857723, CPU=0.002863s)
+  [PASS] sound Audio generated (RMS=1216.921997, CPU=0.002932s)
   [RUN] silence
-  [PASS] silence Silence produced (RMS=17.771761, CPU=0.002715s)
+  [PASS] silence Silence produced (RMS=0.000000, CPU=0.000968s)
   [RUN] no_clip
-  [PASS] no_clip No clipping detected (0.002889s CPU)
+  [PASS] no_clip No clipping detected (0.002903s CPU)
   [RUN] note_on_off
-  [PASS] note_on_off Note on works (0.002926s CPU)
+  [PASS] note_on_off Note on works (0.002895s CPU)
   [RUN] note_release
   [RUN] octave
-  [PASS] octave note=50 freq=146.5Hz detected=50.0 error=0.04 st
+  [PASS] octave note=50 freq=146.5Hz (exp=146.8) note+12=62 freq=294.4Hz (exp=293.7) ratio=2.010
   [RUN] cc_control
   [RUN] polyphony
-  [PASS] polyphony Polyphony works (0.002666s CPU)
+  [PASS] polyphony Polyphony works (0.000939s CPU)
   [RUN] filter_env
+  [RUN] voice_level
+  [PASS] voice_level 1note RMS=1420.9 2note RMS=1879.2 4note RMS=2858.8 (ratio 4:1=2.01x)
+  [RUN] envelope
+  [PASS] env_attack first_half RMS=2957.4 second_half RMS=3881.6
+  [PASS] env_decay first_half RMS=1124.9 second_half RMS=608.2
+  [PASS] env_sustain S=0 RMS=43.1 S=64 RMS=1973.6
+  [PASS] env_release before RMS=1793.7 release_first_q=3111.3 release_last_q=2638.2
 
 === Test Summary ===
-Passed: 36
+Passed: 44
 Failed: 0
 Rate: 100.0%
 ```
 
-**All 36 tests pass** (9 tests × 4 engines).
+**All 44 tests pass** (11 tests × 4 engines).
 
 ### 2.2 Test Runner Features
 
@@ -126,6 +135,8 @@ Rate: 100.0%
 | Test selection | ✓ Complete | --tests or --all-tests |
 | FFT analysis | ✓ Complete | --fft flag enables FFT |
 | Summary reporting | ✓ Complete | Shows Passed/Failed/Rate |
+| Voice level test | ✓ Complete | RMS increases with polyphony |
+| Envelope shape test | ✓ Complete | 4 sub-tests: A/D/S/R |
 
 ---
 
@@ -181,17 +192,16 @@ bool runOctaveTests(Machine* machine, bool useFFT) {
 | Engine | Ratio | Expected | Result | Notes |
 |--------|-------|----------|--------|-------|
 | ncursesynth | 2.010 | 2.0 | PASS | Correct octave relationship |
-| pbsynth | 1.000 | 2.0 | FAIL | noteOn() hardcodes note=60 |
+| pbsynth | 2.005 | 2.0 | PASS | Fixed noteOn() to use stored note |
 | cursynth | 2.000 | 2.0 | PASS | Correct octave relationship |
 | twytch | 2.000 | 2.0 | PASS | Correct octave relationship |
 
 ### 3.4 Known Issues
 
-**PBSynth and Ncursesynth fail octave test** when run together due to:
-- **PBSynth**: `noteOn()` hardcodes `voices[currentVoice].note = 60;` (line 166)
-- **ncursesynth**: May have state contamination between tests
-
-When run individually, both engines pass.
+All known issues have been fixed:
+- **PBSynth**: `noteOn()` previously hardcoded `voices[currentVoice].note = 60`; now triggers properly via `triggerNoteOsc()` with stored note value
+- **ncursesynth**: `init()` previously empty, now calls `synth_->allNotesOff()` + `synth_->reset()` to prevent state contamination
+- **PBSynth uninitialized members**: `osc1_scale` and `osc2_scale` were uninitialized, causing cross-engine contamination when running after ncursesynth. Now initialized to 0 in constructor.
 
 ---
 
@@ -229,26 +239,35 @@ case 0x90:  // Note On
 - Works correctly with FFT-based octave test
 
 **PBSynth** (`PBSynthMachine.cpp`):
-- `noteOn()` hardcodes `voices[currentVoice].note = 60;` (line 166)
-- Does NOT use the note value set via `setI(70, note)`
-- **BUG**: Always plays C4 (440Hz) regardless of set note
+- `noteOn()` now triggers note via `triggerNoteOsc()` using the stored note value
+- Note stored via `setI(70, note)` (NOTE1)
+- Test works correctly with FFT-based octave test (ratio=2.005)
 
 **Twytch/Cursynth**:
 - `setI(70, note)` stores the note value
 - `setI(150, 1)` triggers note playback using stored note
 - Work correctly with FFT-based octave test
 
-### 4.4 Fixing noteOn() Methods
+### 4.4 Fixing noteOn() Methods (Completed)
 
-To fix PBSynth's noteOn() to respect the set note:
+PBSynth's `noteOn()` was fixed to use the stored note and properly trigger oscillators:
 
 ```cpp
-// PBSynthMachine.cpp - current buggy code (line 166):
-voices[currentVoice].note = 60; // Always C4
-
-// Should be:
-voices[currentVoice].note = note; // Use stored note value
+// PBSynthMachine.cpp - fixed noteOn():
+void PBSynthMachine::noteOn() {
+    if (voices.empty()) return;
+    // Find or steal a voice
+    PBSynthVoice& v = voices[targetVoice];
+    v.index = 0;
+    v.se->triggerNoteOsc(0, note + osc1_scale - 2);
+    v.se->triggerNoteOsc(1, note + osc2_scale - 2);
+    v.note = note;
+    v.keyon = 1;
+    keyon = 1;
+}
 ```
+
+Note: `noteOn()` must NOT call `setI(NOTE_ON, 1)` directly because `NOTE_ON` and `NOTE1` share the same parameter value (70) in pbsynth_types.h, causing the NOTE1 handler to overwrite the stored note.
 
 ---
 
@@ -516,12 +535,16 @@ If FFT detects wrong frequency:
 
 ## 11. Future Enhancements
 
-- [ ] Fix PBSynth noteOn() to respect set note
-- [ ] Fix Ncursesynth state contamination in batch mode
+- [x] Fix PBSynth noteOn() to respect set note
+- [x] Fix Ncursesynth state contamination in batch mode
+- [x] Fix PBSynth uninitialized osc1_scale/osc2_scale
+- [x] UI Layout Validation test (`./test_ui`)
+- [x] Unified MachineUI rendering for all engines
+- [x] Voice level increase test
+- [x] Envelope A/D/S/R shape test
 - [ ] Add per-engine performance benchmarks
 - [ ] Add waveform visualization
 - [ ] Add CC control verification
-- [ ] Add filter envelope verification
 - [ ] HTML report generation
 - [ ] CI/CD integration
 

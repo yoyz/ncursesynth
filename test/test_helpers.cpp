@@ -284,6 +284,233 @@ bool runNoteOnTests(Machine* machine, bool useFFT) {
     }
 }
 
+// Helper: capture RMS for a set of simultaneous notes
+static float captureMultiNoteRMS(Machine* machine, const std::vector<int>& notes,
+                                  int numSamples, int warmupSamples) {
+    std::vector<int32_t> samples(numSamples);
+
+    for (int note : notes) {
+        machine->setI(71, note);
+        machine->setI(70, note);
+        machine->noteOn();
+    }
+
+    for (int i = 0; i < warmupSamples; i++) machine->tick();
+    for (int i = 0; i < numSamples; i++) samples[i] = machine->tick();
+
+    machine->noteOff();
+
+    double sum = 0.0;
+    for (int32_t s : samples) sum += (double)s * s;
+    return sqrt(sum / numSamples);
+}
+
+// Test: Voice level increase - verifies RMS increases with more simultaneous notes
+bool runVoiceLevelTests(Machine* machine, bool useFFT) {
+    (void)useFFT;
+    if (!machine) {
+        printTestResult("voice_level", false, "No machine");
+        return false;
+    }
+
+    machine->init();
+
+    const int numSamples = 16384;
+    const int warmupSamples = 1024;
+    const int silenceSamples = 441000;
+
+    machine->setI(35, 127);
+    machine->setI(51, 127);
+
+    std::vector<int> notes1 = {48};
+    std::vector<int> notes2 = {48, 60};
+    std::vector<int> notes3 = {48, 60, 72, 84};
+
+    float rms1 = captureMultiNoteRMS(machine, notes1, numSamples, warmupSamples);
+    for (int i = 0; i < silenceSamples; i++) machine->tick();
+
+    machine->init();
+    machine->setI(35, 127);
+    machine->setI(51, 127);
+    float rms2 = captureMultiNoteRMS(machine, notes2, numSamples, warmupSamples);
+    for (int i = 0; i < silenceSamples; i++) machine->tick();
+
+    machine->init();
+    machine->setI(35, 127);
+    machine->setI(51, 127);
+    float rms3 = captureMultiNoteRMS(machine, notes3, numSamples, warmupSamples);
+    for (int i = 0; i < silenceSamples; i++) machine->tick();
+
+    bool allProduceAudio = (rms1 > 0 && rms2 > 0 && rms3 > 0);
+    bool sumIncrease = (rms3 > rms1 * 1.1f);
+
+    bool passed = allProduceAudio && sumIncrease;
+
+    std::ostringstream msg;
+    msg << "1note RMS=" << std::fixed << std::setprecision(1) << rms1
+        << " 2note RMS=" << rms2 << " 4note RMS=" << rms3
+        << " (ratio 4:1=" << std::setprecision(2) << (rms1 > 0 ? rms3 / rms1 : 0) << "x)";
+
+    printTestResult("voice_level", passed, msg.str());
+    return passed;
+}
+
+// Helper: set amp envelope on all engines (ADSR_ENV0 + MachineParam)
+static void setAmpEnvelope(Machine* machine, int a, int d, int s, int r) {
+    machine->setI(0, a);   machine->setI(80, a);   // ATTACK
+    machine->setI(1, d);   machine->setI(81, d);   // DECAY
+    machine->setI(2, s);   machine->setI(82, s);   // SUSTAIN
+    machine->setI(3, r);   machine->setI(83, r);   // RELEASE
+}
+
+// Helper: capture envelope curve samples.
+// Returns two half-RMS values: [first_half_rms, second_half_rms]
+static std::vector<float> captureEnvelopeHalves(Machine* machine, int numSamples,
+                                                 int note, int triggerHoldSamples,
+                                                 bool doNoteOff, int releaseSamples) {
+    machine->setI(35, 127);  // VOLUME max (all engines)
+    machine->setI(51, 127);  // CUTOFF max
+    machine->setI(52, 127);  // CUTOFF (PBSynth alternate)
+    machine->setI(71, note);
+    machine->setI(70, note);
+    machine->noteOn();
+
+    // Warmup / hold before capture
+    for (int i = 0; i < triggerHoldSamples; i++) machine->tick();
+
+    // Capture main samples
+    std::vector<int32_t> buf(numSamples);
+    for (int i = 0; i < numSamples; i++) buf[i] = machine->tick();
+
+    if (doNoteOff) {
+        machine->noteOff();
+        machine->setI(150, 0);
+        for (int i = 0; i < releaseSamples; i++) machine->tick();
+        std::vector<int32_t> releaseBuf(numSamples);
+        for (int i = 0; i < numSamples; i++) releaseBuf[i] = machine->tick();
+        // For release, return [before_release_rms, after_release_rms]
+        double sumBefore = 0, sumAfter = 0;
+        for (int i = 0; i < numSamples; i++) {
+            sumBefore += (double)buf[i] * buf[i];
+            sumAfter += (double)releaseBuf[i] * releaseBuf[i];
+        }
+        return {sqrt(sumBefore / numSamples), sqrt(sumAfter / numSamples)};
+    }
+
+    // Split buf into first half and second half
+    int half = numSamples / 2;
+    double sumFirst = 0, sumSecond = 0;
+    for (int i = 0; i < half; i++) {
+        sumFirst += (double)buf[i] * buf[i];
+        sumSecond += (double)buf[i + half] * buf[i + half];
+    }
+    return {sqrt(sumFirst / half), sqrt(sumSecond / half)};
+}
+
+// Test: Amplitude envelope - verifies A/D/S/R shape the sound correctly
+bool runEnvelopeTests(Machine* machine, bool useFFT) {
+    (void)useFFT;
+    if (!machine) {
+        printTestResult("envelope", false, "No machine");
+        return false;
+    }
+
+    const int numSamples = 65535;
+    const int holdSamples = 4096;
+    const int silenceSamples = 220500;
+    int passCount = 0, failCount = 0;
+
+    // ==================== ATTACK TEST ====================
+    // A=64 D=0 S=0 R=0: sound should increase over time
+    {
+        machine->init();
+        setAmpEnvelope(machine, 64, 0, 0, 0);
+        auto rms = captureEnvelopeHalves(machine, numSamples, 60, holdSamples, false, 0);
+        for (int i = 0; i < silenceSamples; i++) machine->tick();
+        bool ok = (rms[0] > 0 && rms[1] > rms[0]);
+        if (ok) passCount++; else failCount++;
+        printTestResult("env_attack", ok, "first_half RMS=" + std::to_string(rms[0]) +
+                        " second_half RMS=" + std::to_string(rms[1]));
+    }
+
+    // ==================== DECAY TEST ====================
+    // A=0 D=64 S=0 R=0: sound should decrease or not increase
+    {
+        machine->init();
+        setAmpEnvelope(machine, 0, 64, 0, 0);
+        auto rms = captureEnvelopeHalves(machine, numSamples, 60, holdSamples, false, 0);
+        for (int i = 0; i < silenceSamples; i++) machine->tick();
+        bool ok = (rms[0] > 0 && rms[1] <= rms[0] * 1.05f);
+        if (ok) passCount++; else failCount++;
+        printTestResult("env_decay", ok, "first_half RMS=" + std::to_string(rms[0]) +
+                        " second_half RMS=" + std::to_string(rms[1]));
+    }
+
+    // ==================== SUSTAIN TEST ====================
+    // A=0 D=0 S=0 R=0: no sound. Then S=64: sound appears.
+    {
+        machine->init();
+        setAmpEnvelope(machine, 0, 0, 0, 0);
+        auto rms0 = captureEnvelopeHalves(machine, numSamples, 60, holdSamples, false, 0);
+        for (int i = 0; i < silenceSamples; i++) machine->tick();
+
+        machine->init();
+        setAmpEnvelope(machine, 0, 0, 64, 0);
+        auto rms1 = captureEnvelopeHalves(machine, numSamples, 60, holdSamples, false, 0);
+        for (int i = 0; i < silenceSamples; i++) machine->tick();
+
+        bool ok = (rms0[0] < 100.0f && rms1[0] > 50.0f);
+        if (ok) passCount++; else failCount++;
+        printTestResult("env_sustain", ok, "S=0 RMS=" + std::to_string(rms0[0]) +
+                        " S=64 RMS=" + std::to_string(rms1[0]));
+    }
+
+    // ==================== RELEASE TEST ====================
+    // A=0 D=127 S=0 R=64: sound should decrease during release
+    {
+        machine->init();
+        setAmpEnvelope(machine, 0, 127, 0, 64);
+        machine->setI(35, 127);
+        machine->setI(51, 127); machine->setI(52, 127);
+        machine->setI(71, 60); machine->setI(70, 60);
+        machine->noteOn();
+        for (int i = 0; i < holdSamples; i++) machine->tick();
+        // Capture before release to verify sound exists
+        std::vector<int32_t> beforeBuf(4096);
+        for (int i = 0; i < 4096; i++) beforeBuf[i] = machine->tick();
+        // Release note
+        machine->noteOff();
+        machine->setI(150, 0);
+        // Capture release tail and split in half
+        std::vector<int32_t> releaseBuf(numSamples);
+        for (int i = 0; i < numSamples; i++) releaseBuf[i] = machine->tick();
+        // Verify release decreases: first quarter vs last quarter
+        int q = numSamples / 4;
+        double sumFirst = 0, sumLast = 0;
+        for (int i = 0; i < q; i++) {
+            sumFirst += (double)releaseBuf[i] * releaseBuf[i];
+            sumLast += (double)releaseBuf[i + 3 * q] * releaseBuf[i + 3 * q];
+        }
+        float rmsFirst = sqrt(sumFirst / q);
+        float rmsLast = sqrt(sumLast / q);
+        // Check sound existed before release, and release decreases over time
+        double beforeSum = 0;
+        for (int32_t s : beforeBuf) beforeSum += (double)s * s;
+        float beforeRms = sqrt(beforeSum / 4096);
+        bool ok = (beforeRms > 0 && rmsLast < rmsFirst * 0.9f);
+        if (ok) passCount++; else failCount++;
+        printTestResult("env_release", ok, "before RMS=" + std::to_string(beforeRms) +
+                        " release_first_q=" + std::to_string(rmsFirst) +
+                        " release_last_q=" + std::to_string(rmsLast));
+        for (int i = 0; i < silenceSamples; i++) machine->tick();
+    }
+
+    bool allPassed = (failCount == 0);
+    printTestResult("envelope", allPassed,
+                    std::to_string(passCount) + "/4 sub-tests passed");
+    return allPassed;
+}
+
 // Test: Note release - verifies note release functionality
 bool runNoteReleaseTests(Machine* machine, bool useFFT) {
     (void)useFFT;
@@ -405,8 +632,8 @@ bool runOctaveTests(Machine* machine, bool useFFT) {
     std::vector<float> floatSamples1(numSamples);
     std::vector<float> floatSamples2(numSamples);
     for (int i = 0; i < numSamples; i++) {
-        floatSamples1[i] = static_cast<float>(samples1[i]) / 640.0f;
-        floatSamples2[i] = static_cast<float>(samples2[i]) / 640.0f;
+        floatSamples1[i] = static_cast<float>(samples1[i]) / 8192.0f;
+        floatSamples2[i] = static_cast<float>(samples2[i]) / 8192.0f;
     }
     
     delete[] samples1;

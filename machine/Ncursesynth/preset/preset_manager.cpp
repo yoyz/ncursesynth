@@ -94,7 +94,8 @@ bool PresetManager::loadPreset(int index, SynthArchitecture* synth) {
     synth->setCutoff(getParam("cutoff", 1000.0f));
     synth->setResonance(getParam("resonance", 0.5f));
     synth->setFilterEnvelopeAmount(getParam("filter_env_amount", 0.5f));
-    synth->setWaveform((Waveform)getParamInt("waveform", 0));
+    synth->setOsc1Waveform((Waveform)getParamInt("osc1_waveform", 0));
+    synth->setOsc2Waveform((Waveform)getParamInt("osc2_waveform", 0));
     synth->setOscMix(getParam("osc_mix", 0.5f));
     synth->setOsc2Detune(getParam("osc2_detune", 0.0f));
     synth->setAmpAttack(getParam("amp_attack", 0.01f));
@@ -148,7 +149,8 @@ bool PresetManager::savePreset(int index, SynthArchitecture* synth) {
     addParam("cutoff", synth->getCutoff());
     addParam("resonance", synth->getResonance());
     addParam("filter_env_amount", synth->getFilterEnvelopeAmount());
-    addParam("waveform", (int)synth->getWaveform());
+    addParam("osc1_waveform", (int)synth->getOsc1Waveform());
+    addParam("osc2_waveform", (int)synth->getOsc2Waveform());
     addParam("osc_mix", synth->getOscMix());
     addParam("osc2_detune", synth->getOsc2Detune());
     addParam("amp_attack", synth->getAmpAttack());
@@ -263,7 +265,8 @@ bool PresetManager::saveCurrentAsNew(const std::string& name, SynthArchitecture*
     addParam("cutoff", synth->getCutoff());
     addParam("resonance", synth->getResonance());
     addParam("filter_env_amount", synth->getFilterEnvelopeAmount());
-    addParam("waveform", (int)synth->getWaveform());
+    addParam("osc1_waveform", (int)synth->getOsc1Waveform());
+    addParam("osc2_waveform", (int)synth->getOsc2Waveform());
     addParam("osc_mix", synth->getOscMix());
     addParam("osc2_detune", synth->getOsc2Detune());
     addParam("amp_attack", synth->getAmpAttack());

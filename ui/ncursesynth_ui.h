@@ -61,19 +61,10 @@ namespace NcursesynthParam {
 class NcursesynthUI : public MachineUI {
 private:
     void initControls() override;
-    void drawColumnHeader(int col, const char* title) override;
-    void drawControl(int index, bool selected) override;
-    void drawSlider(int row, int col, const char* name, float value, bool selected) override;
-    void updateControlValues() override;
 
 public:
     NcursesynthUI(Machine* mach, MachineManager* mgr = nullptr);
     ~NcursesynthUI();
-
-    void init() override;
-    void draw() override;
-    void handleInput(int ch) override;
-    void updateValues() override;
 
     using MachineUI::setMidiNote;
     using MachineUI::setControlValue;

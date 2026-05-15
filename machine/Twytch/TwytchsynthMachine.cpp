@@ -4,8 +4,10 @@
 
 #define SAM 64
 
+static constexpr int OUTPUT_AMPLITUDE = 8192;
+
 TwytchsynthMachine::TwytchsynthMachine()
-    : engine(nullptr), cutoff(125), resonance(10), amp_volume(64),
+    : engine(nullptr), cutoff(125), resonance(10), amp_volume(90),
       trig_time_mode(0), trig_time_duration(0), trig_time_duration_sample(0)
 {
     setName("Twytch");
@@ -67,8 +69,9 @@ void TwytchsynthMachine::init()
     if (controls.count("filter_on")) controls.at("filter_on")->set(1);
     if (controls.count("osc_1_tune")) controls.at("osc_1_tune")->set(0);
     if (controls.count("osc_2_tune")) controls.at("osc_2_tune")->set(0);
-    if (controls.count("cutoff")) controls.at("cutoff")->set(80.0);  // Default cutoff
+    if (controls.count("cutoff")) controls.at("cutoff")->set(80.0);
     if (controls.count("resonance")) controls.at("resonance")->set(0.0);
+    if (controls.count("volume")) controls.at("volume")->set(0.7);
 
     note = 60;
 }
@@ -161,13 +164,13 @@ void TwytchsynthMachine::setI(int what, int val)
 
     if (what == OSC1_TYPE) {
         osc1_type = val;
-        twytchhelmmopo::Value* ctrl = engine->getControl("osc 1 waveform");
-        if (ctrl) ctrl->set(f_val * 127);
+        twytchhelmmopo::Value* ctrl = engine->getControl("osc_1_waveform");
+        if (ctrl) ctrl->set((float)val);
     }
     if (what == OSC2_TYPE) {
         osc2_type = val;
-        twytchhelmmopo::Value* ctrl = engine->getControl("osc 2 waveform");
-        if (ctrl) ctrl->set(f_val * 127);
+        twytchhelmmopo::Value* ctrl = engine->getControl("osc_2_waveform");
+        if (ctrl) ctrl->set((float)val);
     }
     if (what == OSC1_DETUNE) {
         osc1_detune = val;
@@ -376,7 +379,7 @@ Sint32 TwytchsynthMachine::tick()
     if (index == 0) {
         engine->process();
         for (int i = 0; i < SAM; i++) {
-            buffer_f[i] = engine->output()->buffer[i] * 8192;
+            buffer_f[i] = engine->output()->buffer[i] * OUTPUT_AMPLITUDE;
             buffer_i[i] = (Sint16)buffer_f[i];
         }
     }
@@ -390,4 +393,17 @@ Sint32 TwytchsynthMachine::tick()
     last_sample = s;
 
     return s;
+}
+
+const char* TwytchsynthMachine::getDisplayString(int index) {
+    if (index == OSC1_TYPE || index == OSC2_TYPE) {
+        static const char* names[] = {"SIN", "TRGL", "SQR", "DSAW",
+                                       "USAW", "3STEP", "4STEP", "8STEP",
+                                       "3PYR", "5PYR", "9PYR", "NOISE"};
+        int val = (index == OSC1_TYPE) ? osc1_type : osc2_type;
+        if (val < 0) val = 0;
+        if (val >= 12) val = 11;
+        return names[val];
+    }
+    return "";
 }

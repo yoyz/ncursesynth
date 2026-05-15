@@ -11,6 +11,9 @@ MachineUI::MachineUI(Machine* mach, MachineManager* mgr)
       midiInput(nullptr), screenRows(0), screenCols(0),
       lastMidiNote(-1), lastMidiVel(0), midiActivity(false),
       menuSelection(0), menuIndex(0), midiDeviceIndex(-1), mappingIndex(0) {
+    columnTitles[0] = "OSCILLATORS";
+    columnTitles[1] = "FILTER";
+    columnTitles[2] = "ENVELOPE";
 }
 
 MachineUI::~MachineUI() {
@@ -20,20 +23,125 @@ MachineUI::~MachineUI() {
 }
 
 void MachineUI::init() {
-    initscr();
-    cbreak();
-    noecho();
-    keypad(stdscr, TRUE);
-    start_color();
-    nodelay(stdscr, TRUE);
-    timeout(50);
+    initControls();
+    if (!stdscr) {
+        initscr();
+        cbreak();
+        noecho();
+        keypad(stdscr, TRUE);
+        start_color();
+        nodelay(stdscr, TRUE);
+        timeout(50);
+    }
     getmaxyx(stdscr, screenRows, screenCols);
+
+    if (machine) {
+        for (const auto& c : controls) {
+            int val = (int)((c.value - c.minVal) / (c.maxVal - c.minVal) * 127.0f);
+            machine->setI(c.param, val);
+        }
+    }
+}
+
+void MachineUI::drawColumnHeader(int col, const char* title) {
+    attron(A_BOLD | A_UNDERLINE);
+    mvprintw(HEADER_ROW, col, "%s", title);
+    attroff(A_BOLD | A_UNDERLINE);
+}
+
+void MachineUI::drawControl(int index, bool selected) {
+    if (index < 0 || index >= (int)controls.size()) return;
+
+    const auto& c = controls[index];
+    int row = c.row + CONTROL_ROW_OFFSET;
+    int col = c.col;
+
+    char name[16];
+    snprintf(name, sizeof(name), "%-11s", c.name.c_str());
+
+    if (selected) attron(A_REVERSE);
+
+    const char* displayStr = machine ? machine->getDisplayString(c.param) : nullptr;
+    if (displayStr && displayStr[0] != '\0') {
+        mvprintw(row, col, "%s [%s]", name, displayStr);
+        int pad = col + 13 + 16 - (col + 13 + strlen(displayStr));
+        for (int i = 0; i < pad && i < 10; i++) mvaddch(row, col + 13 + strlen(displayStr) + i, ' ');
+    } else {
+        char bar[24];
+        int barLen = (int)((c.value - c.minVal) / (c.maxVal - c.minVal) * CONTROL_BAR_LEN);
+        if (barLen < 0) barLen = 0;
+        if (barLen > CONTROL_BAR_LEN) barLen = CONTROL_BAR_LEN;
+        memset(bar, '#', barLen);
+        memset(bar + barLen, '-', CONTROL_BAR_LEN - barLen);
+        bar[CONTROL_BAR_LEN] = '\0';
+
+        int pct = (int)((c.value - c.minVal) / (c.maxVal - c.minVal) * 100);
+        mvprintw(row, col, "%s [%s] %3d%%", name, bar, pct);
+    }
+
+    if (selected) attroff(A_REVERSE);
+}
+
+void MachineUI::drawSlider(int row, int col, const char* name, float value, bool selected) {
+    char bar[24];
+    int barLen = (int)(value * CONTROL_BAR_LEN);
+    if (barLen < 0) barLen = 0;
+    if (barLen > CONTROL_BAR_LEN) barLen = CONTROL_BAR_LEN;
+    memset(bar, '#', barLen);
+    memset(bar + barLen, '-', CONTROL_BAR_LEN - barLen);
+    bar[CONTROL_BAR_LEN] = '\0';
+
+    if (selected) attron(A_REVERSE);
+    mvprintw(row, col, "%-11s [%s] %3d%%", name, bar, (int)(value * 100));
+    if (selected) attroff(A_REVERSE);
+}
+
+void MachineUI::updateControlValues() {
+    if (!machine) return;
+
+    for (auto& c : controls) {
+        int raw = machine->getI(c.param);
+        if (raw >= 0 && raw <= 128) {
+            c.value = (float)raw / 128.0f;
+            if (c.value > c.maxVal) c.value = c.maxVal;
+            if (c.value < c.minVal) c.value = c.minVal;
+        }
+    }
+
+    midiActivity = false;
 }
 
 void MachineUI::draw() {
     erase();
+    attrset(A_NORMAL);
 
     drawMenuBar();
+
+    std::string engineName = machine ? machine->getName() : "SYNTH";
+    attron(A_BOLD);
+    mvprintw(4, 2, "%s ENGINE", engineName.c_str());
+    attroff(A_BOLD);
+
+    drawColumnHeader(2, columnTitles[0].c_str());
+    drawColumnHeader(40, columnTitles[1].c_str());
+    drawColumnHeader(78, columnTitles[2].c_str());
+
+    for (size_t i = 0; i < controls.size(); i++) {
+        drawControl(i, (int)i == selectedControl);
+    }
+
+    attron(A_DIM);
+    if (menuSelection == 0) {
+        mvprintw(screenRows - 3, 2, "TAB: Menu | ARROWS: Navigate | 1-9: Set Value | PAGEUP/DOWN: Adjust | Q: Quit");
+    } else if (menuSelection == 1) {
+        mvprintw(screenRows - 3, 2, "LEFT/RIGHT: Switch Engine | TAB: Menu | Q: Quit");
+    } else if (menuSelection == 2) {
+        mvprintw(screenRows - 3, 2, "LEFT/RIGHT: Switch MIDI | TAB: Menu | Q: Quit");
+    } else {
+        mvprintw(screenRows - 3, 2, "LEFT/RIGHT: Switch Mapping | TAB: Menu | Q: Quit");
+    }
+    attroff(A_DIM);
+
     drawMidiMonitor();
 
     refresh();
@@ -43,11 +151,11 @@ void MachineUI::drawMenuBar() {
     int row = 2;
     int col = 2;
 
+    attrset(A_NORMAL);
     if (menuSelection == 1 && menuIndex == 0) attron(A_REVERSE);
     mvprintw(row, col, "[ENGINE: %s]", machine ? machine->getName().c_str() : "None");
-    if (menuSelection == 1 && menuIndex == 0) attroff(A_REVERSE);
+    attrset(A_NORMAL);
 
-    if (menuSelection == 1 && menuIndex == 1) attron(A_REVERSE);
     std::string midiName = "None";
     if (midiInput && midiDeviceIndex >= 0) {
         int deviceCount = midiInput->getDeviceCount();
@@ -61,10 +169,11 @@ void MachineUI::drawMenuBar() {
             }
         }
     }
-    mvprintw(row, col + 25, "[MIDI: %s]", midiName.c_str());
-    if (menuSelection == 1 && menuIndex == 1) attroff(A_REVERSE);
+    attrset(A_NORMAL);
+    if (menuSelection == 1 && menuIndex == 1) attron(A_REVERSE);
+    mvprintw(row, col + 18, "[MIDI: %s]", midiName.c_str());
+    attrset(A_NORMAL);
 
-    if (menuSelection == 1 && menuIndex == 2) attron(A_REVERSE);
     std::string mapName = "None";
     if (midiInput) {
         auto* mm = midiInput->getMappingManager();
@@ -75,14 +184,16 @@ void MachineUI::drawMenuBar() {
             }
         }
     }
-    mvprintw(row, col + 50, "[MAPPING: %s]", mapName.c_str());
-    if (menuSelection == 1 && menuIndex == 2) attroff(A_REVERSE);
+    attrset(A_NORMAL);
+    if (menuSelection == 1 && menuIndex == 2) attron(A_REVERSE);
+    mvprintw(row, col + 38, "[MAPPING: %s]", mapName.c_str());
+    attrset(A_NORMAL);
 
     attron(A_DIM);
     if (menuSelection == 0) {
-        mvprintw(row, col + 80, "(TAB: Menu | ARROWS: Navigate)");
+        mvprintw(row, col + 62, "(TAB: Menu | ARROWS: Navigate)");
     } else {
-        mvprintw(row, col + 80, "(LEFT/RIGHT: Switch | TAB: Params)");
+        mvprintw(row, col + 62, "(LEFT/RIGHT: Switch | TAB: Params)");
     }
     attroff(A_DIM);
 }
@@ -216,16 +327,29 @@ void MachineUI::handleNavigation(int ch) {
 void MachineUI::handleValueChange(int ch) {
     if (selectedControl < 0 || selectedControl >= (int)controls.size()) return;
 
-    float& val = controls[selectedControl].value;
-    float step = (controls[selectedControl].maxVal - controls[selectedControl].minVal) / 20.0f;
+    const auto& c = controls[selectedControl];
+    const char* displayStr = machine ? machine->getDisplayString(c.param) : nullptr;
 
-    if (ch == KEY_RIGHT) {
-        val = std::min(val + step, controls[selectedControl].maxVal);
-    } else if (ch == KEY_LEFT) {
-        val = std::max(val - step, controls[selectedControl].minVal);
+    if (displayStr && displayStr[0] != '\0') {
+        int raw = machine->getI(c.param);
+        if (ch == KEY_RIGHT) raw++;
+        else if (ch == KEY_LEFT) raw--;
+        if (raw < 0) raw = 0;
+        machine->setI(c.param, raw);
+        controls[selectedControl].value = (float)raw / 128.0f;
+        return;
     }
 
-    machine->setI(controls[selectedControl].param, (int)(val * 128));
+    float& val = controls[selectedControl].value;
+    float step = (c.maxVal - c.minVal) / 20.0f;
+
+    if (ch == KEY_RIGHT) {
+        val = std::min(val + step, c.maxVal);
+    } else if (ch == KEY_LEFT) {
+        val = std::max(val - step, c.minVal);
+    }
+
+    machine->setI(c.param, (int)(val * 128));
 }
 
 void MachineUI::updateValues() {

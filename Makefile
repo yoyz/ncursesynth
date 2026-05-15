@@ -13,13 +13,6 @@ CORE_SOURCES = main.cpp \
                midi/midi_input.cpp \
                midi/midi_mapping.cpp
 
-CORE_UI = ui/ui.cpp \
-         ui/ui_parameters.cpp \
-         ui/ui_draw.cpp \
-         ui/ui_draw_util.cpp \
-         ui/ui_input.cpp \
-         ui/ui_constants.cpp
-
 # =============================================================================
 # NCURSESYNTH ENGINE
 # =============================================================================
@@ -159,7 +152,6 @@ MACHINE_UI = ui/machine_ui.cpp
 # ALL SOURCES COMBINED
 # =============================================================================
 SOURCES = $(CORE_SOURCES) \
-          $(CORE_UI) \
           $(ENGINE_NCURSESYNTH_ENGINE) \
           $(ENGINE_NCURSESYNTH_MACHINE) \
           $(ENGINE_NCURSESYNTH_UI) \
@@ -180,7 +172,17 @@ OBJECTS = $(SOURCES:.cpp=.o)
 # TEST FRAMEWORK
 # =============================================================================
 TEST_CXXFLAGS = -std=c++14 -pthread -frtti -I. -I../machine -I../ui -I../audio -I../midi -I../bank -Wall -Wextra -Wno-unused-function -O2
-TEST_LDFLAGS = -lportaudio -lpthread -lrtmidi -lm -Wl,--no-as-needed -lstdc++
+TEST_LDFLAGS = -lportaudio -lpthread -lrtmidi -lm -lncurses -Wl,--no-as-needed -lstdc++
+
+# UI test needs its own CXXFLAGS (includes ncurses path)
+TEST_UI_CXXFLAGS = -std=c++14 -pthread -frtti -I. -I../machine -I../ui -I../audio -I../midi -I../bank -Wall -Wextra -Wno-unused-function -O2
+TEST_UI_LDFLAGS = -lncurses -lportaudio -lpthread -lrtmidi -lm -Wl,--no-as-needed -lstdc++
+
+TEST_UI_OBJECTS = ui/machine_ui.o \
+                  ui/ncursesynth_ui.o \
+                  ui/pbsynth_ui.o \
+                  ui/cursynth_ui.o \
+                  ui/twytch_ui.o
 
 # Convert source variables to object variables for test framework
 TEST_CORE_OBJECTS = machine/MachineManager.o \
@@ -253,16 +255,28 @@ test_runner: test/test_runner.o test/fake_audio_driver.o test/fft_analyzer.o tes
 	@echo "./test_runner --all-engines --all-tests --fft"
 
 # =============================================================================
+# UI TEST
+# =============================================================================
+test_ui: test/ui_test.o $(TEST_UI_OBJECTS) $(TEST_MACHINE_OBJECTS)
+	$(CXX) $(TEST_UI_CXXFLAGS) -o test_ui $^ $(TEST_UI_LDFLAGS)
+	@echo ""
+	@echo "UI test built. Run with:"
+	@echo "./test_ui"
+
+test/ui_test.o: test/ui_test.cpp
+	$(CXX) $(TEST_UI_CXXFLAGS) -c $< -o $@
+
+# =============================================================================
 # CLEAN
 # =============================================================================
 clean:
 	rm -f $(OBJECTS) $(TARGET)
-	rm -f test_runner.o fake_audio_driver.o fft_analyzer.o test_reporter.o midi_simulator.o test_helpers.o test_engine.o midi/midi_learn midi/midi_client
+	rm -f test_runner.o fake_audio_driver.o fft_analyzer.o test_reporter.o midi_simulator.o test_helpers.o test_engine.o test/ui_test.o
 	rm -f test/*.o midi/*.o
 	rm -f midi/midi_learn midi/midi_client
-	rm -f midi_learn midi_client
+	rm -f midi_learn midi_client test_runner test_ui
 
-.PHONY: all clean run test test_runner midi midi_tools midi_learn midi_client
+.PHONY: all clean run test test_runner test_ui midi midi_tools midi_learn midi_client
 
 run: $(TARGET)
 	./$(TARGET)

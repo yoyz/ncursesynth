@@ -39,10 +39,12 @@ int AudioEngine::audioCallback(const void* inputBuffer, void* outputBuffer,
             try {
                 sample = machine->tick();
             } catch (...) {
-                // Silently ignore errors to prevent crash
                 sample = 0;
             }
-            out[i] = std::max(-0.95f, std::min(0.95f, sample / 1280.0f));
+            float f = sample / 1280.0f;
+            if (f > 0.95f) f = 0.95f;
+            if (f < -0.95f) f = -0.95f;
+            out[i] = f;
         }
     } else if (engine->synth) {
         for (unsigned int i = 0; i < framesPerBuffer; i++) {
@@ -50,7 +52,6 @@ int AudioEngine::audioCallback(const void* inputBuffer, void* outputBuffer,
             out[i] = std::max(-0.95f, std::min(0.95f, sample));
         }
     } else {
-        // No machine or synth - output silence
         for (unsigned int i = 0; i < framesPerBuffer; i++) {
             out[i] = 0.0f;
         }

@@ -32,6 +32,7 @@ public:
     virtual float getF(int index) override;
     virtual int checkI(int index, int value) override;
     virtual const char* getDisplayString(int index) override;
+    virtual void applyCC(int cc, float normalized, const std::string& paramName) override;
     
     int getKeyOn() const { return noteOn_; }
     int getLastNote() const { return midiNote_; }
