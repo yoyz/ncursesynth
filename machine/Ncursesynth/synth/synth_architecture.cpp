@@ -147,21 +147,26 @@ void SynthArchitecture::noteOff(float frequency) {
 
 float SynthArchitecture::process() {
     float output = 0.0f;
+    int activeCount = 0;
     
     // Mix all active voices
     for (auto& voice : voices) {
         if (voice->isActive()) {
             output += voice->process();
+            activeCount++;
         }
     }
     
     // Apply effects chain
     output = effectChain.process(output);
     
-    // Apply master volume and clip
+    // Apply master volume and soft-clip
     output = output * volume;
-    if (output > 1.0f) output = 1.0f;
-    if (output < -1.0f) output = -1.0f;
+    float absOut = fabsf(output);
+    if (absOut > 1.0f) {
+        float over = (absOut - 1.0f) * 0.5f;
+        output = (output > 0 ? 1.0f : -1.0f) * (1.0f - 1.0f / (1.0f + over));
+    }
     
     return output;
 }

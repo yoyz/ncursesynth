@@ -20,6 +20,7 @@ private:
     // State
     EnvelopeStage currentStage;
     float currentLevel;
+    float releaseStartLevel;
     
     // Calculated values
     float attackStep;

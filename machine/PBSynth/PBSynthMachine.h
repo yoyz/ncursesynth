@@ -52,6 +52,8 @@ class PBSynthMachine : public Machine
 
     void applyCC(int cc, float normalized, const std::string& paramName) override;
 
+    std::vector<std::pair<std::string, int>> getPresetParams() const override;
+
     void setPolyphony(int voices) { polyphony_ = voices; }
 
   protected:

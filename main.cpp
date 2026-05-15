@@ -7,9 +7,14 @@
 #include <thread>
 #include <limits>
 #include <memory>
+#include <fstream>
 #include "audio/audio_engine.h"
+#include "audio/audio_capture.h"
+#include "audio/capture_analysis.h"
 #include "ui/machine_ui.h"
 #include "midi/midi_input.h"
+#include "midi/tcp_midi_server.h"
+#include "midi/midi_capture.h"
 #include "machine/MachineManager.h"
 #include "machine/Ncursesynth/NcursesynthMachine.h"
 #include "machine/PBSynth/PBSynthMachine.h"
@@ -32,6 +37,11 @@ int main(int argc, char* argv[]) {
     bool midiDebug = false;
     std::string midiPort;
     bool listMidi = false;
+    int tcpMidiPort = -1;
+    int captureAudioPort = -1;
+    std::string captureAnalysisPath;
+    std::string midiCapturePath;
+    std::string synthEngineName;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
@@ -42,7 +52,12 @@ int main(int argc, char* argv[]) {
             std::cout << "  --midi-debug         Enable MIDI debug output\n";
             std::cout << "  --midi-port hw:X,Y,Z Select MIDI port on startup (e.g., hw:1,0,0)\n";
             std::cout << "  --list-midi         List available MIDI devices\n";
-            std::cout << "\nControls:\n";
+            std::cout << "  --tcp-midi-port N   TCP port for remote MIDI input\n";
+            std::cout << "  --tcp-capture-audio N  TCP port for audio capture (replaces PortAudio)\n";
+            std::cout << "  --capture-audio-plus-fft-rms FILE  Write raw audio + per-second FFT/RMS analysis\n";
+            std::cout << "  --capture-midi-plus-analysis FILE  Write MIDI event log (note_on/off/cc) with timestamps\n";
+            std::cout << "  --synthengine NAME  Run headless with named engine (ncursesynth/pbsynth/cursynth/twytch)\n";
+            std::cout << "\nControls (UI mode):\n";
             std::cout << "  TAB     Switch menu (Engine/MIDI/Params)\n";
             std::cout << "  ARROWS  Navigate parameters or menu items\n";
             std::cout << "  1-9,0   Set slider to 10%-100%\n";
@@ -58,7 +73,24 @@ int main(int argc, char* argv[]) {
         if (strcmp(argv[i], "--list-midi") == 0) {
             listMidi = true;
         }
+        if (strcmp(argv[i], "--tcp-midi-port") == 0 && i + 1 < argc) {
+            tcpMidiPort = atoi(argv[++i]);
+        }
+        if (strcmp(argv[i], "--tcp-capture-audio") == 0 && i + 1 < argc) {
+            captureAudioPort = atoi(argv[++i]);
+        }
+        if (strcmp(argv[i], "--capture-audio-plus-fft-rms") == 0 && i + 1 < argc) {
+            captureAnalysisPath = argv[++i];
+        }
+        if (strcmp(argv[i], "--capture-midi-plus-analysis") == 0 && i + 1 < argc) {
+            midiCapturePath = argv[++i];
+        }
+        if (strcmp(argv[i], "--synthengine") == 0 && i + 1 < argc) {
+            synthEngineName = argv[++i];
+        }
     }
+
+    bool headless = !synthEngineName.empty();
 
     // If --list-midi, list available MIDI devices
     if (listMidi) {
@@ -101,23 +133,46 @@ int main(int argc, char* argv[]) {
     Machine* activeMachine = machineManager.getCurrentMachine();
     std::cout << "Selected engine: " << activeMachine->getName() << "\n" << std::endl;
 
-    // Create audio engine
-    AudioEngine audioEngine(48000, 256);
+    // Init the machine fully (Init preset = all defaults)
+    if (activeMachine) activeMachine->init();
 
-    if (!audioEngine.initialize()) {
-        std::cerr << "Failed to initialize audio engine!" << std::endl;
-        return 1;
+    // Start capture analysis if requested (intercepts audio from all drivers)
+    CaptureAnalyzer* analyzer = nullptr;
+    if (!captureAnalysisPath.empty()) {
+        analyzer = new CaptureAnalyzer(captureAnalysisPath, 48000);
+        CaptureAnalyzer::setInstance(analyzer);
+        std::cout << "Audio capture + FFT/RMS analysis enabled -> " << captureAnalysisPath << std::endl;
     }
 
-    // Get synth reference (for ncursesynth engine)
-    SynthArchitecture* synth = audioEngine.getSynth();
+    // Start MIDI capture if requested
+    MidiCapture* midiCap = nullptr;
+    if (!midiCapturePath.empty()) {
+        midiCap = new MidiCapture(midiCapturePath);
+        MidiCapture::setInstance(midiCap);
+        std::cout << "MIDI capture enabled -> " << midiCapturePath << ".midi.txt" << std::endl;
+    }
 
-    // If using ncursesynth, load presets on the machine's own synth
-    NcursesynthMachine* ncSynth = dynamic_cast<NcursesynthMachine*>(activeMachine);
-    if (ncSynth) {
-        if (ncSynth->getSynth() && ncSynth->getSynth()->getPresetManager()->exists()) {
-            ncSynth->getSynth()->getPresetManager()->loadPreset(0, ncSynth->getSynth());
+    // Audio drivers: either PortAudio (normal) or TCP capture (headless)
+    AudioCaptureDriver* captureDriver = nullptr;
+    AudioEngine* audioEngine = nullptr;
+    SynthArchitecture* synth = nullptr;
+
+    if (captureAudioPort > 0) {
+        captureDriver = new AudioCaptureDriver(captureAudioPort, 48000);
+        if (!captureDriver->start(activeMachine)) {
+            std::cerr << "Failed to start audio capture driver!" << std::endl;
+            delete captureDriver;
+            return 1;
         }
+        synth = new SynthArchitecture(8, 48000);
+        std::cout << "Audio capture driver on port " << captureAudioPort << std::endl;
+    } else {
+        audioEngine = new AudioEngine(48000, 256);
+        if (!audioEngine->initialize()) {
+            std::cerr << "Failed to initialize audio engine!" << std::endl;
+            return 1;
+        }
+        synth = audioEngine->getSynth();
     }
 
     // Initialize MIDI input
@@ -164,27 +219,43 @@ int main(int argc, char* argv[]) {
         std::cout << "MIDI debug enabled." << std::endl;
     }
 
-    // Set machine for audio
-    audioEngine.setMachine(activeMachine);
-
-    // Start audio
-    if (!audioEngine.start()) {
-        std::cerr << "Failed to start audio!" << std::endl;
-        audioEngine.shutdown();
-        return 1;
+    // Start TCP MIDI server if requested
+    TcpMidiServer* tcpMidi = nullptr;
+    if (tcpMidiPort > 0) {
+        tcpMidi = new TcpMidiServer(tcpMidiPort, &machineManager);
+        tcpMidi->start();
     }
 
+    // Set machine for audio / capture
+    if (audioEngine) {
+        audioEngine->setMachine(activeMachine);
+        if (!audioEngine->start()) {
+            std::cerr << "Failed to start audio!" << std::endl;
+            audioEngine->shutdown();
+            return 1;
+        }
     std::cout << "Audio started successfully!" << std::endl;
-    std::cout << "UI launching...\n" << std::endl;
-    std::cout << "Press Ctrl+C to exit\n" << std::endl;
+    } else if (captureDriver) {
+        captureDriver->setMachine(activeMachine);
+        std::cout << "Audio capture running (no PortAudio)" << std::endl;
+    }
 
-    std::unique_ptr<MachineUI> ui;
-
-    // Determine UI type based on active machine
-    TwytchsynthMachine* twytchMachine = dynamic_cast<TwytchsynthMachine*>(activeMachine);
-    PBSynthMachine* pbsynthMachine = dynamic_cast<PBSynthMachine*>(activeMachine);
-    CursynthMachine* cursynthMachine = dynamic_cast<CursynthMachine*>(activeMachine);
-    NcursesynthMachine* ncursesynthMachine = dynamic_cast<NcursesynthMachine*>(activeMachine);
+    if (headless) {
+        std::cout << "\nHeadless mode. Use --tcp-midi-port to send MIDI commands. Ctrl+C to exit.\n" << std::endl;
+        while (running) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    } else {
+        std::cout << "UI launching...\n" << std::endl;
+        std::cout << "Press Ctrl+C to exit\n" << std::endl;
+        
+        std::unique_ptr<MachineUI> ui;
+        
+        // Determine UI type based on active machine
+        TwytchsynthMachine* twytchMachine = dynamic_cast<TwytchsynthMachine*>(activeMachine);
+        PBSynthMachine* pbsynthMachine = dynamic_cast<PBSynthMachine*>(activeMachine);
+        CursynthMachine* cursynthMachine = dynamic_cast<CursynthMachine*>(activeMachine);
+        NcursesynthMachine* ncursesynthMachine = dynamic_cast<NcursesynthMachine*>(activeMachine);
 
     // Use new engine UI if available (engine-specific UI exists)
     bool useNewEngineUI = twytchMachine || pbsynthMachine || cursynthMachine || ncursesynthMachine;
@@ -226,12 +297,14 @@ int main(int argc, char* argv[]) {
         // If machine changed, update audio engine and create new UI
         (void)currentEngineIndex; // Suppress unused warning
         if (activeMachine != lastMachine) {
-            audioEngine.setMachine(activeMachine);
+            if (audioEngine) audioEngine->setMachine(activeMachine);
+            if (captureDriver) captureDriver->setMachine(activeMachine);
 
             // Save state before engine switch
             int savedMenuSelection = ui->getMenuSelection();
             int savedMenuIndex = ui->getMenuIndex();
             int savedMidiDeviceIndex = ui->getMidiDeviceIndex();
+            int savedPresetIndex = ui->getPresetIndex();
 
             // Also update MIDI machine
             PBSynthMachine* pbsynthMachine2 = dynamic_cast<PBSynthMachine*>(activeMachine);
@@ -279,6 +352,8 @@ int main(int argc, char* argv[]) {
             ui->setMenuIndex(savedMenuIndex);
             ui->setMenuSelection(savedMenuSelection);
             ui->setMidiDeviceIndex(savedMidiDeviceIndex);
+            ui->setPresetIndex(savedPresetIndex);
+            ui->scanPresets();
 
             lastMachine = activeMachine;
         }
@@ -306,12 +381,64 @@ int main(int argc, char* argv[]) {
     }
 
     endwin();
+    ui->stop();
+    } // end else (UI mode)
 
     std::cout << "\nShutting down..." << std::endl;
     midiInput.stop();
-    ui->stop();
-    audioEngine.shutdown();
-    
+    if (tcpMidi) tcpMidi->stop();
+    if (audioEngine) {
+        audioEngine->shutdown();
+        delete audioEngine;
+    }
+    if (captureDriver) {
+        captureDriver->stop();
+        delete captureDriver;
+    }
+    if (!audioEngine) delete synth;
+    delete tcpMidi;
+
+    if (analyzer) {
+        uint64_t samples = analyzer->getTotalSamples();
+        analyzer->finalize();
+        if (samples > 0 && !analyzer->failed()) {
+            std::string apath = analyzer->getAnalysisPath();
+            std::cout << "Analysis written to " << apath
+                      << " (" << samples << " samples, " << (samples / 48000) << "s)" << std::endl;
+            std::ifstream afile(apath);
+            if (afile.is_open()) {
+                std::string line;
+                while (std::getline(afile, line)) {
+                    std::cout << "  " << line << std::endl;
+                }
+            }
+        } else if (analyzer->failed()) {
+            std::cout << "Warning: could not write audio capture (read-only filesystem?)" << std::endl;
+        } else {
+            std::cout << "No audio captured" << std::endl;
+        }
+        delete analyzer;
+    }
+
+    if (midiCap) {
+        int count = midiCap->getEventCount();
+        midiCap->finalize();
+        if (!midiCap->failed()) {
+            std::string mpath = midiCap->getPath();
+            std::cout << "MIDI log written to " << mpath
+                      << " (" << count << " events)" << std::endl;
+            std::ifstream mfile(mpath);
+            if (mfile.is_open()) {
+                std::string line;
+                while (std::getline(mfile, line))
+                    std::cout << "  " << line << std::endl;
+            }
+        } else {
+            std::cout << "Warning: could not write MIDI capture" << std::endl;
+        }
+        delete midiCap;
+    }
+
     std::cout << "Virtual Synthesizer exited cleanly." << std::endl;
     return 0;
 }

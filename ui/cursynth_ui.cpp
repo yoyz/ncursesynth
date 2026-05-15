@@ -19,32 +19,30 @@ void CursynthUI::initControls() {
     controls.push_back({"OSC1 WAVE", 20, 0, 2, 4.0f / 11.0f, 0.0f, 11.0f});
     controls.push_back({"OSC1 DETUNE", 74, 1, 2, 0.5f, 0.0f, 1.0f});
     controls.push_back({"OSC1 SCALE", 65, 2, 2, 0.0f, 0.0f, 1.0f});
-    controls.push_back({"OSC1 AMP", 3, 3, 2, 0.8f, 0.0f, 1.0f});
 
-    controls.push_back({"OSC2 WAVE", 21, 5, 2, 4.0f / 11.0f, 0.0f, 11.0f});
-    controls.push_back({"OSC2 DETUNE", 75, 6, 2, 0.5f, 0.0f, 1.0f});
-    controls.push_back({"OSC2 SCALE", 66, 7, 2, 0.0f, 0.0f, 1.0f});
-    controls.push_back({"OSC2 AMP", 7, 8, 2, 0.8f, 0.0f, 1.0f});
+    controls.push_back({"OSC2 WAVE", 21, 4, 2, 4.0f / 11.0f, 0.0f, 11.0f});
+    controls.push_back({"OSC2 DETUNE", 75, 5, 2, 0.5f, 0.0f, 1.0f});
+    controls.push_back({"OSC2 SCALE", 66, 6, 2, 0.0f, 0.0f, 1.0f});
 
-    controls.push_back({"OSC MIX", 8, 10, 2, 0.5f, 0.0f, 1.0f});
-
-    controls.push_back({"LFO1 WAVE", 2, 12, 2, 0.0f, 0.0f, 11.0f});
-    controls.push_back({"LFO1 FREQ", 42, 13, 2, 0.1f, 0.0f, 1.0f});
-    controls.push_back({"LFO1 DEPTH", 41, 14, 2, 0.0f, 0.0f, 1.0f});
+    controls.push_back({"OSC MIX", 28, 8, 2, 0.5f, 0.0f, 1.0f});
 
     controls.push_back({"CUTOFF", 52, 0, 40, 0.8f, 0.0f, 1.0f});
     controls.push_back({"RESONANCE", 53, 1, 40, 0.2f, 0.0f, 1.0f});
     controls.push_back({"FENV DEPTH", 94, 2, 40, 0.5f, 0.0f, 1.0f});
 
-    controls.push_back({"AENV ATTACK", 80, 4, 40, 0.01f, 0.0f, 1.0f});
-    controls.push_back({"AENV DECAY", 81, 5, 40, 0.3f, 0.0f, 1.0f});
-    controls.push_back({"AENV SUSTAIN", 82, 6, 40, 0.7f, 0.0f, 1.0f});
-    controls.push_back({"AENV RELEASE", 83, 7, 40, 0.3f, 0.0f, 1.0f});
+    controls.push_back({"AENV ATTACK", 0, 4, 40, 0.01f, 0.0f, 1.0f});
+    controls.push_back({"AENV DECAY", 1, 5, 40, 0.3f, 0.0f, 1.0f});
+    controls.push_back({"AENV SUSTAIN", 2, 6, 40, 0.7f, 0.0f, 1.0f});
+    controls.push_back({"AENV RELEASE", 3, 7, 40, 0.3f, 0.0f, 1.0f});
 
-    controls.push_back({"FENV ATTACK", 90, 9, 40, 0.01f, 0.0f, 1.0f});
-    controls.push_back({"FENV DECAY", 91, 10, 40, 0.3f, 0.0f, 1.0f});
-    controls.push_back({"FENV SUSTAIN", 92, 11, 40, 0.5f, 0.0f, 1.0f});
-    controls.push_back({"FENV RELEASE", 93, 12, 40, 0.3f, 0.0f, 1.0f});
+    controls.push_back({"FENV ATTACK", 4, 9, 40, 0.01f, 0.0f, 1.0f});
+    controls.push_back({"FENV DECAY", 5, 10, 40, 0.3f, 0.0f, 1.0f});
+    controls.push_back({"FENV SUSTAIN", 6, 11, 40, 0.5f, 0.0f, 1.0f});
+    controls.push_back({"FENV RELEASE", 7, 12, 40, 0.3f, 0.0f, 1.0f});
 
-    controls.push_back({"VOLUME", 35, 0, 78, 0.7f, 0.0f, 1.0f});
+    controls.push_back({"LFO1 WAVE", 2, 0, 78, 0.0f, 0.0f, 11.0f});
+    controls.push_back({"LFO1 FREQ", 42, 1, 78, 0.1f, 0.0f, 1.0f});
+    controls.push_back({"LFO1 DEPTH", 41, 2, 78, 0.0f, 0.0f, 1.0f});
+
+    controls.push_back({"VOLUME", 35, 4, 78, 0.7f, 0.0f, 1.0f});
 }

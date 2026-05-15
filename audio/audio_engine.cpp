@@ -1,6 +1,9 @@
 #include "audio_engine.h"
+#include "capture_analysis.h"
+#include "audio_level.h"
 #include <iostream>
 #include <cstring>
+#include <cmath>
 #include <algorithm>
 #include <thread>
 
@@ -41,9 +44,15 @@ int AudioEngine::audioCallback(const void* inputBuffer, void* outputBuffer,
             } catch (...) {
                 sample = 0;
             }
-            float f = sample / 1280.0f;
-            if (f > 0.95f) f = 0.95f;
-            if (f < -0.95f) f = -0.95f;
+            // Scale to float and soft-clip
+            float f = sample / 8192.0f;
+            float absF = fabsf(f);
+            if (absF > 0.85f) {
+                float over = (absF - 0.85f) / (1.0f - 0.85f);
+                f = (f > 0 ? 1.0f : -1.0f) * (0.85f + 0.10f * (1.0f - 1.0f / (1.0f + over)));
+            }
+            CaptureAnalyzer::writeSample(f);
+            AudioLevel::update(f);
             out[i] = f;
         }
     } else if (engine->synth) {

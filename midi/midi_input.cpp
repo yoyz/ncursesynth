@@ -1,4 +1,5 @@
 #include "midi_input.h"
+#include "midi_capture.h"
 #include <iostream>
 #include <cmath>
 #include <chrono>
@@ -111,6 +112,7 @@ void MidiInput::processMessage(const std::vector<unsigned char>& message) {
                 float normalized = static_cast<float>(value - entry.minValue) / static_cast<float>(entry.maxValue - entry.minValue);
                 normalized = std::max(0.0f, std::min(1.0f, normalized));
                 mappingMachine->applyCC(cc, normalized, entry.parameterName);
+                MidiCapture::logCC(cc, value);
                 if (midiDebug) std::cerr << "  CC " << cc << " -> " << entry.parameterName << " (" << value << ")" << std::endl;
             }
         } else if (synth) {
@@ -134,6 +136,7 @@ void MidiInput::processMessage(const std::vector<unsigned char>& message) {
     switch (msgType) {
         case 0x90:
             if (velocity > 0) {
+                MidiCapture::logNoteOn(note, velocity);
                 if (midiDebug) std::cerr << "  NOTE ON note=" << note << " vel=" << velocity << std::endl;
                 if (synth) synth->noteOn(frequency);
                 if (machine) {
@@ -142,6 +145,7 @@ void MidiInput::processMessage(const std::vector<unsigned char>& message) {
                     machine->setI(150, 1);
                 }
             } else {
+                MidiCapture::logNoteOff(note);
                 if (midiDebug) std::cerr << "  NOTE OFF note=" << note << std::endl;
                 if (synth) synth->noteOff(frequency);
                 if (machine) {
@@ -152,6 +156,7 @@ void MidiInput::processMessage(const std::vector<unsigned char>& message) {
             }
             break;
         case 0x80:
+            MidiCapture::logNoteOff(note);
             if (midiDebug) std::cerr << "  NOTE OFF note=" << note << " vel=" << velocity << std::endl;
             if (synth) synth->noteOff(frequency);
             if (machine) {

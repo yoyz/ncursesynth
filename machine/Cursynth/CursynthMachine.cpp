@@ -493,6 +493,31 @@ Sint32 CursynthMachine::tick()
     return s;
 }
 
+std::vector<std::pair<std::string, int>> CursynthMachine::getPresetParams() const {
+    return {
+        {"OSC1_WAVEFORM", OSC1_TYPE},
+        {"OSC2_WAVEFORM", OSC2_TYPE},
+        {"OSC_MIX", OSC12_MIX},
+        {"OSC1_DETUNE", OSC1_DETUNE},
+        {"OSC2_DETUNE", OSC2_DETUNE},
+        {"FILTER_TYPE", FILTER1_TYPE},
+        {"CUTOFF", FILTER1_CUTOFF},
+        {"RESONANCE", FILTER1_RESONANCE},
+        {"FILTER_ENV_DEPTH", ENV1_DEPTH},
+        {"AMP_ATTACK", ADSR_ENV0_ATTACK},
+        {"AMP_DECAY", ADSR_ENV0_DECAY},
+        {"AMP_SUSTAIN", ADSR_ENV0_SUSTAIN},
+        {"AMP_RELEASE", ADSR_ENV0_RELEASE},
+        {"FILTER_ENV_ATTACK", ADSR_ENV1_ATTACK},
+        {"FILTER_ENV_DECAY", ADSR_ENV1_DECAY},
+        {"FILTER_ENV_SUSTAIN", ADSR_ENV1_SUSTAIN},
+        {"FILTER_ENV_RELEASE", ADSR_ENV1_RELEASE},
+        {"VOLUME", AMP},
+        {"LFO1_FREQ", LFO1_FREQ},
+        {"LFO1_AMOUNT", LFO1_DEPTH}
+    };
+}
+
 const char* CursynthMachine::getDisplayString(int index) {
     if (index == OSC1_TYPE) return getMachineParamCharStar(OSC1_TYPE, osc1_type);
     if (index == OSC2_TYPE) return getMachineParamCharStar(OSC2_TYPE, osc2_type);

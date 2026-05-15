@@ -8,6 +8,11 @@
 #include "../machine/MachineManager.h"
 #include "../midi/midi_mapping.h"
 
+struct PresetInfo {
+    std::string name;
+    std::string path;
+};
+
 class MidiInput;
 
 struct MachineControl {
@@ -38,6 +43,10 @@ protected:
     int menuIndex;
     int midiDeviceIndex;
     int mappingIndex;
+    int presetIndex;
+    std::vector<PresetInfo> presets;
+    bool presetInputMode;
+    std::string presetInputBuffer;
 
     std::string columnTitles[3];
 
@@ -77,6 +86,13 @@ public:
     int getMidiDeviceIndex() const { return midiDeviceIndex; }
     int getMappingIndex() const { return mappingIndex; }
     int getMenuSelection() const { return menuSelection; }
+
+    void scanPresets();
+    bool loadPreset(int index);
+    bool savePreset(const std::string& name);
+    int getPresetIndex() const { return presetIndex; }
+    void setPresetIndex(int idx) { presetIndex = idx; }
+    const std::string& getCurrentPresetName() const;
     class MappingManager* getMappingManager();
 
     virtual void setControlValue(int paramId, float value);

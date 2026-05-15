@@ -10,6 +10,7 @@ FlexibleEnvelope::FlexibleEnvelope(float rate)
       releaseCurve(EnvelopeCurve::EXPONENTIAL),
       currentStage(EnvelopeStage::IDLE),
       currentLevel(0.0f),
+      releaseStartLevel(0.0f),
       targetLevel(0.0f) {
     updateAttackStep();
     updateDecayStep();
@@ -118,7 +119,14 @@ void FlexibleEnvelope::noteOn() {
 
 void FlexibleEnvelope::noteOff() {
     if (currentStage != EnvelopeStage::IDLE) {
-        currentStage = EnvelopeStage::RELEASE;
+        if (currentLevel <= 0.001f) {
+            currentStage = EnvelopeStage::IDLE;
+            currentLevel = 0.0f;
+            releaseStartLevel = 0.0f;
+        } else {
+            releaseStartLevel = currentLevel;
+            currentStage = EnvelopeStage::RELEASE;
+        }
         targetLevel = 0.0f;
     }
 }
@@ -126,6 +134,7 @@ void FlexibleEnvelope::noteOff() {
 void FlexibleEnvelope::reset() {
     currentStage = EnvelopeStage::IDLE;
     currentLevel = 0.0f;
+    releaseStartLevel = 0.0f;
 }
 
 float FlexibleEnvelope::process() {
@@ -163,16 +172,26 @@ float FlexibleEnvelope::process() {
             return sustain;
             
         case EnvelopeStage::RELEASE: {
+            if (releaseStartLevel <= 0.001f) {
+                currentStage = EnvelopeStage::IDLE;
+                currentLevel = 0.0f;
+                return 0.0f;
+            }
+            
             currentLevel -= releaseStep;
             
             if (currentLevel <= 0.0f) {
                 currentLevel = 0.0f;
                 currentStage = EnvelopeStage::IDLE;
+                return 0.0f;
             }
             
-            // Apply curve shaping
-            float shaped = applyCurve(currentLevel, releaseCurve);
-            return shaped;
+            float progress = 1.0f - (currentLevel / releaseStartLevel);
+            if (progress < 0.0f) progress = 0.0f;
+            if (progress > 1.0f) progress = 1.0f;
+            
+            float shaped = applyCurve(progress, releaseCurve);
+            return releaseStartLevel * (1.0f - shaped);
         }
         
         case EnvelopeStage::IDLE:

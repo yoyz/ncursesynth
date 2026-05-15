@@ -572,6 +572,31 @@ Fixed * PBSynthMachine::tick_fixed_buffer()
     return nullptr;
 }
 
+std::vector<std::pair<std::string, int>> PBSynthMachine::getPresetParams() const {
+    return {
+        {"OSC1_WAVEFORM", OSC1_TYPE},
+        {"OSC2_WAVEFORM", OSC2_TYPE},
+        {"OSC_MIX", VCO_MIX},
+        {"OSC1_DETUNE", OSC1_DETUNE},
+        {"OSC2_DETUNE", OSC2_DETUNE},
+        {"FILTER_TYPE", FILTER1_TYPE},
+        {"CUTOFF", FILTER1_CUTOFF},
+        {"RESONANCE", FILTER1_RESONANCE},
+        {"FILTER_ENV_DEPTH", ENV1_DEPTH},
+        {"AMP_ATTACK", ADSR_ENV0_ATTACK},
+        {"AMP_DECAY", ADSR_ENV0_DECAY},
+        {"AMP_SUSTAIN", ADSR_ENV0_SUSTAIN},
+        {"AMP_RELEASE", ADSR_ENV0_RELEASE},
+        {"FILTER_ENV_ATTACK", ADSR_ENV1_ATTACK},
+        {"FILTER_ENV_DECAY", ADSR_ENV1_DECAY},
+        {"FILTER_ENV_SUSTAIN", ADSR_ENV1_SUSTAIN},
+        {"FILTER_ENV_RELEASE", ADSR_ENV1_RELEASE},
+        {"VOLUME", AMP},
+        {"LFO1_FREQ", LFO1_FREQ},
+        {"LFO1_AMOUNT", LFO1_DEPTH}
+    };
+}
+
 const char* PBSynthMachine::getDisplayString(int index) {
     static const char* names[] = {"SQR", "TRGL", "SAW", "NOISE"};
     if (index == OSC1_TYPE) return names[checkI(OSC1_TYPE, osc1_type)];

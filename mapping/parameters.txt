@@ -1,0 +1,16 @@
+# Available parameters for MIDI mapping
+# These are the parameters that virtual_synth can understand
+
+CUTOFF
+RESONANCE
+FILTER_ENV_AMOUNT
+HPF_FREQ
+AMP_ATTACK
+AMP_DECAY
+AMP_SUSTAIN
+AMP_RELEASE
+FILTER_ATTACK
+FILTER_DECAY
+FILTER_SUSTAIN
+FILTER_RELEASE
+VOLUME

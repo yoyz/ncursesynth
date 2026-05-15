@@ -2,18 +2,22 @@
 #include "ui_layout.h"
 #include "../midi/midi_input.h"
 #include "../midi/midi_mapping.h"
+#include "../audio/audio_level.h"
 #include <cmath>
 #include <cstring>
+#include <cctype>
 #include <chrono>
 
 MachineUI::MachineUI(Machine* mach, MachineManager* mgr)
     : selectedControl(0), machine(mach), machineManager(mgr),
       midiInput(nullptr), screenRows(0), screenCols(0),
       lastMidiNote(-1), lastMidiVel(0), midiActivity(false),
-      menuSelection(0), menuIndex(0), midiDeviceIndex(-1), mappingIndex(0) {
+      menuSelection(0), menuIndex(0), midiDeviceIndex(-1), mappingIndex(0),
+      presetIndex(0), presetInputMode(false) {
     columnTitles[0] = "OSCILLATORS";
     columnTitles[1] = "FILTER";
     columnTitles[2] = "ENVELOPE";
+    scanPresets();
 }
 
 MachineUI::~MachineUI() {
@@ -131,18 +135,34 @@ void MachineUI::draw() {
     }
 
     attron(A_DIM);
-    if (menuSelection == 0) {
-        mvprintw(screenRows - 3, 2, "TAB: Menu | ARROWS: Navigate | 1-9: Set Value | PAGEUP/DOWN: Adjust | Q: Quit");
+    if (presetInputMode) {
+        mvprintw(screenRows - 2, 2, "Enter preset name: %s_", presetInputBuffer.c_str());
+        mvprintw(screenRows - 3, 2, "Press ENTER to save, ESC to cancel");
+    } else if (menuSelection == 0) {
+        mvprintw(screenRows - 3, 2, "TAB: Menu | ARROWS: Navigate | 1-9: Set | PGUP/DN: Adjust | S:Save | C:Create | Q:Quit");
     } else if (menuSelection == 1) {
-        mvprintw(screenRows - 3, 2, "LEFT/RIGHT: Switch Engine | TAB: Menu | Q: Quit");
-    } else if (menuSelection == 2) {
-        mvprintw(screenRows - 3, 2, "LEFT/RIGHT: Switch MIDI | TAB: Menu | Q: Quit");
-    } else {
-        mvprintw(screenRows - 3, 2, "LEFT/RIGHT: Switch Mapping | TAB: Menu | Q: Quit");
+        mvprintw(screenRows - 3, 2, "LEFT/RIGHT: Switch | TAB: Params | Q: Quit");
     }
     attroff(A_DIM);
 
     drawMidiMonitor();
+
+    int lvlRow = screenRows - 4;
+    float peak = AudioLevel::getPeak();
+    int barLen = (int)(peak * 16.0f);
+    if (barLen < 0) barLen = 0;
+    if (barLen > 16) barLen = 16;
+    int warn = (peak > 0.85f) ? A_REVERSE : A_DIM;
+    attron(warn);
+    mvprintw(lvlRow, 2, "LVL [");
+    for (int i = 0; i < 16; i++) {
+        if (i < barLen)
+            mvaddch(lvlRow, 7 + i, '#');
+        else
+            mvaddch(lvlRow, 7 + i, '-');
+    }
+    mvprintw(lvlRow, 23, "] %3d%%  peak", (int)(peak * 100));
+    attroff(warn);
 
     refresh();
 }
@@ -158,14 +178,12 @@ void MachineUI::drawMenuBar() {
 
     std::string midiName = "None";
     if (midiInput && midiDeviceIndex >= 0) {
-        int deviceCount = midiInput->getDeviceCount();
-        if (midiDeviceIndex < deviceCount) {
-            std::string name = midiInput->getDeviceName(midiDeviceIndex);
-            if (!name.empty()) {
-                midiName = name;
-                if (midiName.length() > 20) {
-                    midiName = midiName.substr(0, 17) + "...";
-                }
+        int dc = midiInput->getDeviceCount();
+        if (midiDeviceIndex < dc) {
+            std::string n = midiInput->getDeviceName(midiDeviceIndex);
+            if (!n.empty()) {
+                midiName = n;
+                if (midiName.length() > 16) midiName = midiName.substr(0, 13) + "...";
             }
         }
     }
@@ -179,9 +197,7 @@ void MachineUI::drawMenuBar() {
         auto* mm = midiInput->getMappingManager();
         if (mm && mm->getMappingCount() > 0) {
             mapName = mm->getMappingName(mm->getCurrentMappingIndex());
-            if (mapName.length() > 20) {
-                mapName = mapName.substr(0, 17) + "...";
-            }
+            if (mapName.length() > 16) mapName = mapName.substr(0, 13) + "...";
         }
     }
     attrset(A_NORMAL);
@@ -189,12 +205,20 @@ void MachineUI::drawMenuBar() {
     mvprintw(row, col + 38, "[MAPPING: %s]", mapName.c_str());
     attrset(A_NORMAL);
 
+    std::string presetName = "Init";
+    if (!presets.empty() && presetIndex >= 0 && presetIndex < (int)presets.size())
+        presetName = presets[presetIndex].name;
+    if (presetName.length() > 16) presetName = presetName.substr(0, 13) + "...";
+    attrset(A_NORMAL);
+    if (menuSelection == 1 && menuIndex == 3) attron(A_REVERSE);
+    mvprintw(row, col + 60, "[PRESET: %s]", presetName.c_str());
+    attrset(A_NORMAL);
+
     attron(A_DIM);
-    if (menuSelection == 0) {
-        mvprintw(row, col + 62, "(TAB: Menu | ARROWS: Navigate)");
-    } else {
-        mvprintw(row, col + 62, "(LEFT/RIGHT: Switch | TAB: Params)");
-    }
+    if (menuSelection == 0)
+        mvprintw(row, col + 82, "(TAB: Menu | ARROWS: Navigate | S: Save)");
+    else
+        mvprintw(row, col + 82, "(LEFT/RIGHT: Switch | TAB: Params)");
     attroff(A_DIM);
 }
 
@@ -215,17 +239,17 @@ void MachineUI::drawMidiMonitor() {
     }
 
     if (hasCC) {
-        attron(A_REVERSE | A_BOLD);
+        attron(A_BOLD);
         mvprintw(row, 2, "MIDI: CC%3d = %3d   ", lastCC, lastCCValue);
-        attroff(A_REVERSE | A_BOLD);
+        attroff(A_BOLD);
 
         for (int i = 20; i < screenCols - 1; i++) {
             mvaddch(row, i, ' ');
         }
     } else if (midiActivity) {
-        attron(A_REVERSE | A_BOLD);
+        attron(A_BOLD);
         mvprintw(row, 2, "MIDI: Note=%d Vel=%d  ", lastMidiNote, lastMidiVel);
-        attroff(A_REVERSE | A_BOLD);
+        attroff(A_BOLD);
 
         for (int i = 25; i < screenCols - 1; i++) {
             mvaddch(row, i, ' ');
@@ -238,6 +262,26 @@ void MachineUI::drawMidiMonitor() {
 }
 
 void MachineUI::handleInput(int ch) {
+    if (presetInputMode) {
+        if (ch == '\n' || ch == KEY_ENTER) {
+            if (!presetInputBuffer.empty()) {
+                savePreset(presetInputBuffer);
+            }
+            presetInputMode = false;
+            presetInputBuffer.clear();
+        } else if (ch == 27 || ch == '\t') {
+            presetInputMode = false;
+            presetInputBuffer.clear();
+        } else if (ch == KEY_BACKSPACE || ch == 127 || ch == 8) {
+            if (!presetInputBuffer.empty())
+                presetInputBuffer.pop_back();
+        } else if (ch >= 32 && ch <= 126) {
+            if (presetInputBuffer.length() < 40)
+                presetInputBuffer += (char)ch;
+        }
+        return;
+    }
+
     if (ch == '\t') {
         menuSelection = (menuSelection == 0) ? 1 : 0;
         return;
@@ -245,10 +289,10 @@ void MachineUI::handleInput(int ch) {
 
     if (menuSelection == 1) {
         if (ch == KEY_UP) {
-            menuIndex = (menuIndex - 1 + 3) % 3;
+            menuIndex = (menuIndex - 1 + 4) % 4;
             return;
         } else if (ch == KEY_DOWN) {
-            menuIndex = (menuIndex + 1) % 3;
+            menuIndex = (menuIndex + 1) % 4;
             return;
         }
 
@@ -287,12 +331,35 @@ void MachineUI::handleInput(int ch) {
                         mm->setCurrentMapping((mm->getCurrentMappingIndex() + 1) % mc);
                     }
                 }
+            } else if (menuIndex == 3) {
+                int pc = (int)presets.size();
+                if (pc > 0) {
+                    if (ch == KEY_LEFT) {
+                        int newIdx = (presetIndex - 1 + pc) % pc;
+                        loadPreset(newIdx);
+                    } else {
+                        int newIdx = (presetIndex + 1) % pc;
+                        loadPreset(newIdx);
+                    }
+                }
             }
         }
         return;
     }
 
     if (menuSelection == 0) {
+        if (ch == 's' || ch == 'S') {
+            std::string name = getCurrentPresetName();
+            if (!name.empty() && name != "Init") {
+                savePreset(name);
+            }
+            return;
+        }
+        if (ch == 'c' || ch == 'C') {
+            presetInputMode = true;
+            presetInputBuffer.clear();
+            return;
+        }
         handleNavigation(ch);
         if (ch >= '0' && ch <= '9') {
             float val = (ch == '0') ? 1.0f : (ch - '0') / 10.0f;
@@ -300,26 +367,6 @@ void MachineUI::handleInput(int ch) {
                 controls[selectedControl].value = val;
                 machine->setI(controls[selectedControl].param, (int)(val * 128));
             }
-        }
-    }
-}
-
-void MachineUI::handleNavigation(int ch) {
-    if (ch == KEY_UP) {
-        selectedControl = (selectedControl - 1 + controls.size()) % controls.size();
-    } else if (ch == KEY_DOWN) {
-        selectedControl = (selectedControl + 1) % controls.size();
-    } else if (ch == KEY_LEFT || ch == KEY_RIGHT) {
-        handleValueChange(ch);
-    } else if (ch == KEY_PPAGE) {
-        if (selectedControl >= 0 && selectedControl < (int)controls.size()) {
-            controls[selectedControl].value = std::min(controls[selectedControl].value + 0.05f, controls[selectedControl].maxVal);
-            machine->setI(controls[selectedControl].param, (int)(controls[selectedControl].value * 128));
-        }
-    } else if (ch == KEY_NPAGE) {
-        if (selectedControl >= 0 && selectedControl < (int)controls.size()) {
-            controls[selectedControl].value = std::max(controls[selectedControl].value - 0.05f, controls[selectedControl].minVal);
-            machine->setI(controls[selectedControl].param, (int)(controls[selectedControl].value * 128));
         }
     }
 }
@@ -341,7 +388,7 @@ void MachineUI::handleValueChange(int ch) {
     }
 
     float& val = controls[selectedControl].value;
-    float step = (c.maxVal - c.minVal) / 20.0f;
+    float step = (c.maxVal - c.minVal) / 100.0f;
 
     if (ch == KEY_RIGHT) {
         val = std::min(val + step, c.maxVal);
@@ -350,6 +397,26 @@ void MachineUI::handleValueChange(int ch) {
     }
 
     machine->setI(c.param, (int)(val * 128));
+}
+
+void MachineUI::handleNavigation(int ch) {
+    if (ch == KEY_UP) {
+        selectedControl = (selectedControl - 1 + controls.size()) % controls.size();
+    } else if (ch == KEY_DOWN) {
+        selectedControl = (selectedControl + 1) % controls.size();
+    } else if (ch == KEY_LEFT || ch == KEY_RIGHT) {
+        handleValueChange(ch);
+    } else if (ch == KEY_PPAGE) {
+        if (selectedControl >= 0 && selectedControl < (int)controls.size()) {
+            controls[selectedControl].value = std::min(controls[selectedControl].value + 0.10f, controls[selectedControl].maxVal);
+            machine->setI(controls[selectedControl].param, (int)(controls[selectedControl].value * 128));
+        }
+    } else if (ch == KEY_NPAGE) {
+        if (selectedControl >= 0 && selectedControl < (int)controls.size()) {
+            controls[selectedControl].value = std::max(controls[selectedControl].value - 0.10f, controls[selectedControl].minVal);
+            machine->setI(controls[selectedControl].param, (int)(controls[selectedControl].value * 128));
+        }
+    }
 }
 
 void MachineUI::updateValues() {
@@ -367,6 +434,85 @@ void MachineUI::setControlValue(int paramId, float value) {
 
 MappingManager* MachineUI::getMappingManager() {
     return midiInput ? midiInput->getMappingManager() : nullptr;
+}
+
+static std::string engineDir(const std::string& name) {
+    std::string r = "bank/";
+    for (char c : name) r += std::tolower(c);
+    return r;
+}
+
+void MachineUI::scanPresets() {
+    presets.clear();
+    if (!machine) return;
+
+    PresetInfo initPreset;
+    initPreset.name = "Init";
+    initPreset.path = "";
+    presets.push_back(initPreset);
+
+    std::string dir = engineDir(machine->getName());
+    std::vector<std::string> files = Machine::getPresetList(machine->getName());
+    for (const auto& f : files) {
+        PresetInfo pi;
+        pi.name = f;
+        pi.path = dir + "/" + f;
+        presets.push_back(pi);
+    }
+
+    if (presetIndex < 0) presetIndex = 0;
+    if (presetIndex >= (int)presets.size())
+        presetIndex = 0;
+}
+
+bool MachineUI::loadPreset(int index) {
+    if (!machine) return false;
+    if (index < 0 || index >= (int)presets.size()) return false;
+
+    bool ok = true;
+    if (index == 0 && presets[index].path.empty()) {
+        machine->init();
+        updateControlValues();
+        presetIndex = 0;
+    } else {
+        ok = machine->loadPreset(presets[index].path);
+        if (ok) {
+            presetIndex = index;
+            updateControlValues();
+        } else {
+            presetIndex = index;
+        }
+    }
+    return ok;
+}
+
+bool MachineUI::savePreset(const std::string& name) {
+    if (!machine) return false;
+
+    std::string path = engineDir(machine->getName()) + "/" + name;
+    bool ok = machine->savePreset(path);
+    if (ok) {
+        scanPresets();
+        for (size_t i = 0; i < presets.size(); i++) {
+            if (presets[i].name == name) {
+                presetIndex = (int)i;
+                break;
+            }
+        }
+    }
+    return ok;
+}
+
+const std::string& MachineUI::getCurrentPresetName() const {
+    if (presets.empty()) {
+        static std::string init = "Init";
+        return init;
+    }
+    if (presetIndex >= 0 && presetIndex < (int)presets.size()) {
+        return presets[presetIndex].name;
+    }
+    static std::string init = "Init";
+    return init;
 }
 
 void MachineUI::stop() {

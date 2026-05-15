@@ -9,9 +9,16 @@ TARGET = virtual_synth
 # =============================================================================
 CORE_SOURCES = main.cpp \
                audio/audio_engine.cpp \
+               audio/audio_capture.cpp \
+               audio/audio_level.cpp \
+               audio/capture_analysis.cpp \
+               machine/Machine.cpp \
                machine/MachineManager.cpp \
                midi/midi_input.cpp \
-               midi/midi_mapping.cpp
+               midi/midi_mapping.cpp \
+               midi/midi_capture.cpp \
+               midi/tcp_midi_server.cpp \
+               test/fft_analyzer.cpp
 
 # =============================================================================
 # NCURSESYNTH ENGINE
@@ -182,12 +189,16 @@ TEST_UI_OBJECTS = ui/machine_ui.o \
                   ui/ncursesynth_ui.o \
                   ui/pbsynth_ui.o \
                   ui/cursynth_ui.o \
-                  ui/twytch_ui.o
+                  ui/twytch_ui.o \
+                  audio/audio_level.o
 
 # Convert source variables to object variables for test framework
-TEST_CORE_OBJECTS = machine/MachineManager.o \
+TEST_CORE_OBJECTS = machine/Machine.o \
+                    machine/MachineManager.o \
                     midi/midi_input.o \
-                    midi/midi_mapping.o
+                    midi/midi_mapping.o \
+                    midi/midi_capture.o \
+                    midi/tcp_midi_server.o
 
 TEST_NCURSESYNTH_MACHINE_OBJECTS = $(ENGINE_NCURSESYNTH_ENGINE:.cpp=.o) \
                                   $(ENGINE_NCURSESYNTH_MACHINE:.cpp=.o)

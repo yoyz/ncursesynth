@@ -37,6 +37,8 @@ class TwytchsynthMachine : public Machine
    const char * getMachineParamCharStar(int machineParam,int paramValue);
    const char* getDisplayString(int index) override;
 
+   std::vector<std::pair<std::string, int>> getPresetParams() const override;
+
    int getLastNote() const { return note; }
    int getKeyOn() const { return note_on; }
 

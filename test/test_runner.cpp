@@ -35,7 +35,8 @@ static const std::vector<std::string> g_availableTests = {
     "polyphony",
     "filter_env",
     "voice_level",
-    "envelope"
+    "envelope",
+    "preset"
 };
 
 static const char* g_engineDescriptions[] = {
@@ -56,7 +57,8 @@ static const char* g_testDescriptions[] = {
     "Multi-voice handling",
     "Filter envelope tests",
     "Voice level increase with polyphony",
-    "Amplitude envelope A/D/S/R shape"
+    "Amplitude envelope A/D/S/R shape",
+    "Preset load/save/reload"
 };
 
 TestRunner::TestRunner(const std::string& outputDir, bool verbose)
@@ -277,6 +279,14 @@ bool TestRunner::runAllTests(Machine* machine, bool useFFT, const std::vector<st
         bool passed = runEnvelopeTests(machine, useFFT);
         if (passed) passedCount++; else failedCount++;
         results_.push_back({"envelope", passed, "", 0, 0, 0, false, 0, 0});
+        allPassed = passed && allPassed;
+    }
+    
+    if (shouldRunTest("preset")) {
+        std::cout << "  [RUN] preset" << std::endl;
+        bool passed = runPresetTests(machine, useFFT);
+        if (passed) passedCount++; else failedCount++;
+        results_.push_back({"preset", passed, "", 0, 0, 0, false, 0, 0});
         allPassed = passed && allPassed;
     }
     

@@ -110,19 +110,19 @@ bool PresetManager::loadPreset(int index, SynthArchitecture* synth) {
     synth->setFilterEnvelopeCurve((EnvelopeCurve)getParamInt("filter_env_curve", 1));
     synth->setVolume(getParam("volume", 0.3f));
     
-    synth->getDelay()->setEnabled(getParamInt("delay_enable", 1));
+    synth->getDelay()->setEnabled(getParamInt("delay_enable", 0));
     synth->getDelay()->setDelayTime(getParam("delay_time", 250.0f));
     synth->getDelay()->setFeedback(getParam("delay_feedback", 0.4f));
-    synth->getDelay()->setMix(getParam("delay_mix", 0.3f));
+    synth->getDelay()->setMix(getParam("delay_mix", 0.0f));
     
-    synth->getReverb()->setEnabled(getParamInt("reverb_enable", 1));
+    synth->getReverb()->setEnabled(getParamInt("reverb_enable", 0));
     synth->getReverb()->setDecay(getParam("reverb_decay", 0.5f));
-    synth->getReverb()->setMix(getParam("reverb_mix", 0.3f));
+    synth->getReverb()->setMix(getParam("reverb_mix", 0.0f));
     
-    synth->getChorus()->setEnabled(getParamInt("chorus_enable", 1));
+    synth->getChorus()->setEnabled(getParamInt("chorus_enable", 0));
     synth->getChorus()->setDepth(getParam("chorus_depth", 0.5f));
     synth->getChorus()->setRate(getParam("chorus_rate", 0.5f));
-    synth->getChorus()->setMix(getParam("chorus_mix", 0.3f));
+    synth->getChorus()->setMix(getParam("chorus_mix", 0.0f));
     
     synth->getDistortion()->setEnabled(getParamInt("distortion_enable", 0));
     synth->getDistortion()->setDrive(getParam("distortion_drive", 0.0f));

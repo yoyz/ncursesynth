@@ -24,5 +24,6 @@ bool runPolyphonyTests(class Machine* machine, bool useFFT);
 bool runFilterEnvelopeTests(class Machine* machine, bool useFFT);
 bool runVoiceLevelTests(class Machine* machine, bool useFFT);
 bool runEnvelopeTests(class Machine* machine, bool useFFT);
+bool runPresetTests(class Machine* machine, bool useFFT);
 
 #endif

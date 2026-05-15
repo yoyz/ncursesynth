@@ -3,7 +3,7 @@
 
 DelayEffect::DelayEffect() 
     : writePosition(0), readPosition(0), delayTimeMs(250.0f), 
-      feedback(0.4f), mix(0.3f), enabled(true), sampleRate(48000.0f), delaySamples(0) {
+      feedback(0.4f), mix(0.0f), enabled(false), sampleRate(48000.0f), delaySamples(0) {
     setSampleRate(48000.0f);
 }
 

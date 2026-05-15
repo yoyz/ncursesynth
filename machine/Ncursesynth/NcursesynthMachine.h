@@ -34,6 +34,8 @@ public:
     virtual const char* getDisplayString(int index) override;
     virtual void applyCC(int cc, float normalized, const std::string& paramName) override;
     
+    std::vector<std::pair<std::string, int>> getPresetParams() const override;
+    
     int getKeyOn() const { return noteOn_; }
     int getLastNote() const { return midiNote_; }
     float getLastFrequency() const { return noteFrequency_; }

@@ -2,6 +2,8 @@
 #define MACHINE_H
 
 #include <string>
+#include <vector>
+#include <utility>
 #include <cstdint>
 
 class Machine {
@@ -36,6 +38,12 @@ public:
 
     void setMidiDebug(bool debug) { midiDebug_ = debug; }
     bool getMidiDebug() const { return midiDebug_; }
+
+    // Preset system
+    virtual std::vector<std::pair<std::string, int>> getPresetParams() const;
+    virtual bool loadPreset(const std::string& path);
+    virtual bool savePreset(const std::string& path) const;
+    static std::vector<std::string> getPresetList(const std::string& engineName);
 
 protected:
     std::string name_;

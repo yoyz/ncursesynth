@@ -2,8 +2,8 @@
 #include <algorithm>
 
 ChorusEffect::ChorusEffect() 
-    : writePosition(0), depth(0.5f), rate(0.5f), mix(0.3f), 
-      enabled(true), sampleRate(48000.0f), phase(0.0f), maxDelaySamples(0) {
+    : writePosition(0), depth(0.5f), rate(0.5f), mix(0.0f), 
+      enabled(false), sampleRate(48000.0f), phase(0.0f), maxDelaySamples(0) {
     setSampleRate(48000.0f);
 }
 

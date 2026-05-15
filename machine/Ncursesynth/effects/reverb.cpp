@@ -3,7 +3,7 @@
 #include <cmath>
 
 ReverbEffect::ReverbEffect() 
-    : writePosition(0), decay(0.5f), mix(0.3f), enabled(true), 
+    : writePosition(0), decay(0.5f), mix(0.0f), enabled(false), 
       sampleRate(48000.0f), reverbSize(0) {
     setSampleRate(48000.0f);
 }

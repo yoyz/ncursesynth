@@ -17,34 +17,34 @@ PBSynthUI::~PBSynthUI() {
 void PBSynthUI::initControls() {
     controls.clear();
 
-    controls.push_back({"OSC1 WAVE", PBSynthParam::P_OSC1_WAVEFORM, 0, 2, 0, 0, 3});
-    controls.push_back({"OSC1 DETUNE", PBSynthParam::P_OSC1_DETUNE, 1, 2, 0.5, 0, 1});
-    controls.push_back({"OSC1 SCALE", PBSynthParam::P_OSC1_SCALE, 2, 2, 0, -24, 24});
+    controls.push_back({"OSC1 WAVE", 20, 0, 2, 0, 0, 3});
+    controls.push_back({"OSC1 DETUNE", 74, 1, 2, 0.5, 0, 1});
+    controls.push_back({"OSC1 SCALE", 65, 2, 2, 0, -24, 24});
 
-    controls.push_back({"OSC2 WAVE", PBSynthParam::P_OSC2_WAVEFORM, 4, 2, 0, 0, 3});
-    controls.push_back({"OSC2 DETUNE", PBSynthParam::P_OSC2_DETUNE, 5, 2, 0.5, 0, 1});
-    controls.push_back({"OSC2 SCALE", PBSynthParam::P_OSC2_SCALE, 6, 2, 0, -24, 24});
+    controls.push_back({"OSC2 WAVE", 21, 4, 2, 0, 0, 3});
+    controls.push_back({"OSC2 DETUNE", 75, 5, 2, 0.5, 0, 1});
+    controls.push_back({"OSC2 SCALE", 66, 6, 2, 0, -24, 24});
 
-    controls.push_back({"CUTOFF", PBSynthParam::P_FILTER_CUTOFF, 0, 40, 0.5, 0, 1});
-    controls.push_back({"RESONANCE", PBSynthParam::P_FILTER_RESONANCE, 1, 40, 0.2, 0, 1});
+    controls.push_back({"CUTOFF", 52, 0, 40, 0.5, 0, 1});
+    controls.push_back({"RESONANCE", 53, 1, 40, 0.2, 0, 1});
 
-    controls.push_back({"FENV ATTACK", PBSynthParam::P_FILTER_ENV_ATTACK, 3, 40, 0.01, 0, 1});
-    controls.push_back({"FENV DECAY", PBSynthParam::P_FILTER_ENV_DECAY, 4, 40, 0.3, 0, 1});
-    controls.push_back({"FENV SUSTAIN", PBSynthParam::P_FILTER_ENV_SUSTAIN, 5, 40, 0.5, 0, 1});
-    controls.push_back({"FENV RELEASE", PBSynthParam::P_FILTER_ENV_RELEASE, 6, 40, 0.3, 0, 1});
-    controls.push_back({"FENV DEPTH", PBSynthParam::P_FILTER_ENV_DEPTH, 7, 40, 0.5, 0, 1});
+    controls.push_back({"FENV ATTACK", 4, 3, 40, 0.01, 0, 1});
+    controls.push_back({"FENV DECAY", 5, 4, 40, 0.3, 0, 1});
+    controls.push_back({"FENV SUSTAIN", 6, 5, 40, 0.5, 0, 1});
+    controls.push_back({"FENV RELEASE", 7, 6, 40, 0.3, 0, 1});
+    controls.push_back({"FENV DEPTH", 94, 7, 40, 0.5, 0, 1});
 
-    controls.push_back({"AENV ATTACK", PBSynthParam::P_AMP_ATTACK, 0, 78, 0.01, 0, 1});
-    controls.push_back({"AENV DECAY", PBSynthParam::P_AMP_DECAY, 1, 78, 0.3, 0, 1});
-    controls.push_back({"AENV SUSTAIN", PBSynthParam::P_AMP_SUSTAIN, 2, 78, 0.7, 0, 1});
-    controls.push_back({"AENV RELEASE", PBSynthParam::P_AMP_RELEASE, 3, 78, 0.3, 0, 1});
+    controls.push_back({"AENV ATTACK", 0, 0, 78, 0.01, 0, 1});
+    controls.push_back({"AENV DECAY", 1, 1, 78, 0.3, 0, 1});
+    controls.push_back({"AENV SUSTAIN", 2, 2, 78, 0.7, 0, 1});
+    controls.push_back({"AENV RELEASE", 3, 3, 78, 0.3, 0, 1});
 
-    controls.push_back({"LFO1 FREQ", PBSynthParam::P_LFO1_FREQ, 5, 78, 0.1, 0, 1});
-    controls.push_back({"LFO1 DEPTH", PBSynthParam::P_LFO1_DEPTH, 6, 78, 0, 0, 1});
+    controls.push_back({"LFO1 FREQ", 42, 5, 78, 0.1, 0, 1});
+    controls.push_back({"LFO1 DEPTH", 41, 6, 78, 0, 0, 1});
 
-    controls.push_back({"LFO2 FREQ", PBSynthParam::P_LFO2_FREQ, 8, 78, 0.1, 0, 1});
-    controls.push_back({"LFO2 DEPTH", PBSynthParam::P_LFO2_DEPTH, 9, 78, 0, 0, 1});
+    controls.push_back({"LFO2 FREQ", 44, 8, 78, 0.1, 0, 1});
+    controls.push_back({"LFO2 DEPTH", 43, 9, 78, 0, 0, 1});
 
-    controls.push_back({"OSC MIX", PBSynthParam::P_OSC_MIX, 12, 78, 0.5, 0, 1});
-    controls.push_back({"MASTER", PBSynthParam::P_MASTER_VOL, 13, 78, 0.7, 0, 1});
+    controls.push_back({"OSC MIX", 28, 12, 78, 0.5, 0, 1});
+    controls.push_back({"MASTER", 35, 13, 78, 0.7, 0, 1});
 }
