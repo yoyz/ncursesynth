@@ -3,6 +3,9 @@
 #include <cmath>
 
 static constexpr int OUTPUT_AMPLITUDE = 8192;
+static constexpr float CUTOFF_MIN = 50.0f;
+static constexpr float CUTOFF_MAX = 20000.0f;
+static constexpr float CUTOFF_OCTAVES = 8.643856f; // log2(20000/50)
 
 static int mapParam(int id) {
     switch (id) {
@@ -21,7 +24,7 @@ static int mapParam(int id) {
         case 42:  return 21;  // unified lfo1_freq → MachineParam::LFO_1_FREQUENCY
         case 52:  return 51;  // unified cutoff → MachineParam::FILTER_CUTOFF
         case 53:  return 52;  // unified resonance → MachineParam::RESONANCE
-        case 74:  return 11;  // unified osc1_detune → MachineParam::OSC_2_TUNE
+        case 75:  return 11;  // unified osc2_detune → MachineParam::OSC_2_TUNE
         case 94:  return 54;  // unified flt_env_depth → MachineParam::FILTER_ENV_DEPTH
         default:  return id;  // pass through (35, 50, 65, 66, 70, 75, etc.)
     }
@@ -48,7 +51,10 @@ void NcursesynthMachine::init() {
         synth_->setOsc1Waveform(Waveform::SAWTOOTH);
         synth_->setOsc2Waveform(Waveform::SAWTOOTH);
         synth_->setOscMix(0.5f);
+        synth_->setOsc1Detune(0.0f);
         synth_->setOsc2Detune(0.0f);
+        synth_->setOsc1Amp(1.0f);
+        synth_->setOsc2Amp(1.0f);
         synth_->setAmpAttack(0.0f);
         synth_->setAmpDecay(1.0f);
         synth_->setAmpSustain(0.5f);
@@ -98,6 +104,28 @@ void NcursesynthMachine::noteOff() {
 }
 
 void NcursesynthMachine::setI(int index, int value) {
+    if (index == 74) {
+        float t = (value - 64) / 64.0f;
+        synth_->setOsc1Detune(t * fabsf(t) * 1.0f);
+        return;
+    }
+
+    if (index == 65 || index == 66) {
+        int idx = (value > 4) ? std::min(4, (value * 4 + 63) / 127) : value;
+        idx = std::max(0, std::min(4, idx));
+        int semitones = (idx - 2) * 12;
+        if (index == 65) synth_->setOsc1Scale((float)semitones);
+        else synth_->setOsc2Scale((float)semitones);
+        return;
+    }
+
+    if (index == 31 || index == 32) {
+        float amp = value / 127.0f;
+        if (index == 31) synth_->setOsc1Amp(amp);
+        else synth_->setOsc2Amp(amp);
+        return;
+    }
+
     index = mapParam(index);
     if (index >= 0 && index < MachineParam::PERFORMANCE_COUNT)
         params_[index] = value;
@@ -120,11 +148,13 @@ void NcursesynthMachine::setI(int index, int value) {
         case MachineParam::POLYPHONY:
             synth_->setPolyphony(value);
             break;
-        case MachineParam::FILTER_TYPE:
-            synth_->setFilterType(static_cast<FilterType>(value));
+        case MachineParam::FILTER_TYPE: {
+            int ft = std::max(0, std::min(10, value));
+            synth_->setFilterType(static_cast<FilterType>(ft));
             break;
+        }
         case MachineParam::FILTER_CUTOFF:
-            synth_->setCutoff(20.0f + (value / 127.0f) * 7980.0f);
+            synth_->setCutoff(CUTOFF_MIN * powf(2.0f, CUTOFF_OCTAVES * value / 127.0f));
             break;
         case MachineParam::RESONANCE:
             synth_->setResonance(value / 127.0f);
@@ -142,9 +172,11 @@ void NcursesynthMachine::setI(int index, int value) {
         case MachineParam::OSC_MIX:
             synth_->setOscMix(value / 127.0f);
             break;
-        case MachineParam::OSC_2_TUNE:
-            synth_->setOsc2Detune(powf(value / 127.0f, 2.0f) * 12.0f);
+        case MachineParam::OSC_2_TUNE: {
+            float t = (value - 64) / 64.0f;
+            synth_->setOsc2Detune(t * fabsf(t) * 1.0f);
             break;
+        }
         case MachineParam::AMP_ATTACK:
             synth_->setAmpAttack(value / 127.0f);
             break;
@@ -169,6 +201,9 @@ void NcursesynthMachine::setI(int index, int value) {
         case MachineParam::FILTER_ENV_RELEASE:
             synth_->setFilterRelease(value / 127.0f);
             break;
+        case MachineParam::FILTER_ENV_DEPTH:
+            synth_->setFilterEnvelopeAmount(value / 127.0f);
+            break;
         case MachineParam::LFO_1_FREQUENCY:
             break;
         case MachineParam::LFO_1_AMOUNT:
@@ -184,7 +219,7 @@ void NcursesynthMachine::setF(int index, float value) {
 
     switch (index) {
         case MachineParam::FILTER_CUTOFF:
-            synth_->setCutoff(20.0f + value * 7980.0f);
+            synth_->setCutoff(CUTOFF_MIN * powf(2.0f, CUTOFF_OCTAVES * value));
             break;
         case MachineParam::FILTER_ENV_DEPTH:
             synth_->setFilterEnvelopeAmount(value);
@@ -229,6 +264,27 @@ void NcursesynthMachine::applyCC(int cc, float normalized, const std::string& pa
 }
 
 int NcursesynthMachine::getI(int index) {
+    if (index == 74) {
+        float detune = synth_->getOsc1Detune();
+        float sign = (detune >= 0) ? 1.0f : -1.0f;
+        float normalized = sqrtf(fabsf(detune) / 1.0f);
+        return static_cast<int>(normalized * sign * 64.0f + 64.0f);
+    }
+
+    if (index == 65) {
+        return static_cast<int>((synth_->getOsc1Scale() / 12.0f) + 2.0f);
+    }
+    if (index == 66) {
+        return static_cast<int>((synth_->getOsc2Scale() / 12.0f) + 2.0f);
+    }
+
+    if (index == 31) {
+        return static_cast<int>(synth_->getOsc1Amp() * 127.0f);
+    }
+    if (index == 32) {
+        return static_cast<int>(synth_->getOsc2Amp() * 127.0f);
+    }
+
     index = mapParam(index);
     if (!synth_) {
         if (index >= 0 && index < MachineParam::PERFORMANCE_COUNT)
@@ -242,7 +298,7 @@ int NcursesynthMachine::getI(int index) {
         case MachineParam::FILTER_TYPE:
             return static_cast<int>(synth_->getCurrentFilterType());
         case MachineParam::FILTER_CUTOFF:
-            return static_cast<int>(((synth_->getCutoff() - 20.0f) / 7980.0f) * 127.0f);
+            return static_cast<int>(log2f(synth_->getCutoff() / CUTOFF_MIN) / CUTOFF_OCTAVES * 127.0f);
         case MachineParam::RESONANCE:
             return static_cast<int>(synth_->getResonance() * 127.0f);
         case MachineParam::OSC_1_WAVEFORM:
@@ -251,8 +307,12 @@ int NcursesynthMachine::getI(int index) {
             return static_cast<int>(synth_->getOsc2Waveform());
         case MachineParam::OSC_MIX:
             return static_cast<int>(synth_->getOscMix() * 127.0f);
-        case MachineParam::OSC_2_TUNE:
-            return static_cast<int>(synth_->getOsc2Detune() * 127.0f);
+        case MachineParam::OSC_2_TUNE: {
+            float detune = synth_->getOsc2Detune();
+            float sign = (detune >= 0) ? 1.0f : -1.0f;
+            float normalized = sqrtf(fabsf(detune) / 1.0f);
+            return static_cast<int>(normalized * sign * 64.0f + 64.0f);
+        }
         case MachineParam::AMP_ATTACK:
             return static_cast<int>(synth_->getAmpAttack() * 127.0f);
         case MachineParam::AMP_DECAY:
@@ -269,6 +329,8 @@ int NcursesynthMachine::getI(int index) {
             return static_cast<int>(synth_->getFilterSustain() * 127.0f);
         case MachineParam::FILTER_ENV_RELEASE:
             return static_cast<int>(synth_->getFilterRelease() * 127.0f);
+        case MachineParam::FILTER_ENV_DEPTH:
+            return static_cast<int>(synth_->getFilterEnvelopeAmount() * 127.0f);
         case 35: // VOLUME
             return static_cast<int>(synth_->getVolume() * 127.0f);
         default:
@@ -283,7 +345,7 @@ float NcursesynthMachine::getF(int index) {
 
     switch (index) {
         case MachineParam::FILTER_CUTOFF:
-            return (synth_->getCutoff() - 20.0f) / 7980.0f;
+            return log2f(synth_->getCutoff() / CUTOFF_MIN) / CUTOFF_OCTAVES;
         case MachineParam::FILTER_ENV_DEPTH:
             return synth_->getFilterEnvelopeAmount();
         case MachineParam::OSC_MIX:
@@ -300,7 +362,7 @@ int NcursesynthMachine::checkI(int index, int value) {
         case MachineParam::POLYPHONY:
             return std::max(1, std::min(16, value));
         case MachineParam::FILTER_TYPE:
-            return std::max(0, std::min(7, value));
+            return std::max(0, std::min(10, value));
         default:
             return std::max(0, std::min(127, value));
     }
@@ -331,24 +393,42 @@ std::vector<std::pair<std::string, int>> NcursesynthMachine::getPresetParams() c
 }
 
 const char* NcursesynthMachine::getDisplayString(int index) {
+    if (index == 65) {
+        static const char* names[] = {"-2", "-1", "0", "+1", "+2"};
+        int idx = static_cast<int>((synth_->getOsc1Scale() / 12.0f) + 2.0f);
+        return names[idx];
+    }
+    if (index == 66) {
+        static const char* names[] = {"-2", "-1", "0", "+1", "+2"};
+        int idx = static_cast<int>((synth_->getOsc2Scale() / 12.0f) + 2.0f);
+        return names[idx];
+    }
+
     index = mapParam(index);
     if (!synth_) return "";
 
     switch (index) {
         case MachineParam::FILTER_TYPE: {
             static const char* names[] = {"MOOG", "KORG MS20", "OBERHEIM", "MOOG HPF",
-                               "SVF LP12", "SVF HP12", "SVF BP12", "SVF AP12"};
+                               "SVF LP12", "SVF HP12", "SVF BP12", "SVF AP12",
+                               "DIODE", "FORMANT", "COMB"};
             int t = static_cast<int>(synth_->getCurrentFilterType());
+            if (t < 0) t = 0;
+            if (t > 10) t = 10;
             return names[t];
         }
         case MachineParam::OSC_1_WAVEFORM: {
             static const char* names[] = {"SAW", "SQUARE", "TRIANGLE"};
             int w = static_cast<int>(synth_->getOsc1Waveform());
+            if (w < 0) w = 0;
+            if (w > 2) w = 2;
             return names[w];
         }
         case MachineParam::OSC_2_WAVEFORM: {
             static const char* names[] = {"SAW", "SQUARE", "TRIANGLE"};
             int w = static_cast<int>(synth_->getOsc2Waveform());
+            if (w < 0) w = 0;
+            if (w > 2) w = 2;
             return names[w];
         }
         default:

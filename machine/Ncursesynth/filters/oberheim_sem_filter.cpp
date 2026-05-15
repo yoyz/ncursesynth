@@ -13,7 +13,7 @@ OberheimSEMFilter::~OberheimSEMFilter() {}
 void OberheimSEMFilter::updateCoefficients() {
     float cutoff = std::min(fc, sampleRate * 0.45f);
     f = 2.0f * sinf(M_PI * cutoff / sampleRate);
-    q = 1.0f / (2.0f * (res + 0.01f));
+    q = 1.0f - res * 0.95f;
 }
 
 void OberheimSEMFilter::setCutoff(float cutoff) {

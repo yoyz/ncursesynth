@@ -20,10 +20,15 @@ SynthArchitecture::SynthArchitecture(int polyphony, float rate)
       filtSustain(0.5f),
       filtRelease(0.5f),
       volume(0.7f),
-      oscMix(0.5f),
-      osc2Detune(0.0f),
       osc1Waveform(Waveform::SAWTOOTH),
       osc2Waveform(Waveform::SAWTOOTH),
+      oscMix(0.5f),
+      osc1Detune(0.0f),
+      osc2Detune(0.0f),
+      osc1Scale(0.0f),
+      osc2Scale(0.0f),
+      osc1Amp(1.0f),
+      osc2Amp(1.0f),
       presetManager("bank/ncursesynth") {
     
     // Create voices
@@ -87,7 +92,12 @@ void SynthArchitecture::updateAllVoices() {
         voice->updateOsc1Waveform(osc1Waveform);
         voice->updateOsc2Waveform(osc2Waveform);
         voice->updateOscMix(oscMix);
+        voice->updateOsc1Detune(osc1Detune);
         voice->updateOsc2Detune(osc2Detune);
+        voice->updateOsc1Scale(osc1Scale);
+        voice->updateOsc2Scale(osc2Scale);
+        voice->updateOsc1Amp(osc1Amp);
+        voice->updateOsc2Amp(osc2Amp);
         voice->updateEnvelopeCurves(ampEnvelopeCurve, filterEnvelopeCurve);
     }
 }
@@ -278,8 +288,33 @@ void SynthArchitecture::setOscMix(float mix) {
     updateAllVoices();
 }
 
+void SynthArchitecture::setOsc1Detune(float detune) {
+    osc1Detune = detune;
+    updateAllVoices();
+}
+
 void SynthArchitecture::setOsc2Detune(float detune) {
     osc2Detune = detune;
+    updateAllVoices();
+}
+
+void SynthArchitecture::setOsc1Scale(float semitones) {
+    osc1Scale = semitones;
+    updateAllVoices();
+}
+
+void SynthArchitecture::setOsc2Scale(float semitones) {
+    osc2Scale = semitones;
+    updateAllVoices();
+}
+
+void SynthArchitecture::setOsc1Amp(float amp) {
+    osc1Amp = amp;
+    updateAllVoices();
+}
+
+void SynthArchitecture::setOsc2Amp(float amp) {
+    osc2Amp = amp;
     updateAllVoices();
 }
 

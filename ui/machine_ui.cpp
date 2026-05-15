@@ -382,6 +382,7 @@ void MachineUI::handleValueChange(int ch) {
         if (ch == KEY_RIGHT) raw++;
         else if (ch == KEY_LEFT) raw--;
         if (raw < 0) raw = 0;
+        if (raw > 127) raw = 127;
         machine->setI(c.param, raw);
         controls[selectedControl].value = (float)raw / 128.0f;
         return;

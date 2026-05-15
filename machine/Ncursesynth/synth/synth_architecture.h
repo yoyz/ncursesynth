@@ -40,7 +40,12 @@ private:
     
     // Oscillator parameters
     float oscMix;
+    float osc1Detune;
     float osc2Detune;
+    float osc1Scale;
+    float osc2Scale;
+    float osc1Amp;
+    float osc2Amp;
     
     // MIDI reference
     MidiInput* midiInput;
@@ -128,9 +133,19 @@ public:
     
     // Oscillator getters
     float getOscMix() const { return oscMix; }
+    float getOsc1Detune() const { return osc1Detune; }
     float getOsc2Detune() const { return osc2Detune; }
+    float getOsc1Scale() const { return osc1Scale; }
+    float getOsc2Scale() const { return osc2Scale; }
+    float getOsc1Amp() const { return osc1Amp; }
+    float getOsc2Amp() const { return osc2Amp; }
     void setOscMix(float mix);
+    void setOsc1Detune(float detune);
     void setOsc2Detune(float detune);
+    void setOsc1Scale(float semitones);
+    void setOsc2Scale(float semitones);
+    void setOsc1Amp(float amp);
+    void setOsc2Amp(float amp);
     
     // Effect getters
     DelayEffect* getDelay() { return effectChain.getDelay(); }

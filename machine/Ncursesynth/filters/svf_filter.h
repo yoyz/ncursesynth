@@ -14,13 +14,9 @@ public:
 
 private:
     float sampleRate;
-    float fc, res;
-    float ic1eq, ic2eq;
-    float in_0_, in_1_, in_2_;
-    float out_0_, out_1_;
-    float past_in_1_, past_in_2_, past_out_1_, past_out_2_;
-    float current_cutoff_, current_resonance_;
-    float PI = 3.14159265358979323846f;
+    float fc, resQ;
+    float lp, bp, hp;
+    float f, q;
 
     Type currentType;
 
@@ -32,15 +28,10 @@ public:
     void setResonance(float res) override;
     void setSampleRate(float rate) override;
     void setType(Type type);
-    void computeCoefficients(Type type, float cutoff, float resonance);
+    void computeCoefficients();
 
     float process(float input) override;
     void reset() override;
-
-    float processLP(float input);
-    float processHP(float input);
-    float processBP(float input);
-    float processAP(float input);
 };
 
 #endif

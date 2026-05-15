@@ -10,6 +10,9 @@ Voice::Voice(float sampleRate)
       korgFilter(sampleRate),
       oberheimFilter(sampleRate),
       svfFilter(sampleRate),
+      diodeLadder(sampleRate),
+      formantFilter(sampleRate),
+      combFilterInstance(sampleRate),
       amplitudeEnvelope(sampleRate),
       filterEnvelope(sampleRate),
       frequency(440.0f),
@@ -19,7 +22,12 @@ Voice::Voice(float sampleRate)
       baseCutoff(1000.0f),
       resonance(0.5f),
       oscMix(0.5f),
+      osc1Detune(0.0f),
       osc2Detune(0.0f),
+      osc1Scale(0.0f),
+      osc2Scale(0.0f),
+      osc1Amp(1.0f),
+      osc2Amp(1.0f),
       osc1Waveform(Waveform::SAWTOOTH),
       osc2Waveform(Waveform::SAWTOOTH) {
     
@@ -38,6 +46,9 @@ void Voice::setSampleRate(float rate) {
     korgFilter.setSampleRate(rate);
     oberheimFilter.setSampleRate(rate);
     svfFilter.setSampleRate(rate);
+    diodeLadder.setSampleRate(rate);
+    formantFilter.setSampleRate(rate);
+    combFilterInstance.setSampleRate(rate);
     amplitudeEnvelope.setSampleRate(rate);
     filterEnvelope.setSampleRate(rate);
 }
@@ -91,6 +102,15 @@ void Voice::noteOn(float freq, int id, FilterType filterType,
             currentFilter = &svfFilter;
             svfFilter.setType(StateVariableFilter::Type::AP12);
             break;
+        case FilterType::DIODE:
+            currentFilter = &diodeLadder;
+            break;
+        case FilterType::FORMANT:
+            currentFilter = &formantFilter;
+            break;
+        case FilterType::COMB:
+            currentFilter = &combFilterInstance;
+            break;
     }
     
     currentFilter->reset();
@@ -143,15 +163,18 @@ float Voice::process() {
     
     float filterEnvValue = filterEnvelope.process();
     
-    float modulatedCutoff = baseCutoff + (filterEnvValue * filterEnvelopeAmount * 4000.0f);
+    float envMod = (filterEnvelopeAmount - 0.5f) * 2.0f;
+    float modulatedCutoff = baseCutoff + (filterEnvValue * envMod * 4000.0f);
     modulatedCutoff = std::max(20.0f, std::min(8000.0f, modulatedCutoff));
     currentFilter->setCutoff(modulatedCutoff);
     
-    float osc1_out = oscillator1.process();
+    float osc1_freq = frequency * powf(2.0f, (osc1Detune + osc1Scale) / 12.0f);
+    oscillator1.setFrequency(osc1_freq);
+    float osc1_out = oscillator1.process() * osc1Amp;
     
-    float osc2_freq = frequency * powf(2.0f, osc2Detune / 12.0f);
+    float osc2_freq = frequency * powf(2.0f, (osc2Detune + osc2Scale) / 12.0f);
     oscillator2.setFrequency(osc2_freq);
-    float osc2_out = oscillator2.process();
+    float osc2_out = oscillator2.process() * osc2Amp;
     
     float mixed = osc1_out * (1.0f - oscMix) + osc2_out * oscMix;
     
@@ -170,6 +193,9 @@ void Voice::reset() {
     korgFilter.reset();
     oberheimFilter.reset();
     svfFilter.reset();
+    diodeLadder.reset();
+    formantFilter.reset();
+    combFilterInstance.reset();
     amplitudeEnvelope.reset();
     filterEnvelope.reset();
 }
@@ -204,6 +230,15 @@ void Voice::updateFilterType(FilterType type) {
             currentFilter = &svfFilter;
             svfFilter.setType(StateVariableFilter::Type::AP12);
             break;
+        case FilterType::DIODE:
+            currentFilter = &diodeLadder;
+            break;
+        case FilterType::FORMANT:
+            currentFilter = &formantFilter;
+            break;
+        case FilterType::COMB:
+            currentFilter = &combFilterInstance;
+            break;
     }
 }
 
@@ -236,8 +271,28 @@ void Voice::updateOscMix(float mix) {
     oscMix = mix;
 }
 
+void Voice::updateOsc1Detune(float detune) {
+    osc1Detune = detune;
+}
+
 void Voice::updateOsc2Detune(float detune) {
     osc2Detune = detune;
+}
+
+void Voice::updateOsc1Scale(float semitones) {
+    osc1Scale = semitones;
+}
+
+void Voice::updateOsc2Scale(float semitones) {
+    osc2Scale = semitones;
+}
+
+void Voice::updateOsc1Amp(float amp) {
+    osc1Amp = amp;
+}
+
+void Voice::updateOsc2Amp(float amp) {
+    osc2Amp = amp;
 }
 
 void Voice::updateEnvelopeCurves(EnvelopeCurve ampCurve, EnvelopeCurve filtCurve) {
