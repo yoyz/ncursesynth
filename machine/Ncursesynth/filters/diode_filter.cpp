@@ -28,7 +28,7 @@ void DiodeFilter::setCutoff(float freq) {
 }
 
 void DiodeFilter::setResonance(float res) {
-    res_k = 16.0 * res;
+    res_k = 0.5 + 15.5 * res;
     dirty = true;
 }
 
@@ -81,5 +81,12 @@ float DiodeFilter::process(float input) {
     double u = (xn - k * sigma) / (1.0 + k * gamma);
 
     double out = lpf4.processLP(lpf3.processLP(lpf2.processLP(lpf1.processLP(u))));
-    return (float)out;
+
+    float gain = 3.0f;
+    if (fc < 150.0) gain = 8.0f;
+    else if (fc < 300.0) gain = 6.0f;
+    else if (fc < 600.0) gain = 4.0f;
+    else if (fc > 6000.0) gain = 2.0f;
+
+    return (float)(out * gain);
 }

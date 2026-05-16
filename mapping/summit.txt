@@ -1,0 +1,34 @@
+# MIDI Learn Mapping
+# Novation Summit/Peak
+# Format: cc,parameter_name,min_val,max_val,default_val
+
+# Oscillators
+14,OSC1_SCALE,0,127,64
+15,OSC1_DETUNE,0,127,64
+17,OSC2_SCALE,0,127,64
+18,OSC2_DETUNE,0,127,64
+23,OSC1_AMP,0,127,127
+24,OSC2_AMP,0,127,0
+
+# Filter
+29,CUTOFF,0,127,64
+79,RESONANCE,0,127,0
+
+# Amplifier Envelope
+86,AMP_ATTACK,0,127,0
+87,AMP_DECAY,0,127,64
+88,AMP_SUSTAIN,0,127,127
+89,AMP_RELEASE,0,127,64
+
+# Filter Envelope (Mod 1)
+78,FILTER_ENV_AMOUNT,0,127,64
+90,FILTER_ATTACK,0,127,0
+91,FILTER_DECAY,0,127,64
+92,FILTER_SUSTAIN,0,127,127
+93,FILTER_RELEASE,0,127,64
+
+# Volume
+7,VOLUME,0,127,100
+
+# Ignored (Summit sends these alongside main CCs)
+61,,0,127,0

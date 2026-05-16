@@ -60,5 +60,5 @@ void FormantFilter::reset() {
 }
 
 float FormantFilter::process(float input) {
-    return res1.process(res2.process(input)) * 0.35f;
+    return res1.process(res2.process(input)) * 0.25f;
 }

@@ -9,6 +9,8 @@
 #include <atomic>
 #include <mutex>
 
+bool runFilterFull3Tests(Machine* machine, bool useFFT);
+
 static std::atomic<bool> g_running_(false);
 static std::mutex g_machineMutex_;
 static Machine* g_activeMachine_ = nullptr;
@@ -36,7 +38,10 @@ static const std::vector<std::string> g_availableTests = {
     "filter_env",
     "voice_level",
     "envelope",
-    "preset"
+    "preset",
+    "filter_full",
+    "filter_full2",
+    "filter_full3"
 };
 
 static const char* g_engineDescriptions[] = {
@@ -58,7 +63,9 @@ static const char* g_testDescriptions[] = {
     "Filter envelope tests",
     "Voice level increase with polyphony",
     "Amplitude envelope A/D/S/R shape",
-    "Preset load/save/reload"
+    "Preset load/save/reload",
+    "Comprehensive filter tests (all 11 filter types, FFT analysis)",
+    "Filter frequency response tests (notes vs cutoff, LPF/HPF behavior)"
 };
 
 TestRunner::TestRunner(const std::string& outputDir, bool verbose)
@@ -287,6 +294,34 @@ bool TestRunner::runAllTests(Machine* machine, bool useFFT, const std::vector<st
         bool passed = runPresetTests(machine, useFFT);
         if (passed) passedCount++; else failedCount++;
         results_.push_back({"preset", passed, "", 0, 0, 0, false, 0, 0});
+        allPassed = passed && allPassed;
+    }
+
+    if (shouldRunTest("filter_full")) {
+        std::cout << "  [RUN] filter_full" << std::endl;
+        std::cout << "  [INFO] Running comprehensive filter tests (FFT analysis enabled)" << std::endl;
+        bool passed = runFilterFullTests(machine, useFFT);
+        if (passed) passedCount++; else failedCount++;
+        results_.push_back({"filter_full", passed, "", 0, 0, 0, false, 0, 0});
+        allPassed = passed && allPassed;
+    }
+
+    if (shouldRunTest("filter_full2")) {
+        std::cout << "  [RUN] filter_full2" << std::endl;
+        std::cout << "  [INFO] Running filter frequency response tests" << std::endl;
+        bool passed = runFilterFull2Tests(machine, useFFT);
+        if (passed) passedCount++; else failedCount++;
+        results_.push_back({"filter_full2", passed, "", 0, 0, 0, false, 0, 0});
+        allPassed = passed && allPassed;
+    }
+
+    if (shouldRunTest("filter_full3")) {
+        std::cout << "  [RUN] filter_full3" << std::endl;
+        std::cout << "  [INFO] Running comprehensive filter sweep tests (this may take a while...)" << std::endl;
+        std::cout << "  [INFO] Testing 128 cutoff + 128 resonance values + 9 combined tests" << std::endl;
+        bool passed = runFilterFull3Tests(machine, useFFT);
+        if (passed) passedCount++; else failedCount++;
+        results_.push_back({"filter_full3", passed, "", 0, 0, 0, false, 0, 0});
         allPassed = passed && allPassed;
     }
     

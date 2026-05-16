@@ -25,5 +25,7 @@ bool runFilterEnvelopeTests(class Machine* machine, bool useFFT);
 bool runVoiceLevelTests(class Machine* machine, bool useFFT);
 bool runEnvelopeTests(class Machine* machine, bool useFFT);
 bool runPresetTests(class Machine* machine, bool useFFT);
+bool runFilterFullTests(class Machine* machine, bool useFFT);
+bool runFilterFull2Tests(class Machine* machine, bool useFFT);
 
 #endif

@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-05-16 — Novation Summit mapping, filter tests, UI fix
+
+### Novation Summit MIDI Mapping
+- New `mapping/summit.txt` with 18 CC mappings for Summit/Peak:
+  - Oscillators: OSC1/2 SCALE (coarse, CC14/17), OSC1/2 DETUNE (fine, CC15/18), OSC1/2 AMP (mix, CC23/24)
+  - Filter: CUTOFF (CC29), RESONANCE (CC79)
+  - Amp envelope: AMP A/D/S/R (CC86-89)
+  - Filter envelope: FENV AMOUNT (mod 1 → filter, CC78), FENV A/D/S/R (CC90-93)
+  - Volume: CC7
+- Added `--mapping NAME` CLI flag to select mapping on startup
+- Mappings auto-discovered from `mapping/` directory (index.txt replaced)
+- Syntax validation reports file:line errors for bad mapping entries (CC range, format, numbers)
+- Added `applyCC()` handlers for OSC1/2_DETUNE, OSC1/2_SCALE, OSC1/2_AMP to all 4 engines
+
+### UI Arrow Key Fix
+- Arrow keys now increment parameters by 1% (matching PageUp/PageDown)
+- Fixed Ncursesynth rounding bug: `getI()` was computing from internal state (Hz) instead of cached value, causing round-trip precision loss
+- All 4 engines use cached raw 0-127 value in getI() for consistent display
+
+### Filter Test Suite
+- `filter_full`: 256 cutoff variations, quick amplitude verification
+- `filter_full2`: 265 cutoff + resonance sweep tests
+- `filter_full3`: 128×128 parameter grid (16384 tests) with FFT frequency analysis
+- Added `preset` test for preset load/save
+- Total: 15 tests × 4 engines = 60 test runs, 100% pass rate
+
+### Bug Fixes
+- **Ncursesynth `applyCC`**: passing raw 0-127 to `setF()` which expected 0.0-1.0 — fixed by using `setI()` with unified param IDs
+- **Ncursesynth `applyCC`**: was using `MachineParam::FILTER_CUTOFF` (enum value 50) instead of unified ID 52 — `mapParam(52)` correctly routes to FILTER_CUTOFF (51)
+- **loadMappings**: removed index.txt dependency, auto-discovers `.txt` files from directory, removed duplicate directory scan bug
+- **MIDI init ordering**: moved mapping load before audio engine init so mapping is available even if audio fails
+
+### Docs
+- `doc/TEST_PLAN.md`: updated to reflect 15 tests (was 11), 60 pass runs (was 44), added filter test implementation details
+- `mapping/index.txt`: now just a reference comment (auto-discovery replaces it)
+
 ## 2026-05-15 — Preset system, remote control, headless mode, analysis
 
 ### Preset System

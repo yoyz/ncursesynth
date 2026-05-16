@@ -44,6 +44,7 @@ void MachineUI::init() {
             int val = (int)((c.value - c.minVal) / (c.maxVal - c.minVal) * 127.0f);
             machine->setI(c.param, val);
         }
+        updateControlValues();
     }
 }
 
@@ -397,7 +398,12 @@ void MachineUI::handleValueChange(int ch) {
         val = std::max(val - step, c.minVal);
     }
 
-    machine->setI(c.param, (int)(val * 128));
+    int rawValue = (int)(val * 128);
+    if (rawValue > 127) rawValue = 127;
+    if (rawValue < 0) rawValue = 0;
+    
+    machine->setI(c.param, rawValue);
+    controls[selectedControl].value = (float)rawValue / 128.0f;
 }
 
 void MachineUI::handleNavigation(int ch) {

@@ -237,27 +237,39 @@ void NcursesynthMachine::applyCC(int cc, float normalized, const std::string& pa
     int val = (int)(normalized * 127.0f);
 
     if (paramName == "CUTOFF") {
-        setF(MachineParam::FILTER_CUTOFF, val);
+        setI(52, val);  // Unified param ID for cutoff
     } else if (paramName == "RESONANCE") {
-        setI(MachineParam::RESONANCE, val);
+        setI(53, val);  // Unified param ID for resonance
     } else if (paramName == "FILTER_ENV_AMOUNT") {
-        setF(MachineParam::FILTER_ENV_DEPTH, val);
+        setI(94, val);  // Unified param ID for filter env depth
     } else if (paramName == "FILTER_ATTACK") {
-        setI(MachineParam::FILTER_ENV_ATTACK, val);
+        setI(4, val);   // Unified param ID for filter env attack
     } else if (paramName == "FILTER_DECAY") {
-        setI(MachineParam::FILTER_ENV_DECAY, val);
+        setI(5, val);   // Unified param ID for filter env decay
     } else if (paramName == "FILTER_SUSTAIN") {
-        setI(MachineParam::FILTER_ENV_SUSTAIN, val);
+        setI(6, val);   // Unified param ID for filter env sustain
     } else if (paramName == "FILTER_RELEASE") {
-        setI(MachineParam::FILTER_ENV_RELEASE, val);
+        setI(7, val);   // Unified param ID for filter env release
     } else if (paramName == "AMP_ATTACK") {
-        setI(MachineParam::AMP_ATTACK, val);
+        setI(0, val);   // Unified param ID for amp attack
     } else if (paramName == "AMP_DECAY") {
-        setI(MachineParam::AMP_DECAY, val);
+        setI(1, val);   // Unified param ID for amp decay
     } else if (paramName == "AMP_SUSTAIN") {
-        setI(MachineParam::AMP_SUSTAIN, val);
+        setI(2, val);   // Unified param ID for amp sustain
     } else if (paramName == "AMP_RELEASE") {
-        setI(MachineParam::AMP_RELEASE, val);
+        setI(3, val);   // Unified param ID for amp release
+    } else if (paramName == "OSC1_DETUNE") {
+        setI(74, val);
+    } else if (paramName == "OSC2_DETUNE") {
+        setI(75, val);
+    } else if (paramName == "OSC1_SCALE") {
+        setI(65, val);
+    } else if (paramName == "OSC2_SCALE") {
+        setI(66, val);
+    } else if (paramName == "OSC1_AMP") {
+        setI(31, val);
+    } else if (paramName == "OSC2_AMP") {
+        setI(32, val);
     } else if (paramName == "VOLUME") {
         setI(35, val);
     }
@@ -297,42 +309,6 @@ int NcursesynthMachine::getI(int index) {
             return synth_->getPolyphony();
         case MachineParam::FILTER_TYPE:
             return static_cast<int>(synth_->getCurrentFilterType());
-        case MachineParam::FILTER_CUTOFF:
-            return static_cast<int>(log2f(synth_->getCutoff() / CUTOFF_MIN) / CUTOFF_OCTAVES * 127.0f);
-        case MachineParam::RESONANCE:
-            return static_cast<int>(synth_->getResonance() * 127.0f);
-        case MachineParam::OSC_1_WAVEFORM:
-            return static_cast<int>(synth_->getOsc1Waveform());
-        case MachineParam::OSC_2_WAVEFORM:
-            return static_cast<int>(synth_->getOsc2Waveform());
-        case MachineParam::OSC_MIX:
-            return static_cast<int>(synth_->getOscMix() * 127.0f);
-        case MachineParam::OSC_2_TUNE: {
-            float detune = synth_->getOsc2Detune();
-            float sign = (detune >= 0) ? 1.0f : -1.0f;
-            float normalized = sqrtf(fabsf(detune) / 1.0f);
-            return static_cast<int>(normalized * sign * 64.0f + 64.0f);
-        }
-        case MachineParam::AMP_ATTACK:
-            return static_cast<int>(synth_->getAmpAttack() * 127.0f);
-        case MachineParam::AMP_DECAY:
-            return static_cast<int>(synth_->getAmpDecay() * 127.0f);
-        case MachineParam::AMP_SUSTAIN:
-            return static_cast<int>(synth_->getAmpSustain() * 127.0f);
-        case MachineParam::AMP_RELEASE:
-            return static_cast<int>(synth_->getAmpRelease() * 127.0f);
-        case MachineParam::FILTER_ENV_ATTACK:
-            return static_cast<int>(synth_->getFilterAttack() * 127.0f);
-        case MachineParam::FILTER_ENV_DECAY:
-            return static_cast<int>(synth_->getFilterDecay() * 127.0f);
-        case MachineParam::FILTER_ENV_SUSTAIN:
-            return static_cast<int>(synth_->getFilterSustain() * 127.0f);
-        case MachineParam::FILTER_ENV_RELEASE:
-            return static_cast<int>(synth_->getFilterRelease() * 127.0f);
-        case MachineParam::FILTER_ENV_DEPTH:
-            return static_cast<int>(synth_->getFilterEnvelopeAmount() * 127.0f);
-        case 35: // VOLUME
-            return static_cast<int>(synth_->getVolume() * 127.0f);
         default:
             if (index >= 0 && index < MachineParam::PERFORMANCE_COUNT)
                 return params_[index];

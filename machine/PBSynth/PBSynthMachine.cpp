@@ -301,12 +301,10 @@ int PBSynthMachine::getI(int what)
       return (int)((r + 1.0f) / 2.0f * 127);
   }
   if (what == FILTER1_CUTOFF) {
-      float f = se->getParameter(SENGINE_FILTFREQ);
-      return (int)((f + 1.0f) / 2.0f * 127);
+      return cutoff;
   }
   if (what == FILTER1_RESONANCE) {
-      float r = se->getParameter(SENGINE_FILTRESO);
-      return (int)((r + 1.0f) / 2.0f * 127);
+      return resonance;
   }
   if (what == VCO_MIX) {
       float m = se->getParameter(SENGINE_OSCMIX);
@@ -470,9 +468,11 @@ void PBSynthMachine::setI(int what,int val)
     if (what==AMP) amp_volume = val;
 
     if (what==FILTER1_CUTOFF) {
+      cutoff = val;
       for (auto& v : voices) if(v.se) v.se->setParameter(SENGINE_FILTFREQ,(f_val*2)-1);
     }
     if (what==FILTER1_RESONANCE) {
+      resonance = val;
       for (auto& v : voices) if(v.se) v.se->setParameter(SENGINE_FILTRESO,(f_val*2)-1);
     }
 
@@ -511,6 +511,18 @@ void PBSynthMachine::applyCC(int cc, float normalized, const std::string& paramN
         setI(ADSR_ENV0_SUSTAIN, val);
     } else if (paramName == "AMP_RELEASE") {
         setI(ADSR_ENV0_RELEASE, val);
+    } else if (paramName == "OSC1_DETUNE") {
+        setI(OSC1_DETUNE, val);
+    } else if (paramName == "OSC2_DETUNE") {
+        setI(OSC2_DETUNE, val);
+    } else if (paramName == "OSC1_SCALE") {
+        setI(OSC1_SCALE, val);
+    } else if (paramName == "OSC2_SCALE") {
+        setI(OSC2_SCALE, val);
+    } else if (paramName == "OSC1_AMP") {
+        setI(OSC1_AMP, val);
+    } else if (paramName == "OSC2_AMP") {
+        setI(OSC2_AMP, val);
     } else if (paramName == "VOLUME") {
         setI(AMP, val);
     } else if (paramName == "HPF_FREQ") {

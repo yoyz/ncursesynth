@@ -30,9 +30,12 @@ bool MidiMapping::loadFromFile(const std::string& path) {
     }
 
     mappings.clear();
+    bool valid = true;
+    int lineNum = 0;
 
     std::string line;
     while (std::getline(file, line)) {
+        lineNum++;
         if (line.empty() || line[0] == '#') continue;
 
         std::istringstream iss(line);
@@ -50,14 +53,24 @@ bool MidiMapping::loadFromFile(const std::string& path) {
                 float maxVal = std::stof(maxStr);
                 float defaultVal = std::stof(defaultStr);
 
+                if (cc < 0 || cc > 127) {
+                    std::cerr << "  " << path << ":" << lineNum << " - CC " << cc << " out of range (0-127)" << std::endl;
+                    valid = false;
+                    continue;
+                }
+
                 mappings[cc] = {cc, paramName, minVal, maxVal, defaultVal};
             } catch (...) {
-                continue;
+                std::cerr << "  " << path << ":" << lineNum << " - invalid number: '" << line << "'" << std::endl;
+                valid = false;
             }
+        } else {
+            std::cerr << "  " << path << ":" << lineNum << " - bad format (expected: cc,param,min,max,default): '" << line << "'" << std::endl;
+            valid = false;
         }
     }
 
-    return true;
+    return valid;
 }
 
 void MappingManager::setMappingDirectory(const std::string& dir) {
@@ -73,99 +86,51 @@ bool MappingManager::loadMappings() {
         dirPath = "mapping";
     }
 
-    bool indexFileFound = false;
-
-    // First, try to load from index.txt
-    std::ifstream indexFile(dirPath + "/index.txt");
-    if (indexFile.is_open()) {
-        indexFileFound = true;
-        std::cout << "Loading mappings from index.txt: " << dirPath << "/index.txt" << std::endl;
-        std::string line;
-        while (std::getline(indexFile, line)) {
-            if (line.empty() || line[0] == '#') continue;
-
-            std::istringstream iss(line);
-            std::string name, filename;
-
-            if (std::getline(iss, name, '=') && std::getline(iss, filename)) {
-                std::cout << "  Found: " << name << "=" << filename << std::endl;
-                auto mapping = std::make_unique<MidiMapping>();
-                mapping->setName(name);
-                mapping->setFilename(filename);
-                if (mapping->loadFromFile(dirPath + "/" + filename)) {
-                    std::cout << "    Loaded " << name << " with " << mapping->getMappings().size() << " entries" << std::endl;
-                    availableMappings.push_back(std::move(mapping));
-                }
-            }
-        }
-        indexFile.close();
-        std::cout << "  Total from index.txt: " << availableMappings.size() << std::endl;
-    } else {
-        std::cout << "index.txt not found, skipping" << std::endl;
-    }
-
-   // Auto-discover all valid .txt files in addition to index.txt
     std::vector<std::string> files;
-    
-    // Read all files in directory
+
+    // Scan directory for .txt files
     DIR* dir = opendir(dirPath.c_str());
-    if (dir != nullptr) {
-        struct dirent* entry;
-        while ((entry = readdir(dir)) != nullptr) {
-            std::string name = entry->d_name;
-            if (name.length() > 4 && name.substr(name.length() - 4) == ".txt") {
-                // Skip index.txt and parameters.txt
-                if (name != "index.txt" && name != "parameters.txt") {
-                    files.push_back(name);
-                }
+    if (dir == nullptr) {
+        std::cerr << "Cannot open mapping directory: " << dirPath << std::endl;
+        return false;
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        std::string name = entry->d_name;
+        if (name.length() > 4 && name.substr(name.length() - 4) == ".txt") {
+            if (name != "index.txt" && name != "parameters.txt") {
+                files.push_back(name);
             }
         }
-        closedir(dir);
     }
+    closedir(dir);
 
     // Sort alphabetically for consistent ordering
     std::sort(files.begin(), files.end());
 
-    // Try to load each file
+    // Load each mapping file
     for (const auto& filename : files) {
-        std::string filenameStr = dirPath + "/" + filename;
+        std::string fullPath = dirPath + "/" + filename;
         auto mapping = std::make_unique<MidiMapping>();
-        mapping->setName(filename.substr(0, filename.length() - 4)); // Remove .txt extension
+        std::string name = filename.substr(0, filename.length() - 4);
+        mapping->setName(name);
         mapping->setFilename(filename);
-        
-        if (mapping->loadFromFile(filenameStr)) {
-            std::cout << "  Loaded " << mapping->getName() << " with " << mapping->getMappings().size() << " entries" << std::endl;
-            // Only add if mapping has at least one valid CC entry
+
+        if (mapping->loadFromFile(fullPath)) {
             if (mapping->hasAnyMappings()) {
                 availableMappings.push_back(std::move(mapping));
             }
+        } else {
+            std::cout << "  " << name << " - syntax errors, skipped" << std::endl;
         }
-     }
+    }
 
-     // Sort alphabetically for consistent ordering
-     std::sort(files.begin(), files.end());
+    if (!availableMappings.empty()) {
+        currentMappingIndex = 0;
+    }
 
-     // Try to load each file
-     for (const auto& filename : files) {
-         std::string filenameStr = dirPath + "/" + filename;
-         auto mapping = std::make_unique<MidiMapping>();
-         mapping->setName(filename.substr(0, filename.length() - 4)); // Remove .txt extension
-         mapping->setFilename(filename);
-         
-         if (mapping->loadFromFile(filenameStr)) {
-             std::cout << "  Loaded " << mapping->getName() << " with " << mapping->getMappings().size() << " entries" << std::endl;
-             // Only add if mapping has at least one valid CC entry
-             if (mapping->hasAnyMappings()) {
-                 availableMappings.push_back(std::move(mapping));
-             }
-         }
-     }
-
-     if (!availableMappings.empty()) {
-         currentMappingIndex = 0;
-     }
-
-     return !availableMappings.empty();
+    return !availableMappings.empty();
 }
 
 // Debug override - prints loaded mappings

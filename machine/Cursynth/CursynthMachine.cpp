@@ -173,12 +173,10 @@ int CursynthMachine::getI(int what)
         return (int)((val / 3.0f) * 127);
     }
     if (what == FILTER1_CUTOFF) {
-        float val = controls.at("cutoff")->current_value();
-        return (int)((val - 28) / 100.0f * 127);
+        return cutoff;
     }
     if (what == FILTER1_RESONANCE) {
-        float val = controls.at("resonance")->current_value();
-        return (int)(val / 10.0f * 127);
+        return resonance;
     }
     if (what == OSC12_MIX) {
         float val = controls.at("osc mix")->current_value();
@@ -326,9 +324,11 @@ void CursynthMachine::setI(int what, int val)
         engine->getControls().at("filter type")->set(f_val * 128);
     }
     if (what == FILTER1_CUTOFF) {
+        cutoff = val;
         engine->getControls().at("cutoff")->set(28 + f_val * 100);
     }
     if (what == FILTER1_RESONANCE) {
+        resonance = val;
         engine->getControls().at("resonance")->set(0 + f_val * 10);
     }
     if (what == FX1_DEPTH) {
@@ -446,6 +446,14 @@ void CursynthMachine::applyCC(int cc, float normalized, const std::string& param
         setI(ADSR_ENV0_SUSTAIN, val);
     } else if (paramName == "AMP_RELEASE") {
         setI(ADSR_ENV0_RELEASE, val);
+    } else if (paramName == "OSC1_DETUNE") {
+        setI(OSC1_DETUNE, val);
+    } else if (paramName == "OSC2_DETUNE") {
+        setI(OSC2_DETUNE, val);
+    } else if (paramName == "OSC1_SCALE") {
+        setI(OSC1_SCALE, val);
+    } else if (paramName == "OSC2_SCALE") {
+        setI(OSC2_SCALE, val);
     } else if (paramName == "VOLUME") {
         setI(AMP, val);
     } else if (paramName == "HPF_FREQ") {

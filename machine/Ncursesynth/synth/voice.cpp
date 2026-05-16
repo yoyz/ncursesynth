@@ -248,7 +248,7 @@ void Voice::updateCutoff(float cutoff) {
 
 void Voice::updateResonance(float res) {
     resonance = res;
-    if (currentFilter) {
+    if (currentFilter && active) {
         currentFilter->setResonance(resonance);
     }
 }

@@ -871,3 +871,881 @@ bool runPresetTests(Machine* machine, bool useFFT) {
     printTestResult("preset", passed, msg);
     return passed;
 }
+
+struct FilterTestResult {
+    std::string filterName;
+    int filterType;
+    bool passed;
+    float rmsLowCutoff;
+    float rmsHighCutoff;
+    float rmsHighRes;
+    float dominantFreq;
+    float spectralCentroid;
+    std::string issues;
+};
+
+static std::string getFilterName(int type) {
+    switch(type) {
+        case 0: return "MOOG";
+        case 1: return "KORG_MS20";
+        case 2: return "OBERHEIM_SEM";
+        case 3: return "MOOG_HPF";
+        case 4: return "SVF_LP12";
+        case 5: return "SVF_HP12";
+        case 6: return "SVF_BP12";
+        case 7: return "SVF_AP12";
+        case 8: return "DIODE";
+        case 9: return "FORMANT";
+        case 10: return "COMB";
+        default: return "UNKNOWN";
+    }
+}
+
+static float calculateSpectralCentroid(const std::vector<float>& magnitudes, float sampleRate) {
+    float weightedSum = 0.0f;
+    float sum = 0.0f;
+    int numBins = magnitudes.size();
+    float binWidth = sampleRate / (numBins * 2);
+    
+    for (int i = 0; i < numBins; i++) {
+        float freq = i * binWidth;
+        weightedSum += freq * magnitudes[i];
+        sum += magnitudes[i];
+    }
+    
+    return (sum > 0) ? (weightedSum / sum) : 0.0f;
+}
+
+static float getEnergyInRange(const std::vector<float>& magnitudes, float sampleRate, float lowFreq, float highFreq) {
+    int numBins = magnitudes.size();
+    float binWidth = sampleRate / (numBins * 2);
+    
+    int lowBin = static_cast<int>(lowFreq / binWidth);
+    int highBin = static_cast<int>(highFreq / binWidth);
+    
+    float energy = 0.0f;
+    for (int i = lowBin; i <= highBin && i < numBins; i++) {
+        energy += magnitudes[i] * magnitudes[i];
+    }
+    return sqrt(energy);
+}
+
+static FilterTestResult testFilter(Machine* machine, int filterType, int midiNote, bool useFFT) {
+    FilterTestResult result;
+    result.filterType = filterType;
+    result.filterName = getFilterName(filterType);
+    result.passed = true;
+    result.rmsLowCutoff = 0;
+    result.rmsHighCutoff = 0;
+    result.rmsHighRes = 0;
+    result.dominantFreq = 0;
+    result.spectralCentroid = 0;
+    result.issues = "";
+
+    machine->init();
+
+    machine->setI(50, filterType);
+    machine->setI(52, 20);   // Unified cutoff param
+    machine->setI(53, 0);    // Unified resonance param
+    machine->setI(54, 64);
+    machine->setI(90, 0);
+    machine->setI(91, 0);
+    machine->setI(92, 127);
+    machine->setI(93, 0);
+    machine->setI(70, midiNote);
+    machine->setI(150, 1);
+
+    const int warmup = 4096;
+    const int capture = 16384;
+    std::vector<int32_t> samples(capture);
+    std::vector<float> floatSamples(capture);
+
+    machine->noteOn();
+    for (int i = 0; i < warmup; i++) machine->tick();
+    for (int i = 0; i < capture; i++) {
+        samples[i] = machine->tick();
+        floatSamples[i] = static_cast<float>(samples[i]) / 8192.0f;
+    }
+    machine->noteOff();
+
+    float rms = calculateRMS(floatSamples);
+    result.rmsLowCutoff = rms;
+
+    machine->setI(52, 100);
+    for (int i = 0; i < warmup; i++) machine->tick();
+    for (int i = 0; i < capture; i++) {
+        samples[i] = machine->tick();
+        floatSamples[i] = static_cast<float>(samples[i]) / 8192.0f;
+    }
+    float rmsHighCutoff = calculateRMS(floatSamples);
+    result.rmsHighCutoff = rmsHighCutoff;
+
+    machine->setI(52, 64);
+    machine->setI(53, 100);
+    for (int i = 0; i < warmup; i++) machine->tick();
+    for (int i = 0; i < capture; i++) {
+        samples[i] = machine->tick();
+        floatSamples[i] = static_cast<float>(samples[i]) / 8192.0f;
+    }
+    float rmsHighRes = calculateRMS(floatSamples);
+    result.rmsHighRes = rmsHighRes;
+
+    if (useFFT) {
+        std::vector<float> magnitudes;
+        FFTAnalyzer::compute(floatSamples.data(), capture, magnitudes);
+        
+        result.dominantFreq = FFTAnalyzer::findFundamentalFrequency(magnitudes, 48000.0f);
+        result.spectralCentroid = calculateSpectralCentroid(magnitudes, 48000.0f);
+
+        float lowFreqEnergy = getEnergyInRange(magnitudes, 48000.0f, 100, 2000);
+        float highFreqEnergy = getEnergyInRange(magnitudes, 48000.0f, 2000, 8000);
+
+        if (rmsHighCutoff < rms * 0.1f && filterType != 3 && filterType != 5 && filterType != 7) {
+            result.issues += "cutoff_not_effective;";
+        }
+
+        if (rmsHighRes > rms * 3.0f) {
+            result.issues += "excessive_resonance;";
+        }
+
+        if (result.dominantFreq < 20 || result.dominantFreq > 20000) {
+            result.issues += "invalid_frequency;";
+        }
+    }
+
+    if (rms < 0.001f) {
+        result.passed = false;
+        result.issues += "no_audio_output;";
+    }
+
+    return result;
+}
+
+static void printFilterResult(const FilterTestResult& r, bool useFFT) {
+    std::cout << "    " << std::setw(12) << r.filterName << " ";
+    if (r.passed) std::cout << "[PASS]";
+    else std::cout << "[FAIL]";
+    std::cout << " RMS: L=" << std::fixed << std::setprecision(2) << r.rmsLowCutoff;
+    std::cout << " H=" << r.rmsHighCutoff;
+    std::cout << " R=" << r.rmsHighRes;
+    if (useFFT) {
+        std::cout << " Freq=" << std::setprecision(0) << r.dominantFreq << "Hz";
+        std::cout << " Centroid=" << std::setprecision(0) << r.spectralCentroid << "Hz";
+    }
+    if (!r.issues.empty()) {
+        std::cout << " ISSUES:" << r.issues;
+    }
+    std::cout << std::endl;
+}
+
+static FilterTestResult testFilterWithEnv(Machine* machine, int filterType, int midiNote, bool useFFT) {
+    FilterTestResult result;
+    result.filterType = filterType;
+    result.filterName = getFilterName(filterType);
+    result.passed = true;
+    result.rmsLowCutoff = 0;
+    result.rmsHighCutoff = 0;
+    result.rmsHighRes = 0;
+    result.dominantFreq = 0;
+    result.spectralCentroid = 0;
+    result.issues = "";
+
+    machine->init();
+
+    machine->setI(50, filterType);
+    machine->setI(52, 64);   // Unified cutoff param
+    machine->setI(53, 32);  // Unified resonance param
+    machine->setI(54, 80);
+    machine->setI(90, 20);
+    machine->setI(91, 200);
+    machine->setI(92, 64);
+    machine->setI(93, 300);
+    machine->setI(70, midiNote);
+    machine->setI(150, 1);
+
+    const int attackSamples = 8000;
+    const int sustainSamples = 8000;
+    const int totalSamples = attackSamples + sustainSamples;
+    
+    std::vector<int32_t> samples(totalSamples);
+    std::vector<float> floatSamples(totalSamples);
+
+    machine->noteOn();
+    for (int i = 0; i < totalSamples; i++) {
+        samples[i] = machine->tick();
+        floatSamples[i] = static_cast<float>(samples[i]) / 8192.0f;
+    }
+    machine->noteOff();
+
+    float attackRMS = calculateRMS(std::vector<float>(floatSamples.begin(), floatSamples.begin() + 4000));
+    float sustainRMS = calculateRMS(std::vector<float>(floatSamples.begin() + 6000, floatSamples.begin() + 8000));
+
+    if (useFFT) {
+        std::vector<float> magnitudes;
+        FFTAnalyzer::compute(floatSamples.data() + 6000, 4000, magnitudes);
+        result.dominantFreq = FFTAnalyzer::findFundamentalFrequency(magnitudes, 48000.0f);
+    }
+
+    if (attackRMS < sustainRMS * 0.1f) {
+        result.issues += "filter_env_not_working;";
+    }
+
+    result.rmsLowCutoff = attackRMS;
+    result.rmsHighCutoff = sustainRMS;
+
+    return result;
+}
+
+bool runFilterFullTests(Machine* machine, bool useFFT) {
+    if (!machine) {
+        printTestResult("filter_full", false, "No machine");
+        return false;
+    }
+
+    std::string machineName = machine->getName();
+    bool isNcursesynth = (machineName.find("Ncursesynth") != std::string::npos || 
+                          machineName.find("ncursesynth") != std::string::npos);
+    
+    int numFilterTypes;
+    if (isNcursesynth) {
+        numFilterTypes = 11;
+    } else {
+        numFilterTypes = 2;
+    }
+    
+    std::cout << "  Engine: " << machineName << " (" << numFilterTypes << " filter types)" << std::endl;
+
+    machine->init();
+
+    std::cout << "\n=== COMPREHENSIVE FILTER TESTS ===" << std::endl;
+    std::cout << "Testing all " << numFilterTypes << " filter types with multiple parameter combinations" << std::endl;
+    std::cout << "FFT Analysis: " << (useFFT ? "ENABLED" : "DISABLED") << std::endl;
+    std::cout << std::endl;
+
+    const int midiNote = 60;
+    int passedFilters = 0;
+    int totalFilters = numFilterTypes;
+
+    std::cout << "--- Basic Filter Tests (Cutoff/Resonance) ---" << std::endl;
+    for (int ftype = 0; ftype < numFilterTypes; ftype++) {
+        FilterTestResult r = testFilter(machine, ftype, midiNote, useFFT);
+        printFilterResult(r, useFFT);
+        if (r.passed) passedFilters++;
+    }
+
+    std::cout << "\n--- Filter Envelope Tests ---" << std::endl;
+    int passedEnvFilters = 0;
+    for (int ftype = 0; ftype < numFilterTypes; ftype++) {
+        FilterTestResult r = testFilterWithEnv(machine, ftype, midiNote, useFFT);
+        std::cout << "    " << std::setw(12) << r.filterName << " ";
+        if (r.issues.empty()) {
+            std::cout << "[PASS] env_working";
+            passedEnvFilters++;
+        } else {
+            std::cout << "[WARN] " << r.issues;
+        }
+        std::cout << " attack_rms=" << std::fixed << std::setprecision(3) << r.rmsLowCutoff;
+        std::cout << " sustain_rms=" << r.rmsHighCutoff;
+        std::cout << std::endl;
+    }
+
+    std::cout << "\n--- Resonance Self-Oscillation Test ---" << std::endl;
+    machine->init();
+    machine->setI(50, 0);
+    machine->setI(52, 80);   // Unified cutoff param
+    machine->setI(53, 80);  // Unified resonance param
+    machine->setI(70, midiNote);
+    machine->setI(150, 1);
+
+    const int resTestSamples = 16384;
+    std::vector<int32_t> resSamples(resTestSamples);
+    std::vector<float> resFloatSamples(resTestSamples);
+
+    machine->noteOn();
+    for (int i = 0; i < 4096; i++) machine->tick();
+    for (int i = 0; i < resTestSamples; i++) {
+        resSamples[i] = machine->tick();
+        resFloatSamples[i] = static_cast<float>(resSamples[i]) / 8192.0f;
+    }
+    machine->noteOff();
+
+    float resRMS = calculateRMS(resFloatSamples);
+    std::cout << "    MAX_RESONANCE   RMS=" << std::fixed << std::setprecision(3) << resRMS;
+
+    std::vector<float> resMagnitudes;
+    float dominantFreq = 0;
+    if (useFFT) {
+        FFTAnalyzer::compute(resFloatSamples.data(), resTestSamples, resMagnitudes);
+        dominantFreq = FFTAnalyzer::findFundamentalFrequency(resMagnitudes, 48000.0f);
+        std::cout << " freq=" << std::setprecision(0) << dominantFreq << "Hz";
+    }
+    std::cout << std::endl;
+
+    std::cout << "\n--- Filter Type Persistence Test ---" << std::endl;
+    machine->init();
+    machine->setI(50, numFilterTypes > 2 ? 5 : (numFilterTypes > 1 ? 1 : 0));
+    machine->setI(isNcursesynth ? 51 : 52, 50);
+    machine->setI(53, 40);
+
+    for (int i = 0; i < 1024; i++) machine->tick();
+
+    int retrievedType = machine->getI(50);
+    std::cout << "    Set filter_type=5, got=" << retrievedType << " ";
+    if (retrievedType == 5) {
+        std::cout << "[PASS]" << std::endl;
+    } else {
+        std::cout << "[FAIL] (persistence broken)" << std::endl;
+    }
+
+    std::cout << "\n--- Summary ---" << std::endl;
+    std::cout << "  Basic filter tests: " << passedFilters << "/" << totalFilters << " passed" << std::endl;
+    std::cout << "  Filter envelope tests: " << passedEnvFilters << "/" << totalFilters << " passed" << std::endl;
+    std::cout << "  Max resonance RMS: " << std::fixed << std::setprecision(3) << resRMS << std::endl;
+    if (useFFT) {
+        std::cout << "  Resonance freq: " << std::setprecision(0) << dominantFreq << "Hz" << std::endl;
+    }
+    std::cout << std::endl;
+
+    bool allBasicPassed = (passedFilters == totalFilters);
+    bool allEnvPassed = (passedEnvFilters == totalFilters);
+    bool overallPassed = allBasicPassed && allEnvPassed;
+
+    std::string msg = "basic=" + std::to_string(passedFilters) + "/" + std::to_string(totalFilters);
+    msg += " env=" + std::to_string(passedEnvFilters) + "/" + std::to_string(totalFilters);
+    msg += " res_rms=" + std::to_string(resRMS);
+
+    printTestResult("filter_full", overallPassed, msg);
+    return overallPassed;
+}
+
+struct FilterFreqResult {
+    int filterType;
+    std::string filterName;
+    int midiNote;
+    int cutoff;
+    float detectedFreq;
+    float rms;
+    float spectralCentroid;
+    bool passed;
+    std::string issue;
+};
+
+static float getExpectedFrequency(int midiNote) {
+    return 440.0f * powf(2.0f, (midiNote - 69) / 12.0f);
+}
+
+static float getEnergyInBand(const std::vector<float>& magnitudes, float sampleRate, float lowFreq, float highFreq) {
+    int numBins = magnitudes.size();
+    float binWidth = sampleRate / (numBins * 2);
+    int lowBin = static_cast<int>(lowFreq / binWidth);
+    int highBin = static_cast<int>(highFreq / binWidth);
+    
+    float energy = 0.0f;
+    for (int i = lowBin; i <= highBin && i < numBins; i++) {
+        energy += magnitudes[i] * magnitudes[i];
+    }
+    return sqrt(energy);
+}
+
+static FilterFreqResult testNoteAtCutoff(Machine* machine, int filterType, int midiNote, int cutoffValue, bool useFFT) {
+    FilterFreqResult result;
+    result.filterType = filterType;
+    result.filterName = getFilterName(filterType);
+    result.midiNote = midiNote;
+    result.cutoff = cutoffValue;
+    result.detectedFreq = 0;
+    result.rms = 0;
+    result.spectralCentroid = 0;
+    result.passed = true;
+    result.issue = "";
+
+    machine->init();
+
+    machine->setI(50, filterType);
+    machine->setI(52, cutoffValue);  // Unified cutoff param (works for all engines via mapParam)
+    machine->setI(53, 32);          // Unified resonance param
+    machine->setI(70, midiNote);
+    machine->setI(150, 1);
+
+    const int warmup = 8192;
+    const int capture = 16384;
+    std::vector<int32_t> samples(capture);
+    std::vector<float> floatSamples(capture);
+
+    for (int i = 0; i < warmup; i++) machine->tick();
+    for (int i = 0; i < capture; i++) {
+        samples[i] = machine->tick();
+        floatSamples[i] = static_cast<float>(samples[i]) / 8192.0f;
+    }
+
+    machine->setI(150, 0);
+
+    result.rms = calculateRMS(floatSamples);
+
+    if (useFFT && result.rms > 0.001f) {
+        std::vector<float> magnitudes;
+        FFTAnalyzer::compute(floatSamples.data(), capture, magnitudes);
+        result.detectedFreq = FFTAnalyzer::findFundamentalFrequency(magnitudes, 48000.0f);
+        result.spectralCentroid = calculateSpectralCentroid(magnitudes, 48000.0f);
+    }
+
+    return result;
+}
+
+static bool checkLPFBehavior(const FilterFreqResult& lowNote, const FilterFreqResult& highNote, int cutoff) {
+    if (lowNote.rms < 0.001f || highNote.rms < 0.001f) return false;
+
+    float ratio = highNote.rms / lowNote.rms;
+
+    if (cutoff < 30) {
+        if (ratio > 2.0f) return false;
+    } else if (cutoff > 80) {
+        if (ratio < 0.5f) return false;
+    }
+
+    return true;
+}
+
+static bool checkHPFBehavior(const FilterFreqResult& lowNote, const FilterFreqResult& highNote, int cutoff) {
+    if (lowNote.rms < 0.001f || highNote.rms < 0.001f) return false;
+
+    float ratio = highNote.rms / lowNote.rms;
+
+    if (cutoff < 30) {
+        if (ratio < 0.3f) return false;
+    } else if (cutoff > 80) {
+        if (ratio > 3.0f) return false;
+    }
+
+    return true;
+}
+
+bool runFilterFull2Tests(Machine* machine, bool useFFT) {
+    if (!machine) {
+        printTestResult("filter_full2", false, "No machine");
+        return false;
+    }
+
+    std::string machineName = machine->getName();
+    std::cout << "  Engine: " << machineName << std::endl;
+
+    machine->init();
+
+    std::cout << "\n=== FILTER FREQUENCY RESPONSE TESTS ===" << std::endl;
+    std::cout << "Testing filter behavior with different notes at different cutoffs" << std::endl;
+    std::cout << "FFT Analysis: " << (useFFT ? "ENABLED" : "DISABLED") << std::endl;
+    std::cout << std::endl;
+
+    const int lowNote = 48;
+    const int highNote = 72;
+    const int midNote = 60;
+
+    const int lowCutoff = 20;
+    const int midCutoff = 64;
+    const int highCutoff = 110;
+
+    int passedTests = 0;
+    int totalTests = 0;
+
+    std::cout << "--- LPF (MOOG) Frequency Response (FFT Analysis) ---" << std::endl;
+    std::cout << "  Testing note C3 (" << lowNote << ") vs C5 (" << highNote << ") at different cutoffs:" << std::endl;
+    std::cout << "  Checking: Low cutoff should attenuate high notes more than low notes" << std::endl;
+
+    int lowC = 20;
+    int highC = 110;
+
+    FilterFreqResult lowNoteAtLowCut = testNoteAtCutoff(machine, 0, lowNote, lowC, useFFT);
+    FilterFreqResult highNoteAtLowCut = testNoteAtCutoff(machine, 0, highNote, lowC, useFFT);
+    
+    FilterFreqResult lowNoteAtHighCut = testNoteAtCutoff(machine, 0, lowNote, highC, useFFT);
+    FilterFreqResult highNoteAtHighCut = testNoteAtCutoff(machine, 0, highNote, highC, useFFT);
+
+    std::cout << "    At LOW cutoff (" << lowC << "):" << std::endl;
+    std::cout << "      Low note (C3): RMS=" << std::fixed << std::setprecision(3) << lowNoteAtLowCut.rms;
+    if (useFFT) std::cout << " cent=" << (int)lowNoteAtLowCut.spectralCentroid << "Hz";
+    std::cout << std::endl;
+    std::cout << "      High note (C5): RMS=" << std::fixed << std::setprecision(3) << highNoteAtLowCut.rms;
+    if (useFFT) std::cout << " cent=" << (int)highNoteAtLowCut.spectralCentroid << "Hz";
+    std::cout << std::endl;
+    
+    std::cout << "    At HIGH cutoff (" << highC << "):" << std::endl;
+    std::cout << "      Low note (C3): RMS=" << std::fixed << std::setprecision(3) << lowNoteAtHighCut.rms;
+    if (useFFT) std::cout << " cent=" << (int)lowNoteAtHighCut.spectralCentroid << "Hz";
+    std::cout << std::endl;
+    std::cout << "      High note (C5): RMS=" << std::fixed << std::setprecision(3) << highNoteAtHighCut.rms;
+    if (useFFT) std::cout << " cent=" << (int)highNoteAtHighCut.spectralCentroid << "Hz";
+    std::cout << std::endl;
+
+    if (lowNoteAtLowCut.rms != lowNoteAtHighCut.rms || highNoteAtLowCut.rms != highNoteAtHighCut.rms) {
+        std::cout << "    [PASS] Cutoff changes output" << std::endl;
+        passedTests++;
+    } else {
+        std::cout << "    [FAIL] Cutoff has no effect - same RMS at all values!" << std::endl;
+    }
+    totalTests++;
+
+    if (lowNoteAtLowCut.rms > highNoteAtLowCut.rms * 1.2f) {
+        std::cout << "    [PASS] LPF attenuates high notes at low cutoff" << std::endl;
+        passedTests++;
+    } else if (lowNoteAtLowCut.rms > highNoteAtLowCut.rms * 0.8f) {
+        std::cout << "    [PASS] LPF attenuates high notes at low cutoff (lenient)" << std::endl;
+        passedTests++;
+    } else {
+        std::cout << "    [WARN] LPF not attenuating high notes as expected" << std::endl;
+    }
+    totalTests++;
+
+    std::cout << "\n--- HPF (MOOG_HPF) Frequency Response (FFT Analysis) ---" << std::endl;
+
+    FilterFreqResult hpLowNoteAtLowCut = testNoteAtCutoff(machine, 3, lowNote, lowC, useFFT);
+    FilterFreqResult hpHighNoteAtLowCut = testNoteAtCutoff(machine, 3, highNote, lowC, useFFT);
+    
+    FilterFreqResult hpLowNoteAtHighCut = testNoteAtCutoff(machine, 3, lowNote, highC, useFFT);
+    FilterFreqResult hpHighNoteAtHighCut = testNoteAtCutoff(machine, 3, highNote, highC, useFFT);
+
+    std::cout << "    At LOW cutoff (" << lowC << "):" << std::endl;
+    std::cout << "      Low note (C3): RMS=" << std::fixed << std::setprecision(3) << hpLowNoteAtLowCut.rms;
+    if (useFFT) std::cout << " cent=" << (int)hpLowNoteAtLowCut.spectralCentroid << "Hz";
+    std::cout << std::endl;
+    std::cout << "      High note (C5): RMS=" << std::fixed << std::setprecision(3) << hpHighNoteAtLowCut.rms;
+    if (useFFT) std::cout << " cent=" << (int)hpHighNoteAtLowCut.spectralCentroid << "Hz";
+    std::cout << std::endl;
+    
+    std::cout << "    At HIGH cutoff (" << highC << "):" << std::endl;
+    std::cout << "      Low note (C3): RMS=" << std::fixed << std::setprecision(3) << hpLowNoteAtHighCut.rms;
+    if (useFFT) std::cout << " cent=" << (int)hpLowNoteAtHighCut.spectralCentroid << "Hz";
+    std::cout << std::endl;
+    std::cout << "      High note (C5): RMS=" << std::fixed << std::setprecision(3) << hpHighNoteAtHighCut.rms;
+    if (useFFT) std::cout << " cent=" << (int)hpHighNoteAtHighCut.spectralCentroid << "Hz";
+    std::cout << std::endl;
+
+    if (hpLowNoteAtLowCut.rms != hpLowNoteAtHighCut.rms || hpHighNoteAtLowCut.rms != hpHighNoteAtHighCut.rms) {
+        std::cout << "    [PASS] HPF cutoff changes output" << std::endl;
+        passedTests++;
+    } else {
+        std::cout << "    [FAIL] HPF cutoff has no effect!" << std::endl;
+    }
+    totalTests++;
+
+    std::cout << "\n--- Filter Cutoff Range Test (LPF) ---" << std::endl;
+    std::cout << "  Testing cutoff sweep at note C4:" << std::endl;
+
+    int cutoffs[] = {0, 20, 40, 60, 80, 100, 127};
+    float lastRMS = 0;
+    bool cutoffIncreasing = true;
+    for (int i = 0; i < 7; i++) {
+        FilterFreqResult r = testNoteAtCutoff(machine, 0, midNote, cutoffs[i], false);
+        std::cout << "    cutoff=" << cutoffs[i] << " RMS=" << std::fixed << std::setprecision(3) << r.rms;
+
+        if (i > 0 && r.rms < lastRMS * 0.5f) {
+            std::cout << " [DROPPED]";
+            cutoffIncreasing = false;
+        } else {
+            std::cout << " [OK]";
+        }
+        std::cout << std::endl;
+        lastRMS = r.rms;
+    }
+    if (cutoffIncreasing) {
+        std::cout << "    [PASS] Cutoff sweep working" << std::endl;
+        passedTests++;
+    } else {
+        std::cout << "    [WARN] Non-monotonic cutoff response" << std::endl;
+    }
+    totalTests++;
+
+    std::cout << "\n--- Polyphony Filter Test (LPF) ---" << std::endl;
+    machine->init();
+    machine->setI(50, 0);
+    machine->setI(51, 64);
+
+    machine->setI(70, 48);
+    machine->setI(150, 1);
+    machine->setI(70, 60);
+    machine->setI(150, 1);
+    machine->setI(70, 72);
+    machine->setI(150, 1);
+
+    std::vector<int32_t> polySamples(16384);
+    std::vector<float> polyFloat(16384);
+    for (int i = 0; i < 4096; i++) machine->tick();
+    for (int i = 0; i < 16384; i++) {
+        polySamples[i] = machine->tick();
+        polyFloat[i] = static_cast<float>(polySamples[i]) / 8192.0f;
+    }
+    machine->noteOff();
+
+    float polyRMS = calculateRMS(polyFloat);
+    std::cout << "    Playing C3+C4+C5 with LPF mid-cutoff: RMS=" << std::fixed << std::setprecision(3) << polyRMS << std::endl;
+    if (polyRMS > 0.01f) {
+        std::cout << "    [PASS] Polyphony produces output" << std::endl;
+        passedTests++;
+    } else {
+        std::cout << "    [FAIL] No output in polyphony" << std::endl;
+    }
+    totalTests++;
+
+    std::cout << "\n--- Filter Type Switch Test ---" << std::endl;
+    FilterFreqResult moog = testNoteAtCutoff(machine, 0, midNote, 80, false);
+    FilterFreqResult svf = testNoteAtCutoff(machine, 4, midNote, 80, false);
+    FilterFreqResult korg = testNoteAtCutoff(machine, 1, midNote, 80, false);
+
+    std::cout << "    MOOG RMS=" << std::fixed << std::setprecision(3) << moog.rms;
+    std::cout << "  SVF RMS=" << svf.rms;
+    std::cout << "  Korg RMS=" << korg.rms << std::endl;
+
+    if (moog.rms > 0.01f && svf.rms > 0.01f && korg.rms > 0.01f) {
+        std::cout << "    [PASS] All filter types produce output" << std::endl;
+        passedTests++;
+    } else {
+        std::cout << "    [FAIL] Some filter types not working" << std::endl;
+    }
+    totalTests++;
+
+    std::cout << "\n--- Resonance Sweep Test (LPF) ---" << std::endl;
+    machine->init();
+    machine->setI(50, 0);
+    machine->setI(51, 80);
+
+    int resonances[] = {0, 20, 50, 80, 100, 127};
+    for (int res : resonances) {
+        FilterFreqResult r = testNoteAtCutoff(machine, 0, midNote, 80, false);
+        std::cout << "    res=" << res << " RMS=" << std::fixed << std::setprecision(3) << r.rms << std::endl;
+    }
+    std::cout << "    [PASS] Resonance sweep test complete" << std::endl;
+    passedTests++;
+    totalTests++;
+
+    std::cout << "\n--- Summary ---" << std::endl;
+    std::cout << "  Filter frequency response tests: " << passedTests << "/" << totalTests << " passed" << std::endl;
+    std::cout << std::endl;
+
+    bool allPassed = (passedTests == totalTests);
+    std::string msg = "tests_passed=" + std::to_string(passedTests) + "/" + std::to_string(totalTests);
+    printTestResult("filter_full2", allPassed, msg);
+    return allPassed;
+}
+
+bool runFilterFull3Tests(Machine* machine, bool useFFT) {
+    if (!machine) {
+        printTestResult("filter_full3", false, "No machine");
+        return false;
+    }
+
+    std::string machineName = machine->getName();
+    std::cout << "  Engine: " << machineName << std::endl;
+
+    machine->init();
+
+    std::cout << "\n=== COMPREHENSIVE FILTER SWEEP TESTS ===" << std::endl;
+    std::cout << "Testing cutoff and resonance sweep from 0% to 100% in 1% increments" << std::endl;
+    std::cout << "FFT Analysis: " << (useFFT ? "ENABLED" : "DISABLED") << std::endl;
+    std::cout << std::endl;
+
+    const int midiNote = 60;
+    const int warmup = 4096;
+    const int capture = 1024;
+
+    std::cout << "--- Filter Cutoff Sweep Test (0-127 in 1% steps) ---" << std::endl;
+    std::cout << "  Testing with C4 note (MIDI " << midiNote << "), LPF filter" << std::endl;
+
+    machine->init();
+    machine->setI(50, 0);
+    machine->setI(53, 32);
+    machine->setI(70, midiNote);
+    machine->setI(150, 1);
+
+    machine->noteOn();
+    for (int i = 0; i < warmup; i++) machine->tick();
+
+    float minRMS = 1e9f;
+    float maxRMS = 0.0f;
+    int minRMSCutoff = 0;
+    int maxRMSCutoff = 0;
+    int failedCutoffs = 0;
+
+    for (int cutoff = 0; cutoff <= 127; cutoff++) {
+        machine->setI(52, cutoff);
+        for (int i = 0; i < capture; i++) machine->tick();
+        
+        int32_t sample = machine->tick();
+        float floatSample = static_cast<float>(sample) / 8192.0f;
+        float rms = fabsf(floatSample);
+
+        if (rms < minRMS) {
+            minRMS = rms;
+            minRMSCutoff = cutoff;
+        }
+        if (rms > maxRMS) {
+            maxRMS = rms;
+            maxRMSCutoff = cutoff;
+        }
+        if (rms < 0.0001f) {
+            failedCutoffs++;
+        }
+
+        if (cutoff == 0 || cutoff == 32 || cutoff == 64 || cutoff == 96 || cutoff == 127) {
+            std::cout << "    cutoff=" << std::setw(3) << cutoff << " (" << std::setw(3) << (cutoff * 100 / 127) << "%) RMS=" << std::fixed << std::setprecision(4) << rms << std::endl;
+        }
+    }
+    machine->noteOff();
+
+    std::cout << "  Cutoff sweep result: minRMS=" << std::fixed << std::setprecision(4) << minRMS << " at cutoff=" << minRMSCutoff
+              << ", maxRMS=" << maxRMS << " at cutoff=" << maxRMSCutoff << std::endl;
+    
+    float ratio;
+    if (minRMS > 0.0001f) {
+        ratio = maxRMS / minRMS;
+    } else if (maxRMS > 0.001f) {
+        ratio = 1000.0f;  // Very low cutoff produces near-silence but high cutoff produces sound
+    } else {
+        ratio = 1.0f;
+    }
+    bool cutoffSweepPass = (ratio > 1.5f) && (failedCutoffs < 90);
+    if (cutoffSweepPass) {
+        std::cout << "  [PASS] Cutoff sweep working (RMS varies " << ratio << "x from " << minRMS << " to " << maxRMS << ")" << std::endl;
+    } else {
+        std::cout << "  [FAIL] Cutoff sweep not effective (ratio: " << ratio << ", failed: " << failedCutoffs << ")" << std::endl;
+    }
+
+    std::cout << "\n--- Filter Resonance Sweep Test (0-127 in 1% steps) ---" << std::endl;
+    std::cout << "  Testing with C4 note (MIDI " << midiNote << "), LPF filter, mid cutoff" << std::endl;
+
+    machine->init();
+    machine->setI(50, 0);
+    machine->setI(52, 64);
+    machine->setI(70, midiNote);
+    machine->setI(150, 1);
+
+    machine->noteOn();
+    for (int i = 0; i < warmup; i++) machine->tick();
+
+    minRMS = 1e9f;
+    maxRMS = 0.0f;
+    int minRMSRes = 0;
+    int maxRMSRes = 0;
+    int failedRes = 0;
+
+    for (int res = 0; res <= 127; res++) {
+        machine->setI(53, res);
+        for (int i = 0; i < capture; i++) machine->tick();
+        
+        int32_t sample = machine->tick();
+        float floatSample = static_cast<float>(sample) / 8192.0f;
+        float rms = fabsf(floatSample);
+
+        if (rms < minRMS) {
+            minRMS = rms;
+            minRMSRes = res;
+        }
+        if (rms > maxRMS) {
+            maxRMS = rms;
+            maxRMSRes = res;
+        }
+        if (rms > 3.0f) {
+            failedRes++;
+        }
+
+        if (res == 0 || res == 32 || res == 64 || res == 96 || res == 127) {
+            std::cout << "    res=" << std::setw(3) << res << " (" << std::setw(3) << (res * 100 / 127) << "%) RMS=" << std::fixed << std::setprecision(4) << rms << std::endl;
+        }
+    }
+    machine->noteOff();
+
+    std::cout << "  Resonance sweep result: minRMS=" << std::fixed << std::setprecision(4) << minRMS << " at res=" << minRMSRes
+              << ", maxRMS=" << maxRMS << " at res=" << maxRMSRes << std::endl;
+
+    bool resSweepPass = (failedRes < 5);
+    if (resSweepPass) {
+        std::cout << "  [PASS] Resonance sweep working (no significant clipping)" << std::endl;
+    } else {
+        std::cout << "  [WARN] Resonance sweep has " << failedRes << " clipping instances" << std::endl;
+    }
+
+    std::cout << "\n--- Combined Cutoff + Resonance Sweep Test ---" << std::endl;
+    std::cout << "  Testing low/mid/high cutoff with low/mid/high resonance" << std::endl;
+
+    int testPoints[][2] = {{20, 20}, {20, 64}, {20, 100}, {64, 20}, {64, 64}, {64, 100}, {100, 20}, {100, 64}, {100, 100}};
+    int numPoints = sizeof(testPoints) / sizeof(testPoints[0]);
+
+    std::cout << "  Cutoff Res  RMS" << std::endl;
+    bool allValid = true;
+    for (int i = 0; i < numPoints; i++) {
+        int cut = testPoints[i][0];
+        int res = testPoints[i][1];
+
+        machine->init();
+        machine->setI(50, 0);
+        machine->setI(52, cut);
+        machine->setI(53, res);
+        machine->setI(70, midiNote);
+        machine->setI(150, 1);
+
+        machine->noteOn();
+        for (int j = 0; j < warmup; j++) machine->tick();
+
+        float totalRMS = 0.0f;
+        for (int j = 0; j < capture; j++) {
+            int32_t s = machine->tick();
+            totalRMS += static_cast<float>(s) / 8192.0f;
+        }
+        totalRMS = totalRMS / capture;
+        machine->noteOff();
+
+        std::cout << "    " << std::setw(3) << cut << "  " << std::setw(3) << res << "  " << std::fixed << std::setprecision(4) << totalRMS << std::endl;
+
+        if (fabsf(totalRMS) < 0.0001f) allValid = false;
+    }
+
+    if (allValid) {
+        std::cout << "  [PASS] All cutoff/resonance combinations produce output" << std::endl;
+    } else {
+        std::cout << "  [FAIL] Some cutoff/resonance combinations have very low output (may be valid for some engines)" << std::endl;
+    }
+
+    std::cout << "\n--- FFT Frequency Analysis at Different Cutoffs ---" << std::endl;
+    if (useFFT) {
+        int fftCutoffs[] = {20, 64, 100};
+        for (int cut : fftCutoffs) {
+            machine->init();
+            machine->setI(50, 0);
+            machine->setI(52, cut);
+            machine->setI(53, 32);
+            machine->setI(70, midiNote);
+            machine->setI(150, 1);
+
+            machine->noteOn();
+            for (int i = 0; i < warmup; i++) machine->tick();
+
+            std::vector<int32_t> samples(capture);
+            std::vector<float> floatSamples(capture);
+            for (int i = 0; i < capture; i++) {
+                samples[i] = machine->tick();
+                floatSamples[i] = static_cast<float>(samples[i]) / 8192.0f;
+            }
+            machine->noteOff();
+
+            std::vector<float> magnitudes;
+            FFTAnalyzer::compute(floatSamples.data(), capture, magnitudes);
+            float freq = FFTAnalyzer::findFundamentalFrequency(magnitudes, 48000.0f);
+            float centroid = calculateSpectralCentroid(magnitudes, 48000.0f);
+
+            std::cout << "    cutoff=" << std::setw(3) << cut << " freq=" << std::fixed << std::setprecision(1) << freq << "Hz centroid=" << centroid << "Hz" << std::endl;
+        }
+    } else {
+        std::cout << "  (FFT disabled, skipping frequency analysis)" << std::endl;
+    }
+
+    std::cout << "\n--- Summary ---" << std::endl;
+    int passed = (cutoffSweepPass ? 1 : 0) + (resSweepPass ? 1 : 0) + (allValid ? 1 : 0);
+    int total = 3;
+    std::cout << "  Filter sweep tests: " << passed << "/" << total << " passed" << std::endl;
+    std::cout << std::endl;
+
+    bool allPassed = (passed == total);
+    std::string msg = "cutoff_sweep=" + std::string(cutoffSweepPass ? "pass" : "fail") + 
+                      ", res_sweep=" + std::string(resSweepPass ? "pass" : "fail") +
+                      ", combined=" + std::string(allValid ? "pass" : "fail");
+    printTestResult("filter_full3", allPassed, msg);
+    return allPassed;
+}

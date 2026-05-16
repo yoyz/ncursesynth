@@ -360,6 +360,14 @@ void TwytchsynthMachine::applyCC(int cc, float normalized, const std::string& pa
         setI(ADSR_ENV0_SUSTAIN, val);
     } else if (paramName == "AMP_RELEASE") {
         setI(ADSR_ENV0_RELEASE, val);
+    } else if (paramName == "OSC1_DETUNE") {
+        setI(OSC1_DETUNE, val);
+    } else if (paramName == "OSC2_DETUNE") {
+        setI(OSC2_DETUNE, val);
+    } else if (paramName == "OSC1_SCALE") {
+        setI(OSC1_SCALE, val);
+    } else if (paramName == "OSC2_SCALE") {
+        setI(OSC2_SCALE, val);
     } else if (paramName == "VOLUME") {
         setI(AMP, val);
     } else if (paramName == "HPF_FREQ") {

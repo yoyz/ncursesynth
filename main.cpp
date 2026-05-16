@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
     std::string captureAnalysisPath;
     std::string midiCapturePath;
     std::string synthEngineName;
-
+    std::string mappingName;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             std::cout << "ncursesynth - Virtual Analog Synthesizer\n\n";
@@ -57,6 +57,7 @@ int main(int argc, char* argv[]) {
             std::cout << "  --capture-audio-plus-fft-rms FILE  Write raw audio + per-second FFT/RMS analysis\n";
             std::cout << "  --capture-midi-plus-analysis FILE  Write MIDI event log (note_on/off/cc) with timestamps\n";
             std::cout << "  --synthengine NAME  Run headless with named engine (ncursesynth/pbsynth/cursynth/twytch)\n";
+            std::cout << "  --mapping NAME      Set MIDI mapping (e.g., deepmind12, summit)\n";
             std::cout << "\nControls (UI mode):\n";
             std::cout << "  TAB     Switch menu (Engine/MIDI/Params)\n";
             std::cout << "  ARROWS  Navigate parameters or menu items\n";
@@ -87,6 +88,9 @@ int main(int argc, char* argv[]) {
         }
         if (strcmp(argv[i], "--synthengine") == 0 && i + 1 < argc) {
             synthEngineName = argv[++i];
+        }
+        if (strcmp(argv[i], "--mapping") == 0 && i + 1 < argc) {
+            mappingName = argv[++i];
         }
     }
 
@@ -136,6 +140,35 @@ int main(int argc, char* argv[]) {
     // Init the machine fully (Init preset = all defaults)
     if (activeMachine) activeMachine->init();
 
+    // Create synth for MIDI input (needed for mapping)
+    SynthArchitecture* tempSynth = new SynthArchitecture(8, 48000);
+
+    // Initialize MIDI input (for mapping)
+    MidiInput midiInput(tempSynth);
+    tempSynth->setMidiInput(&midiInput);
+
+    // Load mappings and select mapping
+    midiInput.loadMappings();
+    if (!mappingName.empty()) {
+        auto* manager = midiInput.getMappingManager();
+        int mappingIndex = -1;
+        for (int i = 0; i < manager->getMappingCount(); i++) {
+            if (manager->getMappingName(i) == mappingName) {
+                mappingIndex = i;
+                break;
+            }
+        }
+        if (mappingIndex >= 0) {
+            manager->setCurrentMapping(mappingIndex);
+            std::cout << "MIDI mapping selected: " << mappingName << "\n";
+        } else {
+            std::cout << "Mapping '" << mappingName << "' not found. Available mappings:\n";
+            for (int i = 0; i < manager->getMappingCount(); i++) {
+                std::cout << "  - " << manager->getMappingName(i) << "\n";
+            }
+        }
+    }
+
     // Start capture analysis if requested (intercepts audio from all drivers)
     CaptureAnalyzer* analyzer = nullptr;
     if (!captureAnalysisPath.empty()) {
@@ -174,13 +207,6 @@ int main(int argc, char* argv[]) {
         }
         synth = audioEngine->getSynth();
     }
-
-    // Initialize MIDI input
-    MidiInput midiInput(synth);
-    synth->setMidiInput(&midiInput);
-
-    // Load mappings (always, regardless of MIDI status)
-    midiInput.loadMappings();
 
     // Initialize MIDI
     if (midiInput.initialize()) {

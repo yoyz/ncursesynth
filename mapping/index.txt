@@ -1,3 +1,4 @@
-# Mapping index file
-# Format: name=filename
-DeepMind 12=deepmind12.txt
+# Mapping files are auto-discovered from this directory.
+# Each .txt file with valid CC entries is loaded automatically.
+# index.txt is no longer used for mapping selection.
+# See deepmind12.txt or summit.txt for format reference.

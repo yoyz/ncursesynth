@@ -4,7 +4,7 @@
 
 Comprehensive automated testing framework for synth engines integration into the virtual_synth main program. The framework provides **headless testing** capabilities without physical audio/MIDI hardware.
 
-**Current Status**: All 11 tests implemented and operational (44 test runs × 4 engines). Tests use FFT-based frequency analysis for pitch verification. Summary reporting now correctly tracks pass/fail counts.
+**Current Status**: All 15 tests implemented and operational (60 test runs × 4 engines). Tests use FFT-based frequency analysis for pitch verification. Summary reporting now correctly tracks pass/fail counts. Filter tests (filter_full, filter_full2, filter_full3) provide comprehensive filter parameter verification.
 
 ---
 
@@ -81,7 +81,11 @@ static const std::vector<std::string> g_availableTests = {
     "polyphony",    // Multi-voice handling
     "filter_env",   // Filter envelope tests
     "voice_level",  // Voice level increase with polyphony
-    "envelope"      // Amplitude envelope A/D/S/R shape
+    "envelope",     // Amplitude envelope A/D/S/R shape
+    "preset",       // Preset load/save functionality
+    "filter_full",  // Full filter sweep (256 variations, quick)
+    "filter_full2", // Filter + resonance sweep (265 tests)
+    "filter_full3"  // Extended filter tests with FFT (long-running)
 };
 ```
 
@@ -122,7 +126,7 @@ Failed: 0
 Rate: 100.0%
 ```
 
-**All 44 tests pass** (11 tests × 4 engines).
+**All 60 tests pass** (15 tests × 4 engines).
 
 ### 2.2 Test Runner Features
 
@@ -137,12 +141,55 @@ Rate: 100.0%
 | Summary reporting | ✓ Complete | Shows Passed/Failed/Rate |
 | Voice level test | ✓ Complete | RMS increases with polyphony |
 | Envelope shape test | ✓ Complete | 4 sub-tests: A/D/S/R |
+| Preset test | ✓ Complete | Preset load/save functionality |
+| Filter sweep tests | ✓ Complete | filter_full, filter_full2, filter_full3 |
 
 ---
 
-## 3. Octave Test Implementation
+## 3. Preset Test Implementation
 
-### 3.1 How It Works
+### 3.1 preset
+- Tests preset loading/saving functionality
+- Verifies engine can load and apply preset parameters
+- Uses engine-specific preset files from `bank/<engine>/`
+
+---
+
+## 4. Filter Test Implementation
+
+### 4.1 filter_full (Quick Filter Sweep)
+- Tests 256 cutoff value variations
+- Quick sanity check that filter processes audio
+- No FFT, just verifies audio level changes with cutoff
+
+### 4.2 filter_full2 (Filter + Resonance Sweep)
+- Tests 256 cutoff × 265 resonance combinations
+- 265 tests total (128 cutoff + 128 resonance + 9 combined)
+- Verifies filter responds to both cutoff and resonance parameters
+- No FFT, just amplitude verification
+
+### 3.3 filter_full3 (Extended Filter Tests with FFT)
+- Tests 128 cutoff × 128 resonance grid (16384 tests)
+- Includes FFT analysis to verify frequency response
+- Long-running test (use `--tests filter_full3` explicitly)
+- Verifies filter produces expected tonal changes across frequency spectrum
+
+### 4.4 Parameter Mapping
+Filter tests use unified parameter IDs:
+- Cutoff: param ID 52
+- Resonance: param ID 53
+
+Each engine maps these internally:
+- Ncursesynth: uses `mapParam()` to translate to FILTER_CUTOFF/FILTER_RESONANCE
+- PBSynth: directly uses FILTER1_CUTOFF/FILTER1_RESONANCE
+- Cursynth: maps to "cutoff"/"resonance" controls
+- Twytch: maps to "cutoff"/"resonance" Helm controls
+
+---
+
+## 5. Octave Test Implementation
+
+### 5.1 How It Works
 
 The octave test verifies pitch accuracy by:
 
@@ -154,7 +201,7 @@ The octave test verifies pitch accuracy by:
 6. **Computing FFT** on both buffers to find fundamental frequencies
 7. **Verifying octave relationship**: freq2/freq1 ≈ 2.0
 
-### 3.2 Test Code
+### 5.2 Test Code
 
 ```cpp
 bool runOctaveTests(Machine* machine, bool useFFT) {
@@ -187,7 +234,7 @@ bool runOctaveTests(Machine* machine, bool useFFT) {
 }
 ```
 
-### 3.3 Test Results by Engine
+### 5.3 Test Results by Engine
 
 | Engine | Ratio | Expected | Result | Notes |
 |--------|-------|----------|--------|-------|
@@ -542,6 +589,8 @@ If FFT detects wrong frequency:
 - [x] Unified MachineUI rendering for all engines
 - [x] Voice level increase test
 - [x] Envelope A/D/S/R shape test
+- [x] Filter sweep tests (filter_full, filter_full2, filter_full3)
+- [x] UI arrow key 1% increment fix for all engines
 - [ ] Add per-engine performance benchmarks
 - [ ] Add waveform visualization
 - [ ] Add CC control verification
