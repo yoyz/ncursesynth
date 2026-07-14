@@ -5,6 +5,7 @@
 #include <portaudio.h>
 #include "machine/Ncursesynth/synth/synth_architecture.h"
 #include "machine/Machine.h"
+#include "audio_limiter.h"
 
 class AudioEngine {
 private:
@@ -15,6 +16,8 @@ private:
     std::atomic<bool> switching;
     int sampleRate;
     int framesPerBuffer;
+    double latencyMs;
+    AudioLimiter limiter;
 
     static int audioCallback(const void* inputBuffer, void* outputBuffer,
                             unsigned long framesPerBuffer,
@@ -23,7 +26,7 @@ private:
                             void* userData);
 
 public:
-    AudioEngine(int rate = 48000, int frames = 256);
+    AudioEngine(int rate = 48000, int frames = 256, double latencyMs = 20.0, float limiterThreshold = 0.85f);
     ~AudioEngine();
 
     bool initialize();
@@ -34,6 +37,7 @@ public:
     Machine* getMachine() { return machine.load(); }
     void setMachine(Machine* m);
     bool isActive() const { return isRunning.load(); }
+    AudioLimiter* getLimiter() { return &limiter; }
 };
 
 #endif

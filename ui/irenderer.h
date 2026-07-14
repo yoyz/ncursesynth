@@ -40,7 +40,7 @@ public:
     virtual void write(int row, int col, const std::string& text) = 0;
     virtual void setStyle(Style s) = 0;
 
-    virtual void drawBar(int row, int col, int current, int max, int width) = 0;
+    virtual void drawBar(int row, int col, int current, int max, int width, bool bipolar = false) = 0;
 
     void drawBracketedBar(int row, int col, int current, int max, int barWidth) {
         write(row, col, "[");

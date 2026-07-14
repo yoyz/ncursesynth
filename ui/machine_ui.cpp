@@ -13,7 +13,7 @@ MachineUI::MachineUI(Machine* mach, MachineManager* mgr)
       midiInput(nullptr), renderer(nullptr), screenRows(0), screenCols(0),
       lastMidiNote(-1), lastMidiVel(0), midiActivity(false),
       menuSelection(0), menuIndex(0), midiDeviceIndex(-1), mappingIndex(0),
-      presetIndex(0), presetInputMode(false) {
+      presetIndex(0), presetInputMode(false), statusTimer(0) {
     columnTitles[0] = "OSCILLATORS";
     columnTitles[1] = "FILTER";
     columnTitles[2] = "ENVELOPE";
@@ -77,6 +77,13 @@ void MachineUI::draw() {
 
     for (size_t i = 0; i < widgets.size(); i++) {
         widgets[i].draw(*renderer, (int)i == selectedControl, machine);
+    }
+
+    if (statusTimer > 0) {
+        statusTimer--;
+        renderer->setStyle(Style::BOLD);
+        renderer->write(screenRows - 1, 2, statusMessage);
+        renderer->setStyle(Style::NORMAL);
     }
 
     renderer->setStyle(Style::DIM);
@@ -325,10 +332,15 @@ void MachineUI::handleInput(int ch) {
         }
         handleNavigation(ch);
         if (ch >= '0' && ch <= '9') {
-            float val = (ch == '0') ? 1.0f : (ch - '0') / 10.0f;
+            float val = (ch - '0') / 10.0f;
             if (selectedControl >= 0 && selectedControl < (int)widgets.size()) {
-                widgets[selectedControl].value = (int)(val * 127);
-                machine->setI(widgets[selectedControl].paramId, widgets[selectedControl].value);
+                auto& w = widgets[selectedControl];
+                if (w.type == WidgetType::DISCRETE) {
+                    w.value = (int)(val * (w.discreteCount - 1) + 0.5f);
+                } else {
+                    w.value = (int)(val * 127 + 0.5f);
+                }
+                machine->setI(w.paramId, w.value);
             }
         }
     }
@@ -432,6 +444,8 @@ bool MachineUI::savePreset(const std::string& name) {
     std::string path = engineDir(machine->getName()) + "/" + name;
     bool ok = machine->savePreset(path);
     if (ok) {
+        statusMessage = "Preset '" + name + "' saved";
+        statusTimer = 60;
         scanPresets();
         for (size_t i = 0; i < presets.size(); i++) {
             if (presets[i].name == name) {
@@ -439,6 +453,9 @@ bool MachineUI::savePreset(const std::string& name) {
                 break;
             }
         }
+    } else {
+        statusMessage = "Save failed - check permissions or disk space";
+        statusTimer = 120;
     }
     return ok;
 }

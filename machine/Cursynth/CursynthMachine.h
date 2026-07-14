@@ -79,7 +79,8 @@ const char* getDisplayString(int index) override;
    int                   osc1_scale;
    int                   osc2_scale;
 
-   int                   velocity;
+    int                   velocity;
+    int                   env1_depth;
 
 };
 

@@ -40,6 +40,9 @@ protected:
     bool presetInputMode;
     std::string presetInputBuffer;
 
+    std::string statusMessage;
+    int statusTimer;
+
     std::string columnTitles[3];
 
     static constexpr int HEADER_ROW = 6;

@@ -3,9 +3,9 @@
 #include <cmath>
 
 static constexpr int OUTPUT_AMPLITUDE = 8192;
-static constexpr float CUTOFF_MIN = 50.0f;
-static constexpr float CUTOFF_MAX = 20000.0f;
-static constexpr float CUTOFF_OCTAVES = 8.643856f; // log2(20000/50)
+static constexpr float CUTOFF_MIN = 20.0f;
+static constexpr float CUTOFF_MAX = 18000.0f;
+static constexpr float CUTOFF_OCTAVES = 9.813781f; // log2(18000/20)
 
 static int mapParam(int id) {
     switch (id) {
@@ -291,10 +291,10 @@ int NcursesynthMachine::getI(int index) {
     }
 
     if (index == 31) {
-        return static_cast<int>(synth_->getOsc1Amp() * 127.0f);
+        return static_cast<int>(synth_->getOsc1Amp() * 127.0f + 0.5f);
     }
     if (index == 32) {
-        return static_cast<int>(synth_->getOsc2Amp() * 127.0f);
+        return static_cast<int>(synth_->getOsc2Amp() * 127.0f + 0.5f);
     }
 
     index = mapParam(index);

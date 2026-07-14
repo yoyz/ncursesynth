@@ -55,12 +55,31 @@ void NcursesRenderer::setStyle(Style s) {
     }
 }
 
-void NcursesRenderer::drawBar(int row, int col, int current, int max, int width) {
-    int filled = current * width / max;
-    if (filled < 0) filled = 0;
-    if (filled > width) filled = width;
+void NcursesRenderer::drawBar(int row, int col, int current, int max, int width, bool bipolar) {
+    if (bipolar) {
+        int half = width / 2;
+        int center = max / 2;
+        int offset = current - center;
+        int rightFilled = 0, leftFilled = 0;
+        if (offset > 0)
+            rightFilled = offset * half / center;
+        else
+            leftFilled = (-offset) * half / center;
+        if (rightFilled > half) rightFilled = half;
+        if (leftFilled > half) leftFilled = half;
 
-    for (int i = 0; i < width; i++) {
-        mvaddch(row, col + i, i < filled ? '#' : '-');
+        mvaddch(row, col + half, '|');
+        for (int i = 0; i < half; i++)
+            mvaddch(row, col + i, (half - 1 - i) < leftFilled ? '#' : '-');
+        for (int i = 0; i < half; i++)
+            mvaddch(row, col + half + 1 + i, i < rightFilled ? '#' : '-');
+    } else {
+        int filled = current * width / max;
+        if (filled < 0) filled = 0;
+        if (filled > width) filled = width;
+
+        for (int i = 0; i < width; i++) {
+            mvaddch(row, col + i, i < filled ? '#' : '-');
+        }
     }
 }

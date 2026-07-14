@@ -26,6 +26,7 @@ CursynthMachine::CursynthMachine(int polyphony)
     osc2_scale = 0;
     osc1_detune = 0;
     osc2_detune = 0;
+    env1_depth = 64;
 }
 
 
@@ -142,35 +143,35 @@ int CursynthMachine::getI(int what)
 
     if (what == ADSR_ENV0_ATTACK) {
         float val = controls.at("amp attack")->current_value();
-        return (int)((val / 3.0f) * 127);
+        return (int)((val / 3.0f) * 127 + 0.5f);
     }
     if (what == ADSR_ENV0_DECAY) {
         float val = controls.at("amp decay")->current_value();
-        return (int)((val / 3.0f) * 127);
+        return (int)((val / 3.0f) * 127 + 0.5f);
     }
     if (what == ADSR_ENV0_SUSTAIN) {
         float val = controls.at("amp sustain")->current_value();
-        return (int)(val * 127);
+        return (int)(val * 127 + 0.5f);
     }
     if (what == ADSR_ENV0_RELEASE) {
         float val = controls.at("amp release")->current_value();
-        return (int)((val / 3.0f) * 127);
+        return (int)((val / 3.0f) * 127 + 0.5f);
     }
     if (what == ADSR_ENV1_ATTACK) {
         float val = controls.at("fil attack")->current_value();
-        return (int)((val / 3.0f) * 127);
+        return (int)((val / 3.0f) * 127 + 0.5f);
     }
     if (what == ADSR_ENV1_DECAY) {
         float val = controls.at("fil decay")->current_value();
-        return (int)((val / 3.0f) * 127);
+        return (int)((val / 3.0f) * 127 + 0.5f);
     }
     if (what == ADSR_ENV1_SUSTAIN) {
         float val = controls.at("fil sustain")->current_value();
-        return (int)(val * 127);
+        return (int)(val * 127 + 0.5f);
     }
     if (what == ADSR_ENV1_RELEASE) {
         float val = controls.at("fil release")->current_value();
-        return (int)((val / 3.0f) * 127);
+        return (int)((val / 3.0f) * 127 + 0.5f);
     }
     if (what == FILTER1_CUTOFF) {
         return cutoff;
@@ -180,31 +181,30 @@ int CursynthMachine::getI(int what)
     }
     if (what == OSC12_MIX) {
         float val = controls.at("osc mix")->current_value();
-        return (int)(val * 127);
+        return (int)(val * 127 + 0.5f);
     }
     if (what == LFO1_FREQ) {
         float val = controls.at("lfo 1 frequency")->current_value();
-        return (int)(val / 10.0f * 127);
+        return (int)(val / 10.0f * 127 + 0.5f);
     }
     if (what == LFO2_FREQ) {
         float val = controls.at("lfo 2 frequency")->current_value();
-        return (int)(val / 10.0f * 127);
+        return (int)(val / 10.0f * 127 + 0.5f);
     }
     if (what == LFO1_DEPTH) {
         float val = controls.at("mod scale 1")->current_value();
-        return (int)(val * 127);
+        return (int)(val * 127 + 0.5f);
     }
     if (what == LFO2_DEPTH) {
         float val = controls.at("mod scale 2")->current_value();
-        return (int)(val * 127);
+        return (int)(val * 127 + 0.5f);
     }
     if (what == ENV1_DEPTH) {
-        float val = controls.at("fil env depth")->current_value();
-        return (int)((val / 128.0f + 1.0f) / 2.0f * 127);
+        return env1_depth;
     }
     if (what == AMP) {
         float val = controls.at("volume")->current_value();
-        return (int)(val * 127);
+        return (int)(val * 127 + 0.5f);
     }
     return 0;
 }
@@ -254,11 +254,15 @@ void CursynthMachine::setI(int what, int val)
 
     if (what == OSC1_TYPE) {
         osc1_type = val;
-        engine->getControls().at("osc 1 waveform")->set(f_val * 128);
+        if (osc1_type < 0) osc1_type = 0;
+        if (osc1_type >= PICO_CURSYNTH_SIZE) osc1_type = PICO_CURSYNTH_SIZE - 1;
+        engine->getControls().at("osc 1 waveform")->set((mopocursynth::mopo_float)osc1_type);
     }
     if (what == OSC2_TYPE) {
         osc2_type = val;
-        engine->getControls().at("osc 2 waveform")->set(f_val * 128);
+        if (osc2_type < 0) osc2_type = 0;
+        if (osc2_type >= PICO_CURSYNTH_SIZE) osc2_type = PICO_CURSYNTH_SIZE - 1;
+        engine->getControls().at("osc 2 waveform")->set((mopocursynth::mopo_float)osc2_type);
     }
     if (what == OSC1_DETUNE) {
         osc1_detune = val;
@@ -318,6 +322,7 @@ void CursynthMachine::setI(int what, int val)
         engine->getControls().at("keytrack")->set(((f_val * 2) - 1) * 128);
     }
     if (what == ENV1_DEPTH) {
+        env1_depth = val;
         engine->getControls().at("fil env depth")->set(((f_val * 2) - 1) * 128);
     }
     if (what == FILTER1_TYPE) {

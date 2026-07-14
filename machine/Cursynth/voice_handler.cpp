@@ -109,13 +109,32 @@ namespace mopocursynth {
   void VoiceHandler::noteOn(mopo_float note, mopo_float velocity) {
     Voice* voice = 0;
     pressed_notes_.push_back(note);
+
+    // Priority 1: Free voice
     if (free_voices_.size() && active_voices_.size() < polyphony_) {
       voice = free_voices_.front();
       free_voices_.pop_front();
     }
     else {
-      voice = active_voices_.front();
-      active_voices_.pop_front();
+      // Priority 2: Released voice (envelope in release tail)
+      for (auto iter = active_voices_.begin(); iter != active_voices_.end(); ++iter) {
+        if ((*iter)->state()->event == kVoiceOff) {
+          voice = *iter;
+          active_voices_.erase(iter);
+          break;
+        }
+      }
+      // Priority 3: Sustained voice (held by sustain pedal)
+      if (!voice && sustained_voices_.size()) {
+        voice = sustained_voices_.front();
+        sustained_voices_.pop_front();
+        active_voices_.remove(voice);
+      }
+      // Priority 4: Oldest held voice (last resort)
+      if (!voice) {
+        voice = active_voices_.front();
+        active_voices_.pop_front();
+      }
     }
 
     voice->activate(note, velocity);

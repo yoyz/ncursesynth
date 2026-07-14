@@ -46,6 +46,9 @@ int main(int argc, char* argv[]) {
     std::string synthEngineName;
     std::string mappingName;
     int fpsLimit = 30;
+    int bufferSize = 256;
+    double latencyMs = 20.0;
+    float limiterThreshold = 0.85f;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
             std::cout << "ncursesynth v" << VERSION_STRING << std::endl;
@@ -67,6 +70,9 @@ int main(int argc, char* argv[]) {
             std::cout << "  --synthengine NAME  Run headless with named engine (ncursesynth/pbsynth/cursynth/twytch)\n";
             std::cout << "  --mapping NAME      Set MIDI mapping (e.g., deepmind12, summit)\n";
             std::cout << "  --fps N             Max refresh rate (default 30)\n";
+            std::cout << "  --buffer-size N     Audio buffer size in frames (16-4096, default 256, power-of-2)\n";
+            std::cout << "  --latency-ms N      PortAudio suggested latency in ms (1-200, default 20)\n";
+            std::cout << "  --limiter-threshold N  Limiter threshold 0.0-1.0 (default 0.85, lower = less headroom)\n";
             std::cout << "\nControls (UI mode):\n";
             std::cout << "  TAB     Switch menu (Engine/MIDI/Params)\n";
             std::cout << "  ARROWS  Navigate parameters or menu items\n";
@@ -105,6 +111,25 @@ int main(int argc, char* argv[]) {
             fpsLimit = atoi(argv[++i]);
             if (fpsLimit < 1) fpsLimit = 1;
             if (fpsLimit > 200) fpsLimit = 200;
+        }
+        if (strcmp(argv[i], "--buffer-size") == 0 && i + 1 < argc) {
+            bufferSize = atoi(argv[++i]);
+            if (bufferSize < 16) bufferSize = 16;
+            if (bufferSize > 4096) bufferSize = 4096;
+            // Ensure power of 2
+            int p2 = 1;
+            while (p2 < bufferSize) p2 <<= 1;
+            bufferSize = p2;
+        }
+        if (strcmp(argv[i], "--latency-ms") == 0 && i + 1 < argc) {
+            latencyMs = atof(argv[++i]);
+            if (latencyMs < 1.0) latencyMs = 1.0;
+            if (latencyMs > 200.0) latencyMs = 200.0;
+        }
+        if (strcmp(argv[i], "--limiter-threshold") == 0 && i + 1 < argc) {
+            limiterThreshold = atof(argv[++i]);
+            if (limiterThreshold < 0.1f) limiterThreshold = 0.1f;
+            if (limiterThreshold > 1.0f) limiterThreshold = 1.0f;
         }
     }
 
@@ -177,6 +202,7 @@ int main(int argc, char* argv[]) {
 
     if (captureAudioPort > 0) {
         captureDriver = new AudioCaptureDriver(captureAudioPort, 48000);
+        captureDriver->limiter.setThreshold(limiterThreshold);
         if (!captureDriver->start(activeMachine)) {
             std::cerr << "Failed to start audio capture driver!" << std::endl;
             delete captureDriver;
@@ -184,7 +210,7 @@ int main(int argc, char* argv[]) {
         }
         synth = new SynthArchitecture(8, 48000);
     } else {
-        audioEngine = new AudioEngine(48000, 256);
+        audioEngine = new AudioEngine(48000, bufferSize, latencyMs, limiterThreshold);
         if (!audioEngine->initialize()) {
             std::cerr << "Failed to initialize audio engine!" << std::endl;
             return 1;
@@ -227,7 +253,7 @@ int main(int argc, char* argv[]) {
             audioEngine->shutdown();
             return 1;
         }
-        std::cout << "Audio started successfully!" << std::endl;
+        std::cout << "Audio started: " << bufferSize << " frames/buffer, " << latencyMs << "ms suggested latency" << std::endl;
     } else if (captureDriver) {
         captureDriver->setMachine(activeMachine);
     }

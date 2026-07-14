@@ -17,6 +17,7 @@ Voice::Voice(float sampleRate)
       filterEnvelope(sampleRate),
       frequency(440.0f),
       active(false),
+      released(false),
       noteId(-1),
       filterEnvelopeAmount(0.5f),
       baseCutoff(1000.0f),
@@ -67,11 +68,14 @@ void Voice::noteOn(float freq, int id, FilterType filterType,
     
     oscillator1.setFrequency(freq);
     oscillator1.setWaveform(osc1Waveform);
+    // Use noteId for pseudo-random phase offset to prevent DC alignment of voices
     oscillator1.reset();
+    oscillator1.addPhaseOffset((id * 0.309f) - (int)(id * 0.309f));
     
     oscillator2.setFrequency(freq);
     oscillator2.setWaveform(osc2Waveform);
     oscillator2.reset();
+    oscillator2.addPhaseOffset((id * 0.691f) - (int)(id * 0.691f));
     
     switch (filterType) {
         case FilterType::MOOG:
@@ -139,12 +143,14 @@ void Voice::noteOn(float freq, int id, FilterType filterType,
     amplitudeEnvelope.noteOn();
     filterEnvelope.noteOn();
     active = true;
+    released = false;
 }
 
 void Voice::noteOff() {
     if (active) {
         amplitudeEnvelope.noteOff();
         filterEnvelope.noteOff();
+        released = true;
     }
 }
 
@@ -186,6 +192,7 @@ float Voice::process() {
 
 void Voice::reset() {
     active = false;
+    released = false;
     noteId = -1;
     oscillator1.reset();
     oscillator2.reset();

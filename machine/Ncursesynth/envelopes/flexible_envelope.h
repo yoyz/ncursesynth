@@ -21,6 +21,7 @@ private:
     EnvelopeStage currentStage;
     float currentLevel;
     float releaseStartLevel;
+    float lastOutput;
     
     // Calculated values
     float attackStep;

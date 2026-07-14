@@ -7,8 +7,10 @@
 #include <algorithm>
 #include <thread>
 
-AudioEngine::AudioEngine(int rate, int frames)
-    : stream(nullptr), synth(nullptr), machine(nullptr), isRunning(false), switching(false), sampleRate(rate), framesPerBuffer(frames) {
+AudioEngine::AudioEngine(int rate, int frames, double latencyMs, float limiterThreshold)
+    : stream(nullptr), synth(nullptr), machine(nullptr), isRunning(false), switching(false),
+      sampleRate(rate), framesPerBuffer(frames), latencyMs(latencyMs),
+      limiter(limiterThreshold, 1.0f, 50.0f, rate) {
     machine.store(nullptr);
     switching.store(false);
     synth = new SynthArchitecture(8, sampleRate);  // Start with 8 voices
@@ -44,13 +46,9 @@ int AudioEngine::audioCallback(const void* inputBuffer, void* outputBuffer,
             } catch (...) {
                 sample = 0;
             }
-            // Scale to float and soft-clip
+            // Scale to float and limit
             float f = sample / 8192.0f;
-            float absF = fabsf(f);
-            if (absF > 0.85f) {
-                float over = (absF - 0.85f) / (1.0f - 0.85f);
-                f = (f > 0 ? 1.0f : -1.0f) * (0.85f + 0.10f * (1.0f - 1.0f / (1.0f + over)));
-            }
+            f = engine->limiter.process(f);
             CaptureAnalyzer::writeSample(f);
             AudioLevel::update(f);
             out[i] = f;
@@ -76,14 +74,26 @@ bool AudioEngine::initialize() {
         return false;
     }
     
-    err = Pa_OpenDefaultStream(&stream,
-                               0,          // No input
-                               1,          // Mono output
-                               paFloat32,
-                               sampleRate,
-                               framesPerBuffer,
-                               audioCallback,
-                               this);
+    PaStreamParameters outParams;
+    outParams.device = Pa_GetDefaultOutputDevice();
+    if (outParams.device == paNoDevice) {
+        std::cerr << "No default output device found." << std::endl;
+        Pa_Terminate();
+        return false;
+    }
+    outParams.channelCount = 1;
+    outParams.sampleFormat = paFloat32;
+    outParams.suggestedLatency = latencyMs / 1000.0;
+    outParams.hostApiSpecificStreamInfo = nullptr;
+    
+    err = Pa_OpenStream(&stream,
+                        nullptr,       // No input
+                        &outParams,
+                        sampleRate,
+                        framesPerBuffer,
+                        paClipOff,
+                        audioCallback,
+                        this);
     
     if (err != paNoError) {
         std::cerr << "Failed to open audio stream: " << Pa_GetErrorText(err) << std::endl;

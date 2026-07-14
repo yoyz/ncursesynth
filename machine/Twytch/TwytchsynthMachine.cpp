@@ -22,12 +22,19 @@ TwytchsynthMachine::TwytchsynthMachine()
     velocity = 64;
     osc1_type = 0;
     osc2_type = 0;
+    osc3_type = 0;
+    osc4_type = 0;
     osc1_scale = 0;
     osc2_scale = 0;
     osc1_detune = 0;
     osc2_detune = 0;
+    osc2_unison = 0;
+    osc2_unisondt = 0;
+    osc3_amp = 0;
+    osc4_amp = 0;
     pole = 0;
     need_note_on = 0;
+    env1_depth = 64;
 }
 
 
@@ -110,9 +117,18 @@ int TwytchsynthMachine::getI(int what)
     if (what == FILTER1_CUTOFF) return filter1_cutoff;
     if (what == FILTER1_RESONANCE) return filter1_resonance;
     if (what == OSC12_MIX) return osc12_mix;
+    if (what == ENV1_DEPTH) return env1_depth;
+    if (what == OSC2_DETUNE) return osc2_detune;
+    if (what == OSC2_UNISON) return osc2_unison;
+    if (what == OSC2_UNISONDT) return osc2_unisondt;
+    if (what == OSC3_TYPE) return osc3_type;
+    if (what == OSC3_AMP) return osc3_amp;
+    if (what == OSC4_TYPE) return osc4_type;
+    if (what == OSC4_AMP) return osc4_amp;
     if (what == LFO1_FREQ) return (int)(lfo1_freq * 127);
     if (what == LFO2_FREQ) return (int)(lfo2_freq * 127);
     if (what == AMP) return amp_volume;
+    if (what == VELOCITY) return velocity;
 
     return 0;
 }
@@ -174,8 +190,13 @@ void TwytchsynthMachine::setI(int what, int val)
     }
     if (what == OSC1_DETUNE) {
         osc1_detune = val;
-        twytchhelmmopo::Value* ctrl = engine->getControl("osc 2 detune");
-        if (ctrl) ctrl->set(f_val);
+        twytchhelmmopo::Value* ctrl = engine->getControl("osc_1_tune");
+        if (ctrl) ctrl->set((f_val - 0.5f) * 2.0f);
+    }
+    if (what == OSC2_DETUNE) {
+        osc2_detune = val;
+        twytchhelmmopo::Value* ctrl = engine->getControl("osc_2_tune");
+        if (ctrl) ctrl->set((f_val - 0.5f) * 2.0f);
     }
     if (what == OSC1_SCALE) {
         osc1_scale = val;
@@ -262,6 +283,7 @@ void TwytchsynthMachine::setI(int what, int val)
     }
 
     if (what == ENV1_DEPTH) {
+        env1_depth = val;
         auto controls = engine->getControls();
         if (controls.count("fil_env_depth")) {
             // fil_env_depth range: -128 to +127 (center is 0)
@@ -291,6 +313,41 @@ void TwytchsynthMachine::setI(int what, int val)
         if (midiDebug_) std::cerr << "Twytch: NOTE1 set to " << val << std::endl;
     }
 
+    if (what == OSC2_UNISON) {
+        osc2_unison = val;
+        auto controls = engine->getControls();
+        if (controls.count("osc_2_unison_voices")) {
+            controls.at("osc_2_unison_voices")->set(1.0f + f_val * 14.0f);
+        }
+    }
+    if (what == OSC2_UNISONDT) {
+        osc2_unisondt = val;
+        auto controls = engine->getControls();
+        if (controls.count("osc_2_unison_detune")) {
+            controls.at("osc_2_unison_detune")->set(f_val * 100.0f);
+        }
+    }
+    if (what == OSC3_TYPE) {
+        osc3_type = val;
+        auto controls = engine->getControls();
+        if (controls.count("sub_waveform")) {
+            controls.at("sub_waveform")->set(f_val * 10.0f);
+        }
+    }
+    if (what == OSC3_AMP) {
+        osc3_amp = val;
+        auto controls = engine->getControls();
+        if (controls.count("sub_volume")) {
+            controls.at("sub_volume")->set(f_val);
+        }
+    }
+    if (what == OSC4_AMP) {
+        osc4_amp = val;
+        auto controls = engine->getControls();
+        if (controls.count("noise_volume")) {
+            controls.at("noise_volume")->set(f_val);
+        }
+    }
     if (what == AMP) {
         amp_volume = val;
         auto controls = engine->getControls();

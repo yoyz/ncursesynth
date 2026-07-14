@@ -11,6 +11,7 @@ FlexibleEnvelope::FlexibleEnvelope(float rate)
       currentStage(EnvelopeStage::IDLE),
       currentLevel(0.0f),
       releaseStartLevel(0.0f),
+      lastOutput(0.0f),
       targetLevel(0.0f) {
     updateAttackStep();
     updateDecayStep();
@@ -27,29 +28,33 @@ void FlexibleEnvelope::setSampleRate(float rate) {
 }
 
 void FlexibleEnvelope::updateAttackStep() {
-    float attackTime = 0.001f + attack * 1.999f; // 1ms to 2 seconds
+    // Exponential mapping: 3ms at 0, 15s at 1.0
+    // This gives fine control over short times while allowing long sweeps
+    float attackTime = 0.003f * powf(5000.0f, attack);
     attackStep = 1.0f / (attackTime * sampleRate);
 }
 
 void FlexibleEnvelope::updateDecayStep() {
-    float decayTime = 0.001f + decay * 1.999f;
+    float decayTime = 0.003f * powf(5000.0f, decay);
     decayStep = (1.0f - sustain) / (decayTime * sampleRate);
 }
 
 void FlexibleEnvelope::updateReleaseStep() {
-    float releaseTime = 0.001f + release * 1.999f;
+    float releaseTime = 0.003f * powf(5000.0f, release);
     releaseStep = 1.0f / (releaseTime * sampleRate);
 }
 
 float FlexibleEnvelope::getCurveFactor(float t, EnvelopeCurve curve) {
     // t is normalized 0-1 progress through the stage
+    // All curves must map [0,1] → [0,1] exactly to avoid discontinuities.
     switch (curve) {
         case EnvelopeCurve::LINEAR:
             return t;
             
         case EnvelopeCurve::EXPONENTIAL:
             // Exponential curve: starts slow, accelerates
-            return 1.0f - expf(-t * 5.0f);
+            // Normalized so f(0)=0, f(1)=1
+            return (1.0f - expf(-t * 5.0f)) / 0.993262053f;
             
         case EnvelopeCurve::LOGARITHMIC:
             // Logarithmic curve: starts fast, slows down
@@ -114,19 +119,14 @@ void FlexibleEnvelope::setReleaseCurve(EnvelopeCurve curve) {
 void FlexibleEnvelope::noteOn() {
     currentStage = EnvelopeStage::ATTACK;
     currentLevel = 0.0f;
+    lastOutput = 0.0f;
     targetLevel = 1.0f;
 }
 
 void FlexibleEnvelope::noteOff() {
     if (currentStage != EnvelopeStage::IDLE) {
-        if (currentLevel <= 0.001f) {
-            currentStage = EnvelopeStage::IDLE;
-            currentLevel = 0.0f;
-            releaseStartLevel = 0.0f;
-        } else {
-            releaseStartLevel = currentLevel;
-            currentStage = EnvelopeStage::RELEASE;
-        }
+        releaseStartLevel = (lastOutput > 0.001f) ? lastOutput : 0.0f;
+        currentStage = EnvelopeStage::RELEASE;
         targetLevel = 0.0f;
     }
 }
@@ -135,6 +135,7 @@ void FlexibleEnvelope::reset() {
     currentStage = EnvelopeStage::IDLE;
     currentLevel = 0.0f;
     releaseStartLevel = 0.0f;
+    lastOutput = 0.0f;
 }
 
 float FlexibleEnvelope::process() {
@@ -150,6 +151,7 @@ float FlexibleEnvelope::process() {
             
             // Apply curve shaping
             float shaped = applyCurve(currentLevel, attackCurve);
+            lastOutput = shaped;
             return shaped;
         }
         
@@ -165,16 +167,19 @@ float FlexibleEnvelope::process() {
             float progress = (1.0f - currentLevel) / (1.0f - sustain);
             if (sustain >= 1.0f) progress = 0.0f;
             float shaped = applyCurve(progress, decayCurve);
-            return 1.0f - (1.0f - sustain) * shaped;
+            lastOutput = 1.0f - (1.0f - sustain) * shaped;
+            return lastOutput;
         }
         
         case EnvelopeStage::SUSTAIN:
+            lastOutput = sustain;
             return sustain;
             
         case EnvelopeStage::RELEASE: {
-            if (releaseStartLevel <= 0.001f) {
+            if (releaseStartLevel <= 0.0f) {
                 currentStage = EnvelopeStage::IDLE;
                 currentLevel = 0.0f;
+                lastOutput = 0.0f;
                 return 0.0f;
             }
             
@@ -183,19 +188,22 @@ float FlexibleEnvelope::process() {
             if (currentLevel <= 0.0f) {
                 currentLevel = 0.0f;
                 currentStage = EnvelopeStage::IDLE;
+                lastOutput = 0.0f;
                 return 0.0f;
             }
             
-            float progress = 1.0f - (currentLevel / releaseStartLevel);
+            float progress = 1.0f - (currentLevel / (releaseStartLevel + 0.0001f));
             if (progress < 0.0f) progress = 0.0f;
             if (progress > 1.0f) progress = 1.0f;
             
             float shaped = applyCurve(progress, releaseCurve);
-            return releaseStartLevel * (1.0f - shaped);
+            lastOutput = releaseStartLevel * (1.0f - shaped);
+            return lastOutput;
         }
         
         case EnvelopeStage::IDLE:
         default:
+            lastOutput = 0.0f;
             return 0.0f;
     }
 }

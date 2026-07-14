@@ -28,6 +28,7 @@ public:
     Waveform getWaveform() const { return waveform; }
     float process();
     void reset();
+    void addPhaseOffset(float offset);
 };
 
 #endif

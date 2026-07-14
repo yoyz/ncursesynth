@@ -19,7 +19,7 @@ public:
     void write(int row, int col, const std::string& text) override;
     void setStyle(Style s) override;
 
-    void drawBar(int row, int col, int current, int max, int width) override;
+    void drawBar(int row, int col, int current, int max, int width, bool bipolar = false) override;
 
 private:
     std::chrono::steady_clock::time_point lastRefresh_;

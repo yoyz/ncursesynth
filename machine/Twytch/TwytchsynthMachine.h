@@ -86,8 +86,9 @@ class TwytchsynthMachine : public Machine
    int                   need_note_on;
 
    int                   bpm;
-   int                   osc3_type;
-   int                   lfo1_waveform;
+    int                   osc3_type;
+    int                   osc4_type;
+    int                   lfo1_waveform;
    int                   lfo2_waveform;
 
    int                   adsr_env0_attack;
@@ -120,7 +121,8 @@ class TwytchsynthMachine : public Machine
    int                   filter1_saturation;
    int                   filter1_feedback;
    int                   filter1_cutoff;
-   int                   filter1_resonance;
+    int                   filter1_resonance;
+    int                   env1_depth;
 
 float                 lfo1_freq;
     float                 lfo2_freq;

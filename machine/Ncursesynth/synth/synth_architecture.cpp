@@ -69,17 +69,22 @@ void SynthArchitecture::setPolyphony(int newPolyphony) {
 }
 
 int SynthArchitecture::findFreeVoice() {
-    // First, try to find a completely inactive voice
+    // Priority 1: Completely inactive voice
     for (size_t i = 0; i < voices.size(); i++) {
         if (!voices[i]->isActive()) {
             return i;
         }
     }
-    
-    // If all voices are active, just use the first one for voice stealing
-    // (Remove the unused minLevel variable)
-    
-    return 0; // Return first voice for stealing
+
+    // Priority 2: Released voice (in release tail, envelope still playing)
+    for (size_t i = 0; i < voices.size(); i++) {
+        if (voices[i]->isReleased()) {
+            return i;
+        }
+    }
+
+    // Priority 3: Oldest held voice (last resort — steal voice 0)
+    return 0;
 }
 
 
@@ -103,10 +108,9 @@ void SynthArchitecture::updateAllVoices() {
 }
 
 void SynthArchitecture::noteOn(float frequency) {
-    // First, find a voice that's already playing this exact frequency
+    // If a voice is already playing this frequency, retrigger it
     for (auto& voice : voices) {
         if (voice->isActive() && std::abs(voice->getFrequency() - frequency) < 0.1f) {
-            // Voice is already playing this note - retrigger it
             voice->noteOn(frequency, nextNoteId++,
                          currentFilterType, cutoff, resonance, filterEnvelopeAmount,
                          ampAttack, ampDecay, ampSustain, ampRelease,
@@ -115,27 +119,14 @@ void SynthArchitecture::noteOn(float frequency) {
             return;
         }
     }
-    
-    // Find a completely inactive voice first
-    for (auto& voice : voices) {
-        if (!voice->isActive()) {
-            voice->reset();
-            voice->noteOn(frequency, nextNoteId++,
-                         currentFilterType, cutoff, resonance, filterEnvelopeAmount,
-                         ampAttack, ampDecay, ampSustain, ampRelease,
-                         filtAttack, filtDecay, filtSustain, filtRelease,
-                         ampEnvelopeCurve, filterEnvelopeCurve);
-            return;
-        }
-    }
-    
-    // All voices active - steal the oldest one (index 0) but properly reset it
-    voices[0]->reset();
-    voices[0]->noteOn(frequency, nextNoteId++,
-                     currentFilterType, cutoff, resonance, filterEnvelopeAmount,
-                     ampAttack, ampDecay, ampSustain, ampRelease,
-                     filtAttack, filtDecay, filtSustain, filtRelease,
-                     ampEnvelopeCurve, filterEnvelopeCurve);
+
+    int idx = findFreeVoice();
+    voices[idx]->reset();
+    voices[idx]->noteOn(frequency, nextNoteId++,
+                       currentFilterType, cutoff, resonance, filterEnvelopeAmount,
+                       ampAttack, ampDecay, ampSustain, ampRelease,
+                       filtAttack, filtDecay, filtSustain, filtRelease,
+                       ampEnvelopeCurve, filterEnvelopeCurve);
 }
 
 void SynthArchitecture::noteOff(float frequency) {
@@ -166,6 +157,8 @@ float SynthArchitecture::process() {
             activeCount++;
         }
     }
+    
+
     
     // Apply effects chain
     output = effectChain.process(output);

@@ -56,3 +56,9 @@ float SawtoothOscillator::process() {
 void SawtoothOscillator::reset() {
     phase = 0.0f;
 }
+
+void SawtoothOscillator::addPhaseOffset(float offset) {
+    phase += offset;
+    if (phase >= 1.0f) phase -= 1.0f;
+    if (phase < 0.0f) phase += 1.0f;
+}

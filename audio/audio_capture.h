@@ -7,6 +7,7 @@
 #include <string>
 #include <cstdint>
 #include "../machine/Machine.h"
+#include "audio_limiter.h"
 
 class AudioCaptureDriver {
 public:
@@ -36,6 +37,9 @@ private:
     void serverLoop();
     void handleClient(int clientFd);
     size_t getReadableSamples() const;
+
+public:
+    AudioLimiter limiter;
 };
 
 #endif

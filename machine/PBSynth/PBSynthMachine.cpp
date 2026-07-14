@@ -171,46 +171,12 @@ void PBSynthMachine::reset()
 
 void PBSynthMachine::noteOn()
 {
-    if (voices.empty()) return;
-
-    int targetVoice = -1;
-    for (int i = 0; i < polyphony_; i++) {
-        if (voices[i].keyon == 0) {
-            targetVoice = i;
-            break;
-        }
-    }
-
-    if (targetVoice == -1) {
-        int lowestNote = -1;
-        for (int i = 0; i < polyphony_; i++) {
-            if (lowestNote == -1 || voices[i].note < lowestNote) {
-                lowestNote = voices[i].note;
-                targetVoice = i;
-            }
-        }
-        voices[targetVoice].se->reset();
-    }
-
-    PBSynthVoice& v = voices[targetVoice];
-    v.index = 0;
-    v.se->triggerNoteOsc(0, note + osc1_scale - 2);
-    v.se->triggerNoteOsc(1, note + osc2_scale - 2);
-    v.note = note;
-    v.keyon = 1;
-    keyon = 1;
+    setI(NOTE_ON, 1);
 }
 
 void PBSynthMachine::noteOff()
 {
-    if (voices.empty()) return;
-
-    for (auto& v : voices) {
-        if (v.keyon && v.note == note) {
-            v.se->releaseNote();
-            break;
-        }
-    }
+    setI(NOTE_ON, 0);
 }
 
 int PBSynthMachine::checkI(int what,int val)
@@ -270,35 +236,35 @@ int PBSynthMachine::getI(int what)
   if (what == OSC2_DETUNE) return osc2_detune;
   if (what == ADSR_ENV0_ATTACK) {
       float a = se->getEnvelope(0)->getA();
-      return (int)((a + 1.0f) / 2.0f * 127);
+      return (int)((a + 1.0f) * 64.0f + 0.5f);
   }
   if (what == ADSR_ENV0_DECAY) {
       float d = se->getEnvelope(0)->getD();
-      return (int)((d + 1.0f) / 2.0f * 127);
+      return (int)((d + 1.0f) * 64.0f + 0.5f);
   }
   if (what == ADSR_ENV0_SUSTAIN) {
       float s = se->getEnvelope(0)->getS();
-      return (int)((s + 1.0f) / 2.0f * 127);
+      return (int)((s + 1.0f) * 64.0f + 0.5f);
   }
   if (what == ADSR_ENV0_RELEASE) {
       float r = se->getEnvelope(0)->getR();
-      return (int)((r + 1.0f) / 2.0f * 127);
+      return (int)((r + 1.0f) * 64.0f + 0.5f);
   }
   if (what == ADSR_ENV1_ATTACK) {
       float a = se->getEnvelope(1)->getA();
-      return (int)((a + 1.0f) / 2.0f * 127);
+      return (int)((a + 1.0f) * 64.0f + 0.5f);
   }
   if (what == ADSR_ENV1_DECAY) {
       float d = se->getEnvelope(1)->getD();
-      return (int)((d + 1.0f) / 2.0f * 127);
+      return (int)((d + 1.0f) * 64.0f + 0.5f);
   }
   if (what == ADSR_ENV1_SUSTAIN) {
       float s = se->getEnvelope(1)->getS();
-      return (int)((s + 1.0f) / 2.0f * 127);
+      return (int)((s + 1.0f) * 64.0f + 0.5f);
   }
   if (what == ADSR_ENV1_RELEASE) {
       float r = se->getEnvelope(1)->getR();
-      return (int)((r + 1.0f) / 2.0f * 127);
+      return (int)((r + 1.0f) * 64.0f + 0.5f);
   }
   if (what == FILTER1_CUTOFF) {
       return cutoff;
@@ -308,27 +274,37 @@ int PBSynthMachine::getI(int what)
   }
   if (what == VCO_MIX) {
       float m = se->getParameter(SENGINE_OSCMIX);
-      return (int)(m * 127);
+      int v = (int)(m * 128.0f + 0.5f);
+      if (v > 127) v = 127;
+      return v;
   }
   if (what == LFO1_FREQ) {
       float f = se->getLFO(0)->getRate();
-      return (int)(f * 127);
+      int v = (int)(f * 128.0f + 0.5f);
+      if (v > 127) v = 127;
+      return v;
   }
   if (what == LFO1_DEPTH) {
       float d = se->getParameter(SENGINE_LFO1_TO_AMP);
-      return (int)(d * 127);
+      int v = (int)(d * 128.0f + 0.5f);
+      if (v > 127) v = 127;
+      return v;
   }
   if (what == LFO2_FREQ) {
       float f = se->getLFO(1)->getRate();
-      return (int)(f * 127);
+      int v = (int)(f * 128.0f + 0.5f);
+      if (v > 127) v = 127;
+      return v;
   }
   if (what == LFO2_DEPTH) {
       float d = se->getParameter(SENGINE_LFO2_TO_CUTOFF);
-      return (int)((d + 0.5f) * 127);
+      int v = (int)(d * 256.0f + 0.5f);
+      if (v > 127) v = 127;
+      return v;
   }
   if (what == ENV1_DEPTH) {
       float d = se->getParameter(SENGINE_ENV2_TO_CUTOFF);
-      return (int)((d + 1.0f) / 2.0f * 127);
+      return (int)((d + 1.0f) * 64.0f + 0.5f);
   }
   if (what == AMP) {
       return amp_volume;
@@ -374,13 +350,26 @@ void PBSynthMachine::setI(int what,int val)
     {
       if (midiDebug_) std::cerr << ">>> NoteOn MIDI_NOTE=" << note << std::endl;
       int targetVoice = -1;
+
+      // Priority 1: Completely free voice (note=-1)
       for (int i = 0; i < polyphony_; i++) {
-          if (voices[i].keyon == 0) {
+          if (voices[i].note == -1) {
               targetVoice = i;
               break;
           }
       }
-      
+
+      // Priority 2: Released voice (keyon=0 but note>=0, in release tail)
+      if (targetVoice == -1) {
+          for (int i = 0; i < polyphony_; i++) {
+              if (voices[i].keyon == 0 && voices[i].note >= 0) {
+                  targetVoice = i;
+                  break;
+              }
+          }
+      }
+
+      // Priority 3: Steal lowest held note
       if (targetVoice == -1) {
           int lowestNote = -1;
           for (int i = 0; i < polyphony_; i++) {
@@ -390,7 +379,6 @@ void PBSynthMachine::setI(int what,int val)
               }
           }
           if (midiDebug_) std::cerr << "  STEAL voice " << targetVoice << std::endl;
-          voices[targetVoice].se->reset();
       }
 
       PBSynthVoice& v = voices[targetVoice];
@@ -412,6 +400,7 @@ void PBSynthMachine::setI(int what,int val)
       for (int i = 0; i < polyphony_; i++) {
           if (voices[i].keyon && voices[i].note == this->note) {
               voices[i].se->releaseNote();
+              voices[i].keyon = 0;
               released = i;
               if (midiDebug_) std::cerr << "  RELEASE voice " << i << std::endl;
               break;
@@ -538,31 +527,32 @@ Sint32 PBSynthMachine::tick()
     float volScale = (float)amp_volume / 127.0f;
 
     for (auto& voice : voices) {
-        if (voice.keyon && voice.se != nullptr) {
-            if (voice.index >= SAM || voice.index < 0)
-                voice.index = 0;
+        bool active = (voice.keyon == 1) || (voice.keyon == 0 && voice.note >= 0);
+        if (!active || voice.se == nullptr) continue;
 
-            if (voice.index == 0) {
-                voice.se->process(voice.buffer_f, SAM);
-                for (int i = 0; i < SAM; i++) {
-                    voice.buffer_i[i] = (Sint16)(voice.buffer_f[i] * OUTPUT_AMPLITUDE * volScale);
-                }
+        if (voice.index >= SAM || voice.index < 0)
+            voice.index = 0;
+
+        if (voice.index == 0) {
+            voice.se->process(voice.buffer_f, SAM);
+            for (int i = 0; i < SAM; i++) {
+                voice.buffer_i[i] = (Sint16)(voice.buffer_f[i] * OUTPUT_AMPLITUDE * volScale);
             }
+        }
 
-            Sint32 s = voice.buffer_i[voice.index];
-            if (s > 32000) s = 32000;
-            if (s < -32000) s = -32000;
+        Sint32 s = voice.buffer_i[voice.index];
+        if (s > 32000) s = 32000;
+        if (s < -32000) s = -32000;
 
-            total_output += s;
-            voiceCount++;
+        total_output += s;
+        voiceCount++;
 
-            voice.index++;
-            voice.sample_num++;
+        voice.index++;
+        voice.sample_num++;
 
-            if (voice.se->isVoiceFinished()) {
-                voice.keyon = 0;
-                voice.note = -1;
-            }
+        if (voice.se->isVoiceFinished()) {
+            voice.keyon = 0;
+            voice.note = -1;
         }
     }
 

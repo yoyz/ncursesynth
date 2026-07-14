@@ -45,6 +45,7 @@ private:
     
     float frequency;
     bool active;
+    bool released;
     int noteId;
     float filterEnvelopeAmount;
     float baseCutoff;
@@ -76,6 +77,7 @@ public:
     int getNoteId() const { return noteId; }
     float getFrequency() const { return frequency; }
     float getEnvelopeLevel() const { return amplitudeEnvelope.getCurrentLevel(); }
+    bool isReleased() const { return released; }
     void reset();
     
     // Update global parameters
