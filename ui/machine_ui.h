@@ -3,7 +3,8 @@
 
 #include <string>
 #include <vector>
-#include <ncurses.h>
+#include "irenderer.h"
+#include "widget.h"
 #include "../machine/Machine.h"
 #include "../machine/MachineManager.h"
 #include "../midi/midi_mapping.h"
@@ -15,23 +16,14 @@ struct PresetInfo {
 
 class MidiInput;
 
-struct MachineControl {
-    std::string name;
-    int param;
-    int row;
-    int col;
-    float value;
-    float minVal;
-    float maxVal;
-};
-
 class MachineUI {
 protected:
     int selectedControl;
-    std::vector<MachineControl> controls;
+    std::vector<Widget> widgets;
     Machine* machine;
     MachineManager* machineManager;
     MidiInput* midiInput;
+    IRenderer* renderer;
     int screenRows;
     int screenCols;
 
@@ -56,14 +48,12 @@ protected:
 
     virtual void initControls() = 0;
     virtual void drawColumnHeader(int col, const char* title);
-    virtual void drawControl(int index, bool selected);
-    virtual void drawSlider(int row, int col, const char* name, float value, bool selected);
     virtual void updateControlValues();
 
     void drawMenuBar();
     void drawMidiMonitor();
+    void drawLevelMeter();
     void handleNavigation(int ch);
-    void handleValueChange(int ch);
 
 public:
     MachineUI(Machine* mach, MachineManager* mgr = nullptr);
@@ -75,6 +65,9 @@ public:
     virtual void updateValues();
     virtual bool isActive() const { return true; }
     virtual void stop();
+
+    void setRenderer(IRenderer* r) { renderer = r; }
+    IRenderer* getRenderer() const { return renderer; }
 
     void setMidiNote(int note, int vel) { lastMidiNote = note; lastMidiVel = vel; midiActivity = true; }
     void setMidiInput(MidiInput* midi) { midiInput = midi; }
@@ -95,9 +88,11 @@ public:
     const std::string& getCurrentPresetName() const;
     class MappingManager* getMappingManager();
 
-    virtual void setControlValue(int paramId, float value);
+    void setControlValue(int paramId, float value);
 
-    const std::vector<MachineControl>& getControls() const { return controls; }
+    const std::vector<Widget>& getWidgets() const { return widgets; }
+    int getControlCount() const { return (int)widgets.size(); }
+    const Widget& getControl(int index) const { return widgets[index]; }
 };
 
 #endif

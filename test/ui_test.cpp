@@ -49,78 +49,62 @@ static int controlColumn(int col) {
 
 static bool testEngine(EngineTest& et) {
     bool allOk = true;
-    const auto& controls = et.ui->getControls();
+    const auto& widgets = et.ui->getWidgets();
 
-    printResult(et.name + " has controls", !controls.empty(),
-                std::to_string(controls.size()) + " controls");
+    printResult(et.name + " has controls", !widgets.empty(),
+                std::to_string(widgets.size()) + " controls");
 
-    // Check each control
     std::set<std::string> seenNames;
     std::set<std::pair<int,int>> seenPositions;
 
-    for (size_t i = 0; i < controls.size(); i++) {
-        const auto& c = controls[i];
+    for (size_t i = 0; i < widgets.size(); i++) {
+        const auto& w = widgets[i];
         std::string prefix = et.name + "[" + std::to_string(i) + "]";
 
-        // Non-empty name
-        bool hasName = !c.name.empty();
+        bool hasName = !w.name.empty();
         if (!hasName) allOk = false;
         printResult(prefix + " name", hasName,
                     hasName ? "" : "EMPTY NAME");
 
-        // Name length fits in label width
-        bool nameFits = c.name.length() < MAX_CONTROL_NAME_LEN;
+        bool nameFits = w.name.length() < MAX_CONTROL_NAME_LEN;
         if (!nameFits) allOk = false;
-        printResult(prefix + " \"" + c.name + "\" length",
-                    nameFits, std::to_string(c.name.length()) + " chars");
+        printResult(prefix + " \"" + w.name + "\" length",
+                    nameFits, std::to_string(w.name.length()) + " chars");
 
-        // Row within valid range
-        int drawRow = c.row + 7;
+        int drawRow = w.row + 7;
         bool rowOk = drawRow >= 0 && drawRow < MIN_ROWS + 20;
         if (!rowOk) allOk = false;
         printResult(prefix + " row", rowOk,
                     "row=" + std::to_string(drawRow));
 
-        // Col within screen width
-        bool colOk = c.col >= 0 && c.col < 160;
+        bool colOk = w.col >= 0 && w.col < 160;
         if (!colOk) allOk = false;
         printResult(prefix + " col", colOk,
-                    "col=" + std::to_string(c.col));
+                    "col=" + std::to_string(w.col));
 
-        // Control fits within its column
-        int colIdx = controlColumn(c.col);
+        int colIdx = controlColumn(w.col);
         static const int colStarts[NUM_COLUMNS] = {2, 40, 78};
         int colStart = colStarts[colIdx];
-        bool fitsInCol = (c.col - colStart + (int)c.name.length()) < COL_WIDTH;
+        bool fitsInCol = (w.col - colStart + (int)w.name.length()) < COL_WIDTH;
         if (!fitsInCol) allOk = false;
         printResult(prefix + " fits column", fitsInCol,
-                    "col=" + std::to_string(c.col) + " start=" + std::to_string(colStart));
+                    "col=" + std::to_string(w.col) + " start=" + std::to_string(colStart));
 
-        // No duplicate names
-        bool nameUnique = seenNames.find(c.name) == seenNames.end();
+        bool nameUnique = seenNames.find(w.name) == seenNames.end();
         if (!nameUnique) allOk = false;
         printResult(prefix + " unique name", nameUnique);
-        seenNames.insert(c.name);
+        seenNames.insert(w.name);
 
-        // No duplicate positions (row, col)
-        auto pos = std::make_pair(c.row, c.col);
+        auto pos = std::make_pair(w.row, w.col);
         bool posUnique = seenPositions.find(pos) == seenPositions.end();
         if (!posUnique) allOk = false;
         printResult(prefix + " unique position", posUnique);
         seenPositions.insert(pos);
 
-        // Value valid range
-        bool valOk = c.value >= c.minVal && c.value <= c.maxVal;
+        bool valOk = w.value >= 0 && w.value <= 127;
         if (!valOk) allOk = false;
         printResult(prefix + " value range", valOk,
-                    "val=" + std::to_string(c.value) +
-                    " range=[" + std::to_string(c.minVal) +
-                    "," + std::to_string(c.maxVal) + "]");
-
-        // minVal <= maxVal
-        bool rangeOk = c.minVal <= c.maxVal;
-        if (!rangeOk) allOk = false;
-        printResult(prefix + " min<=max", rangeOk);
+                    "val=" + std::to_string(w.value));
     }
 
     return allOk;
@@ -173,7 +157,6 @@ int main() {
         std::cout << "\n=== " << et.name << " ===" << std::endl;
         testEngine(et);
 
-        // Verify draw() doesn't crash
         bool drawOk = true;
         try {
             et.ui->draw();
@@ -183,7 +166,6 @@ int main() {
         printResult(et.name + " draw()", drawOk);
     }
 
-    // UIs clean up ncurses in their destructors
     fclose(nullOut);
 
     int total = g_passed + g_failed;

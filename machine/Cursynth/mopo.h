@@ -42,7 +42,7 @@ namespace mopocursynth {
   const int PPQ = 15360; // Pulses per quarter note.
 
   //typedef double mopo_float;
-  typedef double mopo_float;
+  typedef float mopo_float;
 
   // Common types of events across different Processors.
   enum VoiceEvent {

@@ -156,7 +156,9 @@ ENGINE_TWYTCH_UI = ui/twytch_ui.cpp
 # =============================================================================
 # MACHINE UI (shared/engine selection)
 # =============================================================================
-MACHINE_UI = ui/machine_ui.cpp
+MACHINE_UI = ui/machine_ui.cpp \
+             ui/ncurses_renderer.cpp \
+             ui/widget.cpp
 
 # =============================================================================
 # ALL SOURCES COMBINED
@@ -189,6 +191,8 @@ TEST_UI_CXXFLAGS = -std=c++14 -pthread -frtti -I. -I../machine -I../ui -I../audi
 TEST_UI_LDFLAGS = -lncurses -lportaudio -lpthread -lrtmidi -lm -Wl,--no-as-needed -lstdc++
 
 TEST_UI_OBJECTS = ui/machine_ui.o \
+                  ui/ncurses_renderer.o \
+                  ui/widget.o \
                   ui/ncursesynth_ui.o \
                   ui/pbsynth_ui.o \
                   ui/cursynth_ui.o \
