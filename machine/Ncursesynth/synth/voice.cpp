@@ -171,7 +171,7 @@ float Voice::process() {
     
     float envMod = (filterEnvelopeAmount - 0.5f) * 2.0f;
     float modulatedCutoff = baseCutoff + (filterEnvValue * envMod * 4000.0f);
-    modulatedCutoff = std::max(20.0f, std::min(8000.0f, modulatedCutoff));
+    modulatedCutoff = std::max(20.0f, std::min(20000.0f, modulatedCutoff));
     currentFilter->setCutoff(modulatedCutoff);
     
     float osc1_freq = frequency * powf(2.0f, (osc1Detune + osc1Scale) / 12.0f);

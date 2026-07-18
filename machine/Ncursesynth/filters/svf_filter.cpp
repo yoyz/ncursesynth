@@ -44,6 +44,10 @@ float StateVariableFilter::process(float input) {
     bp = bp + f * hp;
     lp = lp + f * bp;
 
+    // Flush denormals to zero
+    if (fabsf(lp) < 1e-18f) lp = 0.0f;
+    if (fabsf(bp) < 1e-18f) bp = 0.0f;
+
     switch (currentType) {
         case Type::LP12: return lp;
         case Type::HP12: return hp;

@@ -126,6 +126,8 @@ class TwytchsynthMachine : public Machine
 
 float                 lfo1_freq;
     float                 lfo2_freq;
+    int                   lfo1_freq_raw;
+    int                   lfo2_freq_raw;
 
     int                   amp_volume;
 

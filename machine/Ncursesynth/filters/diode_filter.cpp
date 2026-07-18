@@ -39,34 +39,38 @@ void DiodeFilter::reset() {
 }
 
 float DiodeFilter::process(float input) {
-    double sr = sampleRate;
-    double wd = 2 * M_PI * fc;
-    double wa = (2.0 * sr) * std::tan(wd / sr * 0.5);
-    double g = wa / sr / 2.0;
+    if (dirty) {
+        double sr = sampleRate;
+        double wd = 2 * M_PI * fc;
+        double wa = (2.0 * sr) * std::tan(wd / sr * 0.5);
+        double g = wa / sr / 2.0;
 
-    double G4 = 0.5 * g / (1.0 + g);
-    double G3 = 0.5 * g / (1.0 + g - 0.5 * g * G4);
-    double G2 = 0.5 * g / (1.0 + g - 0.5 * g * G3);
-    double G1 = g / (1.0 + g - g * G2);
-    gamma = G4 * G3 * G2 * G1;
+        double G4 = 0.5 * g / (1.0 + g);
+        double G3 = 0.5 * g / (1.0 + g - 0.5 * g * G4);
+        double G2 = 0.5 * g / (1.0 + g - 0.5 * g * G3);
+        double G1 = g / (1.0 + g - g * G2);
+        gamma = G4 * G3 * G2 * G1;
 
-    sg1 = G4 * G3 * G2;
-    sg2 = G4 * G3;
-    sg3 = G4;
-    sg4 = 1.0;
+        sg1 = G4 * G3 * G2;
+        sg2 = G4 * G3;
+        sg3 = G4;
+        sg4 = 1.0;
 
-    double G = g / (1.0 + g);
-    lpf1.alpha = G; lpf2.alpha = G; lpf3.alpha = G; lpf4.alpha = G;
-    lpf1.beta = 1.0 / (1.0 + g - g * G2);
-    lpf2.beta = 1.0 / (1.0 + g - 0.5 * g * G3);
-    lpf3.beta = 1.0 / (1.0 + g - 0.5 * g * G4);
-    lpf4.beta = 1.0 / (1.0 + g);
+        double G = g / (1.0 + g);
+        lpf1.alpha = G; lpf2.alpha = G; lpf3.alpha = G; lpf4.alpha = G;
+        lpf1.beta = 1.0 / (1.0 + g - g * G2);
+        lpf2.beta = 1.0 / (1.0 + g - 0.5 * g * G3);
+        lpf3.beta = 1.0 / (1.0 + g - 0.5 * g * G4);
+        lpf4.beta = 1.0 / (1.0 + g);
 
-    lpf1.delta = g; lpf2.delta = 0.5 * g; lpf3.delta = 0.5 * g; lpf4.delta = 0.0;
-    lpf1.gamma = 1.0 + G1 * G2; lpf2.gamma = 1.0 + G2 * G3;
-    lpf3.gamma = 1.0 + G3 * G4; lpf4.gamma = 1.0;
-    lpf1.epsilon = G2; lpf2.epsilon = G3; lpf3.epsilon = G4; lpf4.epsilon = 0.0;
-    lpf1.a0 = 1.0; lpf2.a0 = 0.5; lpf3.a0 = 0.5; lpf4.a0 = 0.5;
+        lpf1.delta = g; lpf2.delta = 0.5 * g; lpf3.delta = 0.5 * g; lpf4.delta = 0.0;
+        lpf1.gamma = 1.0 + G1 * G2; lpf2.gamma = 1.0 + G2 * G3;
+        lpf3.gamma = 1.0 + G3 * G4; lpf4.gamma = 1.0;
+        lpf1.epsilon = G2; lpf2.epsilon = G3; lpf3.epsilon = G4; lpf4.epsilon = 0.0;
+        lpf1.a0 = 1.0; lpf2.a0 = 0.5; lpf3.a0 = 0.5; lpf4.a0 = 0.5;
+
+        dirty = false;
+    }
 
     double xn = input;
     double k = std::max(0.0, std::min(16.0, res_k));

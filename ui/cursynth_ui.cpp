@@ -17,14 +17,13 @@ void CursynthUI::initControls() {
     widgets.clear();
 
     widgets.emplace_back("OSC1 WAVE", 20, 0, 2, WidgetType::DISCRETE, 4.0f / 11.0f, 12);
-    widgets.emplace_back("OSC1 DETUNE", 74, 1, 2, WidgetType::BIPOLAR, 0.5f);
-    widgets.emplace_back("OSC1 SCALE", 65, 2, 2, WidgetType::DISCRETE, 0.5f, 5);
+    widgets.emplace_back("OSC1 SCALE", 65, 1, 2, WidgetType::DISCRETE, 0.5f, 5);
 
-    widgets.emplace_back("OSC2 WAVE", 21, 4, 2, WidgetType::DISCRETE, 4.0f / 11.0f, 12);
-    widgets.emplace_back("OSC2 DETUNE", 75, 5, 2, WidgetType::BIPOLAR, 0.5f);
-    widgets.emplace_back("OSC2 SCALE", 66, 6, 2, WidgetType::DISCRETE, 0.5f, 5);
+    widgets.emplace_back("OSC2 WAVE", 21, 3, 2, WidgetType::DISCRETE, 4.0f / 11.0f, 12);
+    widgets.emplace_back("OSC2 DETUNE", 75, 4, 2, WidgetType::BIPOLAR, 0.5f);
+    widgets.emplace_back("OSC2 SCALE", 66, 5, 2, WidgetType::DISCRETE, 0.5f, 5);
 
-    widgets.emplace_back("OSC MIX", 28, 8, 2, WidgetType::CONTINUOUS, 0.5f);
+    widgets.emplace_back("OSC MIX", 28, 7, 2, WidgetType::CONTINUOUS, 0.5f);
 
     widgets.emplace_back("CUTOFF", 52, 0, 40, WidgetType::CONTINUOUS, 0.8f);
     widgets.emplace_back("RESONANCE", 53, 1, 40, WidgetType::CONTINUOUS, 0.2f);

@@ -121,6 +121,20 @@ double TestRunner::getPassRate() const {
     return (static_cast<double>(getPassedCount()) / total) * 100.0;
 }
 
+std::vector<std::string> TestRunner::getPassedNames() const {
+    std::vector<std::string> names;
+    for (const auto& r : results_)
+        if (r.passed) names.push_back(r.test);
+    return names;
+}
+
+std::vector<std::string> TestRunner::getFailedNames() const {
+    std::vector<std::string> names;
+    for (const auto& r : results_)
+        if (!r.passed) names.push_back(r.test);
+    return names;
+}
+
 static Machine* createMachine(const std::string& engineName) {
     if (engineName == "ncursesynth") return new NcursesynthMachine();
     if (engineName == "pbsynth") return new PBSynthMachine();
@@ -132,6 +146,7 @@ static Machine* createMachine(const std::string& engineName) {
 bool TestRunner::runSingleEngine(const std::string& engineName,
                                        const std::vector<std::string>& testNames,
                                        bool useFFT) {
+    results_.clear();
     std::cout << "\n=== Running tests for " << engineName << " ===" << std::endl;
 
     Machine* machine = createMachine(engineName);
@@ -164,6 +179,7 @@ bool TestRunner::runSingleEngine(const std::string& engineName,
 bool TestRunner::runAllEngines(const std::vector<std::string>& testNames,
                                    bool useFFT) {
     bool allSuccess = true;
+    results_.clear();
 
     for (const auto& name : engines_) {
         std::cout << "\n=== Running tests for " << name << " ===" << std::endl;
@@ -239,7 +255,6 @@ bool TestRunner::runAllTests(Machine* machine, bool useFFT, const std::vector<st
         g_running_.store(false);
     }
 
-    results_.clear();
     int passedCount = 0;
     int failedCount = 0;
     bool allPassed = true;
@@ -250,7 +265,9 @@ bool TestRunner::runAllTests(Machine* machine, bool useFFT, const std::vector<st
         if (!shouldRunTest(entry.name)) continue;
 
         std::cout << "  [RUN] " << entry.name << std::endl;
+        reporter_.startTest(entry.name);
         bool passed = entry.func(machine, useFFT);
+        reporter_.endTest(entry.name, passed, useFFT);
         if (passed) passedCount++; else failedCount++;
         results_.push_back({entry.name, passed, "", 0, 0, 0, false, 0, 0});
         allPassed = passed && allPassed;
@@ -495,12 +512,13 @@ int main(int argc, char** argv) {
         success = runner.runSingleEngine(engine, tests, useFFT);
     }
 
-    std::cout << "\n=== Test Summary ===" << std::endl << std::flush;
-    std::cout << "Passed: " << g_totalPassed << std::endl << std::flush;
-    std::cout << "Failed: " << g_totalFailed << std::endl << std::flush;
-    int total = g_totalPassed + g_totalFailed;
-    double rate = total > 0 ? (static_cast<double>(g_totalPassed) / total) * 100.0 : 0.0;
-    std::cout << "Rate: " << std::fixed << std::setprecision(1) << rate << "%" << std::endl << std::flush;
+    {
+        auto passed = runner.getPassedNames();
+        auto failed = runner.getFailedNames();
+        auto all = passed;
+        all.insert(all.end(), failed.begin(), failed.end());
+        runner.getReporter().printReport(passed, failed, all);
+    }
 
     return success ? 0 : 1;
 }

@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <map>
 #include "irenderer.h"
 #include "widget.h"
 #include "../machine/Machine.h"
@@ -30,6 +31,10 @@ protected:
     int lastMidiNote;
     int lastMidiVel;
     bool midiActivity;
+
+    bool pcKeyboardMode;
+    int pcOctave;
+    std::map<int, bool> pcActiveKeys;
 
     int menuSelection;
     int menuIndex;
@@ -78,6 +83,7 @@ public:
     void setMenuSelection(int sel) { menuSelection = sel; }
     void setMidiDeviceIndex(int idx) { midiDeviceIndex = idx; }
     void setMappingIndex(int idx) { mappingIndex = idx; }
+    void setPcKeyboardMode(bool on) { pcKeyboardMode = on; pcOctave = 4; pcActiveKeys.clear(); }
     int getMenuIndex() const { return menuIndex; }
     int getMidiDeviceIndex() const { return midiDeviceIndex; }
     int getMappingIndex() const { return mappingIndex; }

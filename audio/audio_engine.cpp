@@ -39,12 +39,16 @@ int AudioEngine::audioCallback(const void* inputBuffer, void* outputBuffer,
 
     Machine* machine = engine->machine.load(std::memory_order_acquire);
     if (machine) {
+        // try_lock: non-blocking, skip this buffer if MIDI/UI holds the lock
+        bool locked = machine->tryLock();
         for (unsigned int i = 0; i < framesPerBuffer; i++) {
             int32_t sample = 0;
-            try {
-                sample = machine->tick();
-            } catch (...) {
-                sample = 0;
+            if (locked) {
+                try {
+                    sample = machine->tick();
+                } catch (...) {
+                    sample = 0;
+                }
             }
             // Scale to float and limit
             float f = sample / 8192.0f;
@@ -53,6 +57,7 @@ int AudioEngine::audioCallback(const void* inputBuffer, void* outputBuffer,
             AudioLevel::update(f);
             out[i] = f;
         }
+        if (locked) machine->unlock();
     } else if (engine->synth) {
         for (unsigned int i = 0; i < framesPerBuffer; i++) {
             float sample = engine->synth->process();
@@ -122,20 +127,21 @@ void AudioEngine::stop() {
 }
 
 void AudioEngine::setMachine(Machine* m) {
-    // Signal that we're switching - audio thread will output silence
+    // Signal that we're switching — audio thread will output silence
     switching.store(true, std::memory_order_release);
     
-    // Small delay to let audio thread notice the flag
-    std::this_thread::sleep_for(std::chrono::microseconds(100));
-    
+    // Lock old machine so audio callback sees the lock and skips
     Machine* oldMachine = machine.load(std::memory_order_acquire);
-    // Reset the old machine before switching
     if (oldMachine && oldMachine != m) {
+        oldMachine->lock();
         oldMachine->reset();
+        oldMachine->unlock();
     }
     machine.store(m, std::memory_order_release);
     if (m) {
+        m->lock();
         m->init();
+        m->unlock();
     }
     
     // Clear switching flag

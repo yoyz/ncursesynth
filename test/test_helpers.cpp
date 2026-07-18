@@ -1190,15 +1190,16 @@ bool runFilterFullTests(Machine* machine, bool useFFT) {
 
     std::cout << "\n--- Filter Type Persistence Test ---" << std::endl;
     machine->init();
-    machine->setI(50, numFilterTypes > 2 ? 5 : (numFilterTypes > 1 ? 1 : 0));
+    int setType = numFilterTypes > 2 ? 5 : (numFilterTypes > 1 ? 1 : 0);
+    machine->setI(50, setType);
     machine->setI(isNcursesynth ? 51 : 52, 50);
     machine->setI(53, 40);
 
     for (int i = 0; i < 1024; i++) machine->tick();
 
     int retrievedType = machine->getI(50);
-    std::cout << "    Set filter_type=5, got=" << retrievedType << " ";
-    if (retrievedType == 5) {
+    std::cout << "    Set filter_type=" << setType << ", got=" << retrievedType << " ";
+    if (retrievedType == setType) {
         std::cout << "[PASS]" << std::endl;
     } else {
         std::cout << "[FAIL] (persistence broken)" << std::endl;

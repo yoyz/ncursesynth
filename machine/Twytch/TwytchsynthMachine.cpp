@@ -35,6 +35,8 @@ TwytchsynthMachine::TwytchsynthMachine()
     pole = 0;
     need_note_on = 0;
     env1_depth = 64;
+    lfo1_freq_raw = 64;
+    lfo2_freq_raw = 64;
 }
 
 
@@ -114,6 +116,7 @@ int TwytchsynthMachine::getI(int what)
     if (what == ADSR_ENV1_DECAY) return adsr_env1_decay;
     if (what == ADSR_ENV1_SUSTAIN) return adsr_env1_sustain;
     if (what == ADSR_ENV1_RELEASE) return adsr_env1_release;
+    if (what == FILTER1_TYPE) return filter1_type;
     if (what == FILTER1_CUTOFF) return filter1_cutoff;
     if (what == FILTER1_RESONANCE) return filter1_resonance;
     if (what == OSC12_MIX) return osc12_mix;
@@ -125,8 +128,10 @@ int TwytchsynthMachine::getI(int what)
     if (what == OSC3_AMP) return osc3_amp;
     if (what == OSC4_TYPE) return osc4_type;
     if (what == OSC4_AMP) return osc4_amp;
-    if (what == LFO1_FREQ) return (int)(lfo1_freq * 127);
-    if (what == LFO2_FREQ) return (int)(lfo2_freq * 127);
+    if (what == LFO1_FREQ) return lfo1_freq_raw;
+    if (what == LFO2_FREQ) return lfo2_freq_raw;
+    if (what == LFO1_DEPTH) return lfo1_env_amount;
+    if (what == LFO2_DEPTH) return lfo2_env_amount;
     if (what == AMP) return amp_volume;
     if (what == VELOCITY) return velocity;
 
@@ -141,10 +146,16 @@ void TwytchsynthMachine::setF(int what, float val)
     if (engine == nullptr) return;
 
     if (what == LFO1_FREQ) {
+        lfo1_freq_raw = (int)val;
         lfo1_freq = f_val * 10;
+        if (engine->getControls().count("lfo_1_rate"))
+            engine->getControls().at("lfo_1_rate")->set(lfo1_freq);
     }
     if (what == LFO2_FREQ) {
+        lfo2_freq_raw = (int)val;
         lfo2_freq = f_val * 10;
+        if (engine->getControls().count("lfo_2_rate"))
+            engine->getControls().at("lfo_2_rate")->set(lfo2_freq);
     }
 }
 
@@ -257,6 +268,9 @@ void TwytchsynthMachine::setI(int what, int val)
         if (controls.count("fil_release")) controls.at("fil_release")->set(f_val * 4);
     }
 
+    if (what == FILTER1_TYPE) {
+        filter1_type = val;
+    }
     if (what == FILTER1_CUTOFF) {
         filter1_cutoff = val;
         if (midiDebug_) std::cerr << ">>> Twytch FILTER1_CUTOFF: val=" << val << " f_val=" << f_val << std::endl;
@@ -347,6 +361,32 @@ void TwytchsynthMachine::setI(int what, int val)
         if (controls.count("noise_volume")) {
             controls.at("noise_volume")->set(f_val);
         }
+    }
+    if (what == LFO1_FREQ) {
+        lfo1_freq_raw = val;
+        lfo1_freq = f_val * 10;
+        auto controls = engine->getControls();
+        if (controls.count("lfo_1_rate"))
+            controls.at("lfo_1_rate")->set(lfo1_freq);
+    }
+    if (what == LFO2_FREQ) {
+        lfo2_freq_raw = val;
+        lfo2_freq = f_val * 10;
+        auto controls = engine->getControls();
+        if (controls.count("lfo_2_rate"))
+            controls.at("lfo_2_rate")->set(lfo2_freq);
+    }
+    if (what == LFO1_DEPTH) {
+        lfo1_env_amount = val;
+        auto controls = engine->getControls();
+        if (controls.count("lfo_1_amount"))
+            controls.at("lfo_1_amount")->set(f_val);
+    }
+    if (what == LFO2_DEPTH) {
+        lfo2_env_amount = val;
+        auto controls = engine->getControls();
+        if (controls.count("lfo_2_amount"))
+            controls.at("lfo_2_amount")->set(f_val);
     }
     if (what == AMP) {
         amp_volume = val;

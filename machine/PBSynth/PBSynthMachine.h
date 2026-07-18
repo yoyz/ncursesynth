@@ -99,9 +99,12 @@ class PBSynthMachine : public Machine
 
   int                   osc1_scale;
   int                   osc2_scale;
+  int                   osc1_scale_raw;
+  int                   osc2_scale_raw;
 
-  int                   osc1_detune;
-  int                   osc2_detune;
+   int                   osc1_detune;
+   int                   osc2_detune;
+   int                   filter1_type;
 
 };
 

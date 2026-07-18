@@ -38,7 +38,9 @@ NcursesynthMachine::NcursesynthMachine() : synth_(nullptr), noteOn_(0), noteFreq
     }
 }
 
-NcursesynthMachine::~NcursesynthMachine() {}
+NcursesynthMachine::~NcursesynthMachine() {
+    delete synth_;
+}
 
 void NcursesynthMachine::init() {
     if (synth_) {
@@ -280,7 +282,7 @@ int NcursesynthMachine::getI(int index) {
         float detune = synth_->getOsc1Detune();
         float sign = (detune >= 0) ? 1.0f : -1.0f;
         float normalized = sqrtf(fabsf(detune) / 1.0f);
-        return static_cast<int>(normalized * sign * 64.0f + 64.0f);
+        return static_cast<int>(normalized * sign * 64.0f + 64.0f + 0.5f);
     }
 
     if (index == 65) {

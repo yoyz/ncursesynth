@@ -78,10 +78,12 @@ bool Widget::onKey(int key, Machine* machine) {
         int oldValue = value;
         if (key == Key::LEFT && value > 0)
             value--;
-        else if (key == Key::RIGHT)
+        else if (key == Key::RIGHT && value < discreteCount - 1)
             value++;
         if (value != oldValue) {
+            machine->lock();
             machine->setI(paramId, value);
+            machine->unlock();
             return true;
         }
         return false;
@@ -93,7 +95,9 @@ bool Widget::onKey(int key, Machine* machine) {
     else if (key == Key::RIGHT && value < 127)
         value++;
     if (value != oldValue) {
+        machine->lock();
         machine->setI(paramId, value);
+        machine->unlock();
         return true;
     }
     return false;

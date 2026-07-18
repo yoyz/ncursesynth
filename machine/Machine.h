@@ -5,6 +5,7 @@
 #include <vector>
 #include <utility>
 #include <cstdint>
+#include <mutex>
 
 class Machine {
 public:
@@ -12,6 +13,11 @@ public:
 
     Machine() : name_(""), selected_(false) {}
     virtual ~Machine() {}
+
+    // Thread safety: lock on write from MIDI/UI, try_lock on read from audio
+    void lock() { mtx_.lock(); }
+    void unlock() { mtx_.unlock(); }
+    bool tryLock() { return mtx_.try_lock(); }
 
     virtual void init() {}
     virtual void reset() {}
@@ -42,10 +48,11 @@ public:
     // Preset system
     virtual std::vector<std::pair<std::string, int>> getPresetParams() const;
     virtual bool loadPreset(const std::string& path);
-    virtual bool savePreset(const std::string& path) const;
+    virtual bool savePreset(const std::string& path);
     static std::vector<std::string> getPresetList(const std::string& engineName);
 
 protected:
+    std::mutex mtx_;
     std::string name_;
     bool selected_;
     bool midiDebug_ = false;

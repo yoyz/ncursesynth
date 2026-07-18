@@ -109,9 +109,13 @@ void MidiInput::processMessage(const std::vector<unsigned char>& message) {
         if (mappingMachine) {
             MappingEntry entry = mappingManager.getMappingEntry(cc);
             if (!entry.parameterName.empty()) {
-                float normalized = static_cast<float>(value - entry.minValue) / static_cast<float>(entry.maxValue - entry.minValue);
+                float range = static_cast<float>(entry.maxValue - entry.minValue);
+                if (range == 0.0f) return;
+                float normalized = static_cast<float>(value - entry.minValue) / range;
                 normalized = std::max(0.0f, std::min(1.0f, normalized));
+                mappingMachine->lock();
                 mappingMachine->applyCC(cc, normalized, entry.parameterName);
+                mappingMachine->unlock();
                 MidiCapture::logCC(cc, value);
                 if (midiDebug) std::cerr << "  CC " << cc << " -> " << entry.parameterName << " (" << value << ")" << std::endl;
             }
@@ -141,8 +145,10 @@ void MidiInput::processMessage(const std::vector<unsigned char>& message) {
                 if (synth) synth->noteOn(frequency);
                 if (machine) {
                     activeNotes.insert(note);
+                    machine->lock();
                     machine->setI(70, note);
                     machine->setI(150, 1);
+                    machine->unlock();
                 }
             } else {
                 MidiCapture::logNoteOff(note);
@@ -150,8 +156,10 @@ void MidiInput::processMessage(const std::vector<unsigned char>& message) {
                 if (synth) synth->noteOff(frequency);
                 if (machine) {
                     activeNotes.erase(note);
+                    machine->lock();
                     machine->setI(70, note);
                     machine->setI(150, 0);
+                    machine->unlock();
                 }
             }
             break;
@@ -161,8 +169,10 @@ void MidiInput::processMessage(const std::vector<unsigned char>& message) {
             if (synth) synth->noteOff(frequency);
             if (machine) {
                 activeNotes.erase(note);
+                machine->lock();
                 machine->setI(70, note);
                 machine->setI(150, 0);
+                machine->unlock();
             }
             break;
         default:

@@ -27,6 +27,21 @@ CursynthMachine::CursynthMachine(int polyphony)
     osc1_detune = 0;
     osc2_detune = 0;
     env1_depth = 64;
+    filter1_type = 0;
+    adsr_env0_attack = 0;
+    adsr_env0_decay = 0;
+    adsr_env0_sustain = 127;
+    adsr_env0_release = 0;
+    adsr_env1_attack = 0;
+    adsr_env1_decay = 0;
+    adsr_env1_sustain = 127;
+    adsr_env1_release = 0;
+    osc12_mix = 64;
+    amp_volume = 100;
+    lfo1_freq = 64;
+    lfo2_freq = 64;
+    lfo1_depth = 0;
+    lfo2_depth = 0;
 }
 
 
@@ -128,10 +143,6 @@ int CursynthMachine::checkI(int what, int val)
 
 int CursynthMachine::getI(int what)
 {
-    if (engine == nullptr) return 0;
-
-    mopocursynth::control_map controls = engine->getControls();
-
     if (what == NOTE_ON) return note_on;
     if (what == NOTE1) return note;
     if (what == OSC1_TYPE) return osc1_type;
@@ -140,72 +151,24 @@ int CursynthMachine::getI(int what)
     if (what == OSC2_SCALE) return osc2_scale;
     if (what == OSC1_DETUNE) return osc1_detune;
     if (what == OSC2_DETUNE) return osc2_detune;
-
-    if (what == ADSR_ENV0_ATTACK) {
-        float val = controls.at("amp attack")->current_value();
-        return (int)((val / 3.0f) * 127 + 0.5f);
-    }
-    if (what == ADSR_ENV0_DECAY) {
-        float val = controls.at("amp decay")->current_value();
-        return (int)((val / 3.0f) * 127 + 0.5f);
-    }
-    if (what == ADSR_ENV0_SUSTAIN) {
-        float val = controls.at("amp sustain")->current_value();
-        return (int)(val * 127 + 0.5f);
-    }
-    if (what == ADSR_ENV0_RELEASE) {
-        float val = controls.at("amp release")->current_value();
-        return (int)((val / 3.0f) * 127 + 0.5f);
-    }
-    if (what == ADSR_ENV1_ATTACK) {
-        float val = controls.at("fil attack")->current_value();
-        return (int)((val / 3.0f) * 127 + 0.5f);
-    }
-    if (what == ADSR_ENV1_DECAY) {
-        float val = controls.at("fil decay")->current_value();
-        return (int)((val / 3.0f) * 127 + 0.5f);
-    }
-    if (what == ADSR_ENV1_SUSTAIN) {
-        float val = controls.at("fil sustain")->current_value();
-        return (int)(val * 127 + 0.5f);
-    }
-    if (what == ADSR_ENV1_RELEASE) {
-        float val = controls.at("fil release")->current_value();
-        return (int)((val / 3.0f) * 127 + 0.5f);
-    }
-    if (what == FILTER1_CUTOFF) {
-        return cutoff;
-    }
-    if (what == FILTER1_RESONANCE) {
-        return resonance;
-    }
-    if (what == OSC12_MIX) {
-        float val = controls.at("osc mix")->current_value();
-        return (int)(val * 127 + 0.5f);
-    }
-    if (what == LFO1_FREQ) {
-        float val = controls.at("lfo 1 frequency")->current_value();
-        return (int)(val / 10.0f * 127 + 0.5f);
-    }
-    if (what == LFO2_FREQ) {
-        float val = controls.at("lfo 2 frequency")->current_value();
-        return (int)(val / 10.0f * 127 + 0.5f);
-    }
-    if (what == LFO1_DEPTH) {
-        float val = controls.at("mod scale 1")->current_value();
-        return (int)(val * 127 + 0.5f);
-    }
-    if (what == LFO2_DEPTH) {
-        float val = controls.at("mod scale 2")->current_value();
-        return (int)(val * 127 + 0.5f);
-    }
-    if (what == ENV1_DEPTH) {
-        return env1_depth;
-    }
-    if (what == AMP) {
-        float val = controls.at("volume")->current_value();
-        return (int)(val * 127 + 0.5f);
-    }
+    if (what == ADSR_ENV0_ATTACK) return adsr_env0_attack;
+    if (what == ADSR_ENV0_DECAY) return adsr_env0_decay;
+    if (what == ADSR_ENV0_SUSTAIN) return adsr_env0_sustain;
+    if (what == ADSR_ENV0_RELEASE) return adsr_env0_release;
+    if (what == ADSR_ENV1_ATTACK) return adsr_env1_attack;
+    if (what == ADSR_ENV1_DECAY) return adsr_env1_decay;
+    if (what == ADSR_ENV1_SUSTAIN) return adsr_env1_sustain;
+    if (what == ADSR_ENV1_RELEASE) return adsr_env1_release;
+    if (what == FILTER1_TYPE) return filter1_type;
+    if (what == FILTER1_CUTOFF) return cutoff;
+    if (what == FILTER1_RESONANCE) return resonance;
+    if (what == OSC12_MIX) return osc12_mix;
+    if (what == LFO1_FREQ) return lfo1_freq;
+    if (what == LFO2_FREQ) return lfo2_freq;
+    if (what == LFO1_DEPTH) return lfo1_depth;
+    if (what == LFO2_DEPTH) return lfo2_depth;
+    if (what == ENV1_DEPTH) return env1_depth;
+    if (what == AMP) return amp_volume;
     return 0;
 }
 
@@ -266,34 +229,48 @@ void CursynthMachine::setI(int what, int val)
     }
     if (what == OSC1_DETUNE) {
         osc1_detune = val;
+    }
+    if (what == OSC2_DETUNE) {
+        osc2_detune = val;
         engine->getControls().at("osc 2 tune")->set(((f_val * 2) - 1));
     }
     if (what == OSC1_SCALE) osc1_scale = val;
-    if (what == OSC2_SCALE) osc2_scale = val;
+    if (what == OSC2_SCALE) {
+        osc2_scale = val;
+        engine->getControls().at("osc 2 transpose")->set((float)(val - 2) * 12.0f);
+    }
 
     if (what == ADSR_ENV0_ATTACK) {
+        adsr_env0_attack = val;
         engine->getControls().at("amp attack")->set(f_val * 3);
     }
     if (what == ADSR_ENV0_DECAY) {
+        adsr_env0_decay = val;
         engine->getControls().at("amp decay")->set(f_val * 3);
     }
     if (what == ADSR_ENV0_SUSTAIN) {
+        adsr_env0_sustain = val;
         engine->getControls().at("amp sustain")->set(f_val);
     }
     if (what == ADSR_ENV0_RELEASE) {
+        adsr_env0_release = val;
         engine->getControls().at("amp release")->set(f_val * 3);
     }
 
     if (what == ADSR_ENV1_ATTACK) {
+        adsr_env1_attack = val;
         engine->getControls().at("fil attack")->set(f_val * 3);
     }
     if (what == ADSR_ENV1_DECAY) {
+        adsr_env1_decay = val;
         engine->getControls().at("fil decay")->set(f_val * 3);
     }
     if (what == ADSR_ENV1_SUSTAIN) {
+        adsr_env1_sustain = val;
         engine->getControls().at("fil sustain")->set(f_val);
     }
     if (what == ADSR_ENV1_RELEASE) {
+        adsr_env1_release = val;
         engine->getControls().at("fil release")->set(f_val * 3);
     }
 
@@ -305,14 +282,25 @@ void CursynthMachine::setI(int what, int val)
     }
 
     if (what == LFO1_ENV_AMOUNT) {
+        lfo1_depth = val;
         engine->getControls().at("mod scale 1")->set(f_val);
     }
     if (what == LFO2_ENV_AMOUNT) {
+        lfo2_depth = val;
         engine->getControls().at("mod scale 2")->set(f_val);
+    }
+    if (what == LFO1_FREQ) {
+        lfo1_freq = val;
+        engine->getControls().at("lfo 1 frequency")->set(f_val * 10);
+    }
+    if (what == LFO2_FREQ) {
+        lfo2_freq = val;
+        engine->getControls().at("lfo 2 frequency")->set(f_val * 10);
     }
 
     if (what == VELOCITY) velocity = val;
     if (what == OSC12_MIX) {
+        osc12_mix = val;
         engine->getControls().at("osc mix")->set(f_val);
     }
     if (what == OSC1_MOD) {
@@ -326,6 +314,7 @@ void CursynthMachine::setI(int what, int val)
         engine->getControls().at("fil env depth")->set(((f_val * 2) - 1) * 128);
     }
     if (what == FILTER1_TYPE) {
+        filter1_type = val;
         engine->getControls().at("filter type")->set(f_val * 128);
     }
     if (what == FILTER1_CUTOFF) {
@@ -350,6 +339,7 @@ void CursynthMachine::setI(int what, int val)
     }
 
     if (what == AMP) {
+        amp_volume = val;
         engine->getControls().at("volume")->set(f_val);
     }
 }

@@ -27,6 +27,8 @@
 #include "ui/ncursesynth_ui.h"
 #include "ui/cursynth_ui.h"
 
+static bool g_pcKeyboardMode = false;
+
 std::atomic<bool> running(true);
 
 void signalHandler(int sig) {
@@ -73,6 +75,7 @@ int main(int argc, char* argv[]) {
             std::cout << "  --buffer-size N     Audio buffer size in frames (16-4096, default 256, power-of-2)\n";
             std::cout << "  --latency-ms N      PortAudio suggested latency in ms (1-200, default 20)\n";
             std::cout << "  --limiter-threshold N  Limiter threshold 0.0-1.0 (default 0.85, lower = less headroom)\n";
+            std::cout << "  --pc-keyboard         Enable PC keyboard as piano (AZERTY layout)\n";
             std::cout << "\nControls (UI mode):\n";
             std::cout << "  TAB     Switch menu (Engine/MIDI/Params)\n";
             std::cout << "  ARROWS  Navigate parameters or menu items\n";
@@ -125,6 +128,9 @@ int main(int argc, char* argv[]) {
             latencyMs = atof(argv[++i]);
             if (latencyMs < 1.0) latencyMs = 1.0;
             if (latencyMs > 200.0) latencyMs = 200.0;
+        }
+        if (strcmp(argv[i], "--pc-keyboard") == 0) {
+            g_pcKeyboardMode = true;
         }
         if (strcmp(argv[i], "--limiter-threshold") == 0 && i + 1 < argc) {
             limiterThreshold = atof(argv[++i]);
@@ -288,6 +294,7 @@ int main(int argc, char* argv[]) {
         ui->setRenderer(&renderer);
         ui->setMidiInput(&midiInput);
         ui->setMidiDeviceIndex(midiInput.getSelectedPort());
+        ui->setPcKeyboardMode(g_pcKeyboardMode);
         ui->init();
         ui->draw();
 
@@ -331,6 +338,7 @@ int main(int argc, char* argv[]) {
                 ui->setMenuSelection(savedMenuSelection);
                 ui->setMidiDeviceIndex(savedMidiDeviceIndex);
                 ui->setPresetIndex(savedPresetIndex);
+                ui->setPcKeyboardMode(g_pcKeyboardMode);
                 ui->init();
                 ui->scanPresets();
 
@@ -347,7 +355,8 @@ int main(int argc, char* argv[]) {
             }
 
             ui->draw();
-            std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            int sleepMs = (fpsLimit > 0) ? (1000 / fpsLimit) : 30;
+            std::this_thread::sleep_for(std::chrono::milliseconds(sleepMs));
         }
 
         ui->stop();

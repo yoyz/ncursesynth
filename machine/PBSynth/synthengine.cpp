@@ -7,29 +7,15 @@
 #include "filter.h"
 #include "archdep.h"
 
-SynthEngine::SynthEngine(int samplesPerTick, long max_delaylen) {
+SynthEngine::SynthEngine(int samplesPerTick, long max_delaylen)
+  : echo(nullptr), lfos{nullptr, nullptr}, envelopes{nullptr, nullptr},
+    oscillators{nullptr, nullptr}, filters{nullptr, nullptr} {
 
   mdl=max_delaylen;
   granu_counter = samplesPerTick;
   this->samplesPerTick = samplesPerTick;
 
   base = 3;
-
-  //granu_counter = samplesPerTick;
-  //this->samplesPerTick = samplesPerTick;
-  /*
-  echo = new Echo(max_delaylen);
-  lfos[0] = new LFO(samplesPerTick);
-  lfos[1] = new LFO(samplesPerTick);
-  envelopes[0] = new Envelope(samplesPerTick);
-  envelopes[1] = new Envelope(samplesPerTick);
-  oscillators[0] = new PBSynthOscillator();
-  oscillators[1] = new PBSynthOscillator();
-  filters[0] = new PBSynthFilter();
-  filters[1] = new PBSynthFilter();
-  
-  reset();
-  */
 
 }
 

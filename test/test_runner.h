@@ -48,8 +48,10 @@ public:
     const std::vector<std::string>& getEngineNames() const { return engines_; }
     int getFailedCount() const;
     double getPassRate() const;
+    std::vector<std::string> getPassedNames() const;
+    std::vector<std::string> getFailedNames() const;
 
-    const TestReporter& getReporter() const { return reporter_; }
+    TestReporter& getReporter() { return reporter_; }
 
     bool runAllTests(Machine* machine, bool useFFT = false, const std::vector<std::string>& testNames = {});
 

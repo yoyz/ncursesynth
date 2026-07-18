@@ -42,6 +42,11 @@ float OberheimSEMFilter::process(float input) {
     float lp_temp = lp + (f * bp_temp);
     lp = lp_temp;
     bp = bp_temp;
+
+    // Flush denormals to zero
+    if (fabsf(lp) < 1e-18f) lp = 0.0f;
+    if (fabsf(bp) < 1e-18f) bp = 0.0f;
+
     return lp;
 }
 

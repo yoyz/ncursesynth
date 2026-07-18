@@ -185,7 +185,9 @@ bool MappingManager::applyMapping(SynthArchitecture* synth, int cc, float value)
     if (!mapping->hasCC(cc)) return false;
 
     MappingEntry entry = mapping->getEntry(cc);
-    float normalized = (value - entry.minValue) / (entry.maxValue - entry.minValue);
+    float range = entry.maxValue - entry.minValue;
+    if (range == 0.0f) return false;
+    float normalized = (value - entry.minValue) / range;
     normalized = std::max(0.0f, std::min(1.0f, normalized));
 
     std::string param = entry.parameterName;

@@ -4,6 +4,7 @@
 DelayEffect::DelayEffect() 
     : writePosition(0), readPosition(0), delayTimeMs(250.0f), 
       feedback(0.4f), mix(0.0f), enabled(false), sampleRate(48000.0f), delaySamples(0) {
+    buffer.resize(48001, 0.0f);
     setSampleRate(48000.0f);
 }
 
@@ -12,14 +13,14 @@ DelayEffect::~DelayEffect() {}
 void DelayEffect::setSampleRate(float rate) {
     sampleRate = rate;
     delaySamples = static_cast<int>((delayTimeMs / 1000.0f) * sampleRate);
-    buffer.resize(delaySamples + 1, 0.0f);
+    if (delaySamples + 1 > (int)buffer.size()) buffer.resize(delaySamples + 1, 0.0f);
     reset();
 }
 
 void DelayEffect::setDelayTime(float ms) {
     delayTimeMs = std::max(1.0f, std::min(1000.0f, ms));
     delaySamples = static_cast<int>((delayTimeMs / 1000.0f) * sampleRate);
-    buffer.resize(delaySamples + 1, 0.0f);
+    if (delaySamples + 1 > (int)buffer.size()) buffer.resize(delaySamples + 1, 0.0f);
     reset();
 }
 

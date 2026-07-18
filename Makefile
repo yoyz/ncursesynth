@@ -293,6 +293,7 @@ clean:
 	rm -f test/*.o midi/*.o
 	rm -f midi/midi_learn midi/midi_client
 	rm -f midi_learn midi_client test_runner test_ui
+	find . -name '*.o' -type f -delete 2>/dev/null || true
 
 .PHONY: all clean run test test_runner test_ui midi midi_tools midi_learn midi_client
 

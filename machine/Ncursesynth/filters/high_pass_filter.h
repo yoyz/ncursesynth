@@ -8,7 +8,7 @@ private:
     float sampleRate;
     float cutoff;
     float res;
-    float z1, z2;
+    float z1;
     
 public:
     HighPassFilter(float rate = 48000.0f);

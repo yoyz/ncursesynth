@@ -1,5 +1,6 @@
 #include "machine_ui.h"
 #include "ui_layout.h"
+#include "../machine/ParamID.h"
 #include "../midi/midi_input.h"
 #include "../midi/midi_mapping.h"
 #include "../audio/audio_level.h"
@@ -8,10 +9,17 @@
 #include <cctype>
 #include <chrono>
 
+// AZERTY → chromatic note mapping (one octave, C4 = MIDI 60)
+static const char PC_NOTE_KEYS[] = {
+    'a', 'z', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '^', '$'
+};
+static const int PC_NOTE_COUNT = 12;
+
 MachineUI::MachineUI(Machine* mach, MachineManager* mgr)
     : selectedControl(0), machine(mach), machineManager(mgr),
       midiInput(nullptr), renderer(nullptr), screenRows(0), screenCols(0),
       lastMidiNote(-1), lastMidiVel(0), midiActivity(false),
+      pcKeyboardMode(false), pcOctave(4),
       menuSelection(0), menuIndex(0), midiDeviceIndex(-1), mappingIndex(0),
       presetIndex(0), presetInputMode(false), statusTimer(0) {
     columnTitles[0] = "OSCILLATORS";
@@ -30,9 +38,11 @@ void MachineUI::init() {
     }
 
     if (machine) {
+        machine->lock();
         for (const auto& w : widgets) {
             machine->setI(w.paramId, w.value);
         }
+        machine->unlock();
         updateControlValues();
     }
 }
@@ -47,12 +57,14 @@ void MachineUI::drawColumnHeader(int col, const char* title) {
 void MachineUI::updateControlValues() {
     if (!machine) return;
 
+    machine->lock();
     for (auto& w : widgets) {
         int raw = machine->getI(w.paramId);
         if (raw >= 0 && raw <= 128) {
             w.value = (raw > 127) ? 127 : raw;
         }
     }
+    machine->unlock();
 
     midiActivity = false;
 }
@@ -91,8 +103,15 @@ void MachineUI::draw() {
         renderer->write(screenRows - 2, 2, "Enter preset name: " + presetInputBuffer + "_");
         renderer->write(screenRows - 3, 2, "Press ENTER to save, ESC to cancel");
     } else if (menuSelection == 0) {
-        renderer->write(screenRows - 3, 2,
-            "TAB: Menu | ARROWS: Navigate | 1-9: Set | PGUP/DN: Adjust | S:Save | C:Create | Q:Quit");
+        if (pcKeyboardMode) {
+            char buf[80];
+            snprintf(buf, sizeof(buf),
+                "a-z=keys | Z/X:Octave(%d) | ARROWS:Params | 1-9:Set | S:Save | Q:Quit", pcOctave);
+            renderer->write(screenRows - 3, 2, buf);
+        } else {
+            renderer->write(screenRows - 3, 2,
+                "TAB: Menu | ARROWS: Navigate | 1-9: Set | PGUP/DN: Adjust | S:Save | C:Create | Q:Quit");
+        }
     } else if (menuSelection == 1) {
         renderer->write(screenRows - 3, 2,
             "LEFT/RIGHT: Switch | TAB: Params | Q: Quit");
@@ -252,6 +271,30 @@ void MachineUI::handleInput(int ch) {
         return;
     }
 
+    // PC keyboard note playing (only in parameter mode)
+    if (pcKeyboardMode && menuSelection == 0 && machine) {
+        if (ch == 'Z') { pcOctave = (pcOctave > 0) ? pcOctave - 1 : 0; return; }
+        if (ch == 'X') { pcOctave = (pcOctave < 9) ? pcOctave + 1 : 9; return; }
+        for (int i = 0; i < PC_NOTE_COUNT; i++) {
+            if (ch == PC_NOTE_KEYS[i]) {
+                int midiNote = (pcOctave * 12) + i;
+                machine->lock();
+                machine->setI(ParamID::note, midiNote);
+                if (pcActiveKeys[ch]) {
+                    pcActiveKeys[ch] = false;
+                    machine->setI(ParamID::note_on, 0);
+                } else {
+                    pcActiveKeys[ch] = true;
+                    machine->setI(ParamID::velocity, 100);
+                    machine->setI(ParamID::note_on, 1);
+                    setMidiNote(midiNote, 100);
+                }
+                machine->unlock();
+                return;
+            }
+        }
+    }
+
     if (ch == '\t') {
         menuSelection = (menuSelection == 0) ? 1 : 0;
         return;
@@ -340,7 +383,9 @@ void MachineUI::handleInput(int ch) {
                 } else {
                     w.value = (int)(val * 127 + 0.5f);
                 }
+                machine->lock();
                 machine->setI(w.paramId, w.value);
+                machine->unlock();
             }
         }
     }
@@ -357,17 +402,24 @@ void MachineUI::handleNavigation(int ch) {
         }
     } else if (ch == Key::PAGE_UP) {
         if (selectedControl >= 0 && selectedControl < (int)widgets.size()) {
-            int& val = widgets[selectedControl].value;
+            auto& w = widgets[selectedControl];
+            int& val = w.value;
             val += 13;
-            if (val > 127) val = 127;
-            machine->setI(widgets[selectedControl].paramId, val);
+            int maxVal = (w.type == WidgetType::DISCRETE) ? w.discreteCount - 1 : 127;
+            if (val > maxVal) val = maxVal;
+            machine->lock();
+            machine->setI(w.paramId, val);
+            machine->unlock();
         }
     } else if (ch == Key::PAGE_DOWN) {
         if (selectedControl >= 0 && selectedControl < (int)widgets.size()) {
-            int& val = widgets[selectedControl].value;
+            auto& w = widgets[selectedControl];
+            int& val = w.value;
             val -= 13;
             if (val < 0) val = 0;
-            machine->setI(widgets[selectedControl].paramId, val);
+            machine->lock();
+            machine->setI(w.paramId, val);
+            machine->unlock();
         }
     }
 }
@@ -423,16 +475,18 @@ bool MachineUI::loadPreset(int index) {
 
     bool ok = true;
     if (index == 0 && presets[index].path.empty()) {
+        machine->lock();
         machine->init();
+        machine->unlock();
         updateControlValues();
         presetIndex = 0;
     } else {
+        machine->lock();
         ok = machine->loadPreset(presets[index].path);
+        machine->unlock();
         if (ok) {
             presetIndex = index;
             updateControlValues();
-        } else {
-            presetIndex = index;
         }
     }
     return ok;

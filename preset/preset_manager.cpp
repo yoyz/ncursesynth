@@ -215,9 +215,6 @@ bool PresetManager::saveCurrentAsNew(const std::string& name, SynthArchitecture*
     
     // Try multiple path possibilities
     std::string fullPath = bankPath + "/" + filename;
-    printf("DEBUG: Initial fullPath = %s\n", fullPath.c_str());
-    
-    // Check if path exists, if not try alternatives
     
     // Check if path exists, if not try alternatives
     struct stat st;
@@ -237,7 +234,6 @@ bool PresetManager::saveCurrentAsNew(const std::string& name, SynthArchitecture*
         }
     }
     
-    printf("DEBUG: Trying path = %s\n", fullPath.c_str());
     
     // Update the global bankPath to match where we actually saved
     // Find the directory part of fullPath
@@ -246,8 +242,6 @@ bool PresetManager::saveCurrentAsNew(const std::string& name, SynthArchitecture*
         std::string savedDir = fullPath.substr(0, dirSlash);
         bankPath = savedDir;
     }
-    
-    printf("DEBUG: Final bankPath = %s\n", bankPath.c_str());
     
     // Save the preset to file
     std::map<std::string, std::string> params;

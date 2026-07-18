@@ -4,6 +4,7 @@
 ChorusEffect::ChorusEffect() 
     : writePosition(0), depth(0.5f), rate(0.5f), mix(0.0f), 
       enabled(false), sampleRate(48000.0f), phase(0.0f), maxDelaySamples(0) {
+    buffer.resize(4800, 0.0f);
     setSampleRate(48000.0f);
 }
 
@@ -12,7 +13,7 @@ ChorusEffect::~ChorusEffect() {}
 void ChorusEffect::setSampleRate(float rate) {
     sampleRate = rate;
     maxDelaySamples = static_cast<int>(sampleRate * 0.05f); // 50ms max delay
-    buffer.resize(maxDelaySamples * 2, 0.0f);
+    if (maxDelaySamples * 2 > (int)buffer.size()) buffer.resize(maxDelaySamples * 2, 0.0f);
     reset();
 }
 

@@ -14,10 +14,6 @@ private:
     float freq;
     Waveform waveform;
     
-    float generateSawtooth();
-    float generateSquare();
-    float generateTriangle();
-    
 public:
     SawtoothOscillator(float rate = 48000.0f);
     ~SawtoothOscillator();

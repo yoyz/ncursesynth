@@ -81,6 +81,22 @@ const char* getDisplayString(int index) override;
 
     int                   velocity;
     int                   env1_depth;
+    int                   filter1_type;
+
+    int                   adsr_env0_attack;
+    int                   adsr_env0_decay;
+    int                   adsr_env0_sustain;
+    int                   adsr_env0_release;
+    int                   adsr_env1_attack;
+    int                   adsr_env1_decay;
+    int                   adsr_env1_sustain;
+    int                   adsr_env1_release;
+    int                   osc12_mix;
+    int                   amp_volume;
+    int                   lfo1_freq;
+    int                   lfo2_freq;
+    int                   lfo1_depth;
+    int                   lfo2_depth;
 
 };
 

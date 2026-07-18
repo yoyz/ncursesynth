@@ -5,6 +5,7 @@
 ReverbEffect::ReverbEffect() 
     : writePosition(0), decay(0.5f), mix(0.0f), enabled(false), 
       sampleRate(48000.0f), reverbSize(0) {
+    buffer.resize(24001, 0.0f);
     setSampleRate(48000.0f);
 }
 
@@ -13,7 +14,7 @@ ReverbEffect::~ReverbEffect() {}
 void ReverbEffect::setSampleRate(float rate) {
     sampleRate = rate;
     reverbSize = static_cast<int>(sampleRate * 0.5f); // 500ms reverb
-    buffer.resize(reverbSize, 0.0f);
+    if (reverbSize > (int)buffer.size()) buffer.resize(reverbSize, 0.0f);
     reset();
 }
 

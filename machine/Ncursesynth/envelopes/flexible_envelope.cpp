@@ -164,8 +164,11 @@ float FlexibleEnvelope::process() {
             }
             
             // Map currentLevel [1.0..sustain] to progress [0..1], output goes from 1.0 down to sustain
+            if (sustain >= 1.0f) {
+                lastOutput = 1.0f;
+                return 1.0f;
+            }
             float progress = (1.0f - currentLevel) / (1.0f - sustain);
-            if (sustain >= 1.0f) progress = 0.0f;
             float shaped = applyCurve(progress, decayCurve);
             lastOutput = 1.0f - (1.0f - sustain) * shaped;
             return lastOutput;

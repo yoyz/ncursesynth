@@ -5,6 +5,7 @@
 #include <map>
 #include <cctype>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <dirent.h>
 #include <cerrno>
 #include <cstring>
@@ -62,7 +63,7 @@ bool Machine::loadPreset(const std::string& path) {
     return true;
 }
 
-bool Machine::savePreset(const std::string& path) const {
+bool Machine::savePreset(const std::string& path) {
     auto params = getPresetParams();
     if (params.empty()) return false;
 
@@ -71,7 +72,7 @@ bool Machine::savePreset(const std::string& path) const {
 
     file << "# " << name_ << " preset\n";
     for (const auto& p : params) {
-        int val = const_cast<Machine*>(this)->getI(p.second);
+        int val = getI(p.second);
         file << p.first << "=" << val << "\n";
     }
 
@@ -93,7 +94,14 @@ std::vector<std::string> Machine::getPresetList(const std::string& engineName) {
 
     struct dirent* entry;
     while ((entry = readdir(dir)) != nullptr) {
-        if (entry->d_type == DT_REG) {
+        bool isRegular = (entry->d_type == DT_REG);
+        if (entry->d_type == DT_UNKNOWN || entry->d_type == DT_LNK) {
+            struct stat st;
+            std::string fullPath = dirPath + "/" + entry->d_name;
+            if (stat(fullPath.c_str(), &st) == 0)
+                isRegular = S_ISREG(st.st_mode);
+        }
+        if (isRegular) {
             std::string name = entry->d_name;
             if (name != "index.txt" && name[0] != '.') {
                 presets.push_back(name);

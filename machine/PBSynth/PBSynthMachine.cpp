@@ -8,7 +8,7 @@ PBSynthMachine::PBSynthMachine(int polyphony)
     : polyphony_(polyphony), currentVoice(0), cutoff(125), resonance(10),
       lfo_depth(0), lfo_depth_shift(20), lfo_speed(0),
       trig_time_mode(0), trig_time_duration(0), trig_time_duration_sample(0),
-      osc1_scale(0), osc2_scale(0)
+      osc1_scale(0), osc2_scale(0), filter1_type(0)
 {
     setName("PBSynth");
     DPRINTF("PBSynthMachine::PBSynthMachine()");
@@ -92,6 +92,8 @@ void PBSynthMachine::init()
     keyon = 0;
     osc1_scale = 0;
     osc2_scale = 0;
+    osc1_scale_raw = 64;
+    osc2_scale_raw = 64;
     amp_volume = 90; // 70%
 }
 
@@ -230,8 +232,8 @@ int PBSynthMachine::getI(int what)
   if (what == NOTE1) return note;
   if (what == OSC1_TYPE) return osc1_type;
   if (what == OSC2_TYPE) return osc2_type;
-  if (what == OSC1_SCALE) return osc1_scale;
-  if (what == OSC2_SCALE) return osc2_scale;
+  if (what == OSC1_SCALE) return osc1_scale_raw;
+  if (what == OSC2_SCALE) return osc2_scale_raw;
   if (what == OSC1_DETUNE) return osc1_detune;
   if (what == OSC2_DETUNE) return osc2_detune;
   if (what == ADSR_ENV0_ATTACK) {
@@ -266,6 +268,7 @@ int PBSynthMachine::getI(int what)
       float r = se->getEnvelope(1)->getR();
       return (int)((r + 1.0f) * 64.0f + 0.5f);
   }
+  if (what == FILTER1_TYPE) return filter1_type;
   if (what == FILTER1_CUTOFF) {
       return cutoff;
   }
@@ -424,8 +427,8 @@ void PBSynthMachine::setI(int what,int val)
     if (what==OSC2_TYPE)           { osc2_type = val; for (auto& v : voices) if(v.se) v.se->getPBSynthOscillator(1)->setWave(this->checkI(OSC2_TYPE,val)); }
     if (what==OSC1_DETUNE)         { osc1_detune = val; for (auto& v : voices) if(v.se) v.se->getPBSynthOscillator(0)->setDetune(this->checkI(OSC1_DETUNE,val)+64); }
     if (what==OSC2_DETUNE)         { osc2_detune = val; for (auto& v : voices) if(v.se) v.se->getPBSynthOscillator(1)->setDetune(this->checkI(OSC2_DETUNE,val)+64); }
-    if (what==OSC1_SCALE)          osc1_scale=(int)((val / 127.0f) * 48.0f - 24.0f);
-    if (what==OSC2_SCALE)          osc2_scale=(int)((val / 127.0f) * 48.0f - 24.0f);
+    if (what==OSC1_SCALE)          { osc1_scale=(int)((val / 127.0f) * 48.0f - 24.0f); osc1_scale_raw = val; }
+    if (what==OSC2_SCALE)          { osc2_scale=(int)((val / 127.0f) * 48.0f - 24.0f); osc2_scale_raw = val; }
 
 
     if (what==ADSR_ENV0_ATTACK)    { for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setA((f_val*2.0f)-1.0f); }
@@ -456,6 +459,9 @@ void PBSynthMachine::setI(int what,int val)
 
     if (what==AMP) amp_volume = val;
 
+    if (what==FILTER1_TYPE) {
+      filter1_type = val;
+    }
     if (what==FILTER1_CUTOFF) {
       cutoff = val;
       for (auto& v : voices) if(v.se) v.se->setParameter(SENGINE_FILTFREQ,(f_val*2)-1);
