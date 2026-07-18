@@ -226,12 +226,12 @@ TEST_MACHINE_OBJECTS = $(TEST_CORE_OBJECTS) \
                     $(TEST_TWYTCH_MACHINE_OBJECTS)
 
 TEST_OBJECTS = test_runner.o \
-              fake_audio_driver.o \
               fft_analyzer.o \
               test_reporter.o \
-              midi_simulator.o \
               test_helpers.o \
               test_engine.o \
+              fake_audio_driver.o \
+              midi_simulator.o \
               $(TEST_MACHINE_OBJECTS)
 
 # =============================================================================
@@ -260,13 +260,13 @@ midi/midi_client: midi/midi_client.cpp
 # =============================================================================
 # TEST FRAMEWORK
 # =============================================================================
-test: test/test_runner.o test/fake_audio_driver.o test/fft_analyzer.o test/test_reporter.o test/midi_simulator.o test/test_helpers.o test/test_engine.o $(TEST_MACHINE_OBJECTS)
+test: test/test_runner.o test/fft_analyzer.o test/test_reporter.o test/test_helpers.o test/test_engine.o test/fake_audio_driver.o test/midi_simulator.o $(TEST_MACHINE_OBJECTS)
 	@echo "Test framework built"
 
-test_runner.o fake_audio_driver.o fft_analyzer.o test_reporter.o midi_simulator.o test_helpers.o test_engine.o: %.o: test/%.cpp
+test_runner.o fft_analyzer.o test_reporter.o test_helpers.o test_engine.o fake_audio_driver.o midi_simulator.o: %.o: test/%.cpp
 	$(CXX) $(TEST_CXXFLAGS) -c $< -o $@
 
-test_runner: test/test_runner.o test/fake_audio_driver.o test/fft_analyzer.o test/test_reporter.o test/midi_simulator.o test/test_helpers.o $(TEST_MACHINE_OBJECTS)
+test_runner: test/test_runner.o test/fft_analyzer.o test/test_reporter.o test/test_helpers.o test/test_engine.o test/fake_audio_driver.o test/midi_simulator.o $(TEST_MACHINE_OBJECTS)
 	$(CXX) $(TEST_CXXFLAGS) -o $@ $^ $(TEST_LDFLAGS)
 	@echo ""
 	@echo "Testing can be done using the following command"
@@ -289,7 +289,7 @@ test/ui_test.o: test/ui_test.cpp
 # =============================================================================
 clean:
 	rm -f $(OBJECTS) $(TARGET)
-	rm -f test_runner.o fake_audio_driver.o fft_analyzer.o test_reporter.o midi_simulator.o test_helpers.o test_engine.o test/ui_test.o
+	rm -f test_runner.o fft_analyzer.o test_reporter.o test_helpers.o test_engine.o fake_audio_driver.o midi_simulator.o test/ui_test.o
 	rm -f test/*.o midi/*.o
 	rm -f midi/midi_learn midi/midi_client
 	rm -f midi_learn midi_client test_runner test_ui

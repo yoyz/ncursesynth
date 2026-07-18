@@ -21,11 +21,11 @@ void TestReporter::setEnvironmentInfo(const std::vector<std::pair<std::string, s
 }
 
 void TestReporter::startTest(const std::string& name) {
-    // Start time
     (void)name;
 }
 
 void TestReporter::endTest(const std::string& name, bool passed, bool fft) {
+    (void)fft;
     if (passed) {
         passedTests_.push_back(name);
     } else {
@@ -43,29 +43,46 @@ void TestReporter::endTest(const std::string& name, bool passed) {
 
 void TestReporter::printReport(const std::vector<std::string>& passedTests,
                                const std::vector<std::string>& failedTests) {
-    (void)passedTests;
-    (void)failedTests;
+    int total = passedTests.size() + failedTests.size();
+    std::cout << "\n=== Test Report ===" << std::endl;
+    std::cout << "Total: " << total << std::endl;
+    std::cout << "Passed: " << passedTests.size() << std::endl;
+    std::cout << "Failed: " << failedTests.size() << std::endl;
+    if (total > 0) {
+        std::cout << "Rate: " << std::fixed << std::setprecision(1)
+                  << (100.0 * passedTests.size() / total) << "%" << std::endl;
+    }
+    if (!failedTests.empty()) {
+        std::cout << "\nFailed tests:" << std::endl;
+        for (const auto& t : failedTests) {
+            std::cout << "  - " << t << std::endl;
+        }
+    }
 }
 
 void TestReporter::printReport(const std::vector<std::string>& passedTests,
                                const std::vector<std::string>& failedTests,
                                const std::vector<std::string>& allTests) {
-    (void)passedTests;
-    (void)failedTests;
-    (void)allTests;
+    printReport(passedTests, failedTests);
+    std::cout << "\nAll tests run:" << std::endl;
+    for (const auto& t : allTests) {
+        std::cout << "  - " << t << std::endl;
+    }
 }
 
 void TestReporter::printReport(const std::vector<std::string>& passedTests,
                                const std::vector<std::string>& failedTests,
                                const std::vector<std::string>& allTests,
                                const std::vector<std::string>& fftTests) {
-    (void)passedTests;
-    (void)failedTests;
-    (void)allTests;
-    (void)fftTests;
+    printReport(passedTests, failedTests, allTests);
+    if (!fftTests.empty()) {
+        std::cout << "\nFFT-analyzed tests:" << std::endl;
+        for (const auto& t : fftTests) {
+            std::cout << "  - " << t << std::endl;
+        }
+    }
 }
 
 double TestReporter::getAverageDuration() const {
-    (void)0;
     return 0.0;
 }

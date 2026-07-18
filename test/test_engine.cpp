@@ -1,6 +1,11 @@
 #include "test_engine.h"
 #include "fft_analyzer.h"
 
+TestContext::TestContext(TestRunner* runner, const std::string& engineName, bool verbose)
+    : runner_(runner), engineName_(engineName), verbose_(verbose) {}
+
+TestContext::~TestContext() {}
+
 float TestHelpers::midiNoteToFrequency(int midiNote) {
     return FFTAnalyzer::midiToFrequency(midiNote);
 }

@@ -31,8 +31,4 @@ public:
     static bool noClipping(float maxSample, float threshold);
 };
 
-bool executeNoteOnOffTest(void* context);
-bool executeCCControlTest(void* context);
-bool executeFilterEnvelopeTest(void* context);
-
 #endif

@@ -51,6 +51,7 @@ private:
     std::vector<MidiMessage> sentMessages_;
     std::mutex msgMutex_;
     bool initialized_;
+    std::thread asyncThread_;
 };
 
 #endif

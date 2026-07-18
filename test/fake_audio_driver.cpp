@@ -22,14 +22,16 @@ static int headlessCallback(const void* inputBuffer, void* outputBuffer,
     FakeAudioDriver* driver = static_cast<FakeAudioDriver*>(userData);
     
     if (driver->generateTone_) {
+        float freq = driver->toneFrequency_;
+        float sampleRate = static_cast<float>(driver->getSampleRate());
         for (uint32_t i = 0; i < frames; i++) {
-            float freq = driver->toneFrequency_;
-            float t = static_cast<float>(i) / (driver->getSampleRate() * 2.0f);
+            float t = static_cast<float>(driver->phaseAccumulator_ + i) / sampleRate;
             float sample = 0.5f * static_cast<float>(sin(2.0f * 3.14159f * freq * t));
             // Stereo output
             ((float*)outputBuffer)[i * 2] = sample;
             ((float*)outputBuffer)[i * 2 + 1] = sample;
         }
+        driver->phaseAccumulator_ += frames;
     } else {
         // Silenced output
         memset(outputBuffer, 0, frames * sizeof(float) * 2);
@@ -41,7 +43,8 @@ static int headlessCallback(const void* inputBuffer, void* outputBuffer,
 FakeAudioDriver::FakeAudioDriver() : stream_(nullptr), sampleRate_(48000), 
                                       framesPerBuffer_(256), isRunning_(false), 
                                       samplesCaptured_(0), dataMutex_(),
-                                      generateTone_(false), toneNote_(0), toneFrequency_(440.0f) {}
+                                      generateTone_(false), toneNote_(0), toneFrequency_(440.0f),
+                                      phaseAccumulator_(0.0) {}
 
 FakeAudioDriver::~FakeAudioDriver() {
     stop();

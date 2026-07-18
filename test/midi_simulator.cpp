@@ -4,7 +4,11 @@
 
 MidiSimulator::MidiSimulator() : initialized_(false) {}
 
-MidiSimulator::~MidiSimulator() {}
+MidiSimulator::~MidiSimulator() {
+    if (asyncThread_.joinable()) {
+        asyncThread_.join();
+    }
+}
 
 bool MidiSimulator::initialize() {
     initialized_ = true;
@@ -89,12 +93,15 @@ const std::vector<MidiMessage>& MidiSimulator::getSentMessages() const {
 }
 
 void MidiSimulator::sendAsync(const std::vector<MidiMessage>& messages) {
-    std::thread([this, messages]() {
+    if (asyncThread_.joinable()) {
+        asyncThread_.join();
+    }
+    asyncThread_ = std::thread([this, messages]() {
         std::lock_guard<std::mutex> lock(msgMutex_);
         for (const auto& msg : messages) {
             sentMessages_.push_back(msg);
         }
-    }).detach();
+    });
 }
 
 void MidiSimulator::sendAll() {

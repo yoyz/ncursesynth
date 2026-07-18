@@ -63,6 +63,7 @@ public:
     bool generateTone_;
     int toneNote_;
     float toneFrequency_;
+    double phaseAccumulator_;
 private:
 };
 

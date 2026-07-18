@@ -6,13 +6,11 @@
 #include <string>
 #include <vector>
 
-// Constants
 constexpr int NUM_SAMPLES = 1024;
 constexpr float RMS_THRESHOLD = 0.01f;
 constexpr float CLIP_THRESHOLD = 0.99f;
-constexpr float FREQUENCY_TOLERANCE = 1.0f; // semitones
+constexpr float FREQUENCY_TOLERANCE = 1.0f;
 
-// Function declarations
 bool runSoundProductionTests(class Machine* machine, bool useFFT);
 bool runVolumeSilenceTest(class Machine* machine, bool useFFT);
 bool runVolumeNoClipTest(class Machine* machine, bool useFFT);
@@ -27,5 +25,17 @@ bool runEnvelopeTests(class Machine* machine, bool useFFT);
 bool runPresetTests(class Machine* machine, bool useFFT);
 bool runFilterFullTests(class Machine* machine, bool useFFT);
 bool runFilterFull2Tests(class Machine* machine, bool useFFT);
+bool runCCMappingTests(class Machine* machine, bool useFFT);
+bool runMidiMappingLoadTests(class Machine* machine, bool useFFT);
+bool runPresetRoundtripTests(class Machine* machine, bool useFFT);
+bool runLFOModulationTests(class Machine* machine, bool useFFT);
+bool runOscCrossModTests(class Machine* machine, bool useFFT);
+bool runEffectsTests(class Machine* machine, bool useFFT);
+bool runFilterSwitchTests(class Machine* machine, bool useFFT);
+bool runNoteStealTests(class Machine* machine, bool useFFT);
+bool runPortamentoTests(class Machine* machine, bool useFFT);
+bool runEdgeCaseTests(class Machine* machine, bool useFFT);
+bool runBipolarParamTests(class Machine* machine, bool useFFT);
+bool runLongRunningTests(class Machine* machine, bool useFFT);
 
 #endif

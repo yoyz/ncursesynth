@@ -166,6 +166,8 @@ int main() {
         printResult(et.name + " draw()", drawOk);
     }
 
+    endwin();
+    delscreen(screen);
     fclose(nullOut);
 
     int total = g_passed + g_failed;
