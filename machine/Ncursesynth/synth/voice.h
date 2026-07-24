@@ -11,6 +11,11 @@
 #include "../filters/diode_filter.h"
 #include "../filters/formant_filter.h"
 #include "../filters/comb_filter.h"
+#include "../filters/vital_one_pole.h"
+#include "../filters/vital_sallen_key_filter.h"
+#include "../filters/vital_digital_svf_filter.h"
+#include "../filters/vital_ladder_filter.h"
+#include "../filters/vital_dirty_filter.h"
 #include "../envelopes/flexible_envelope.h"
 
 enum class FilterType {
@@ -24,7 +29,11 @@ enum class FilterType {
     SVF_AP12,
     DIODE,
     FORMANT,
-    COMB
+    COMB,
+    VITAL_SALLEN_KEY,
+    VITAL_DIGITAL_SVF,
+    VITAL_LADDER,
+    VITAL_DIRTY
 };
 
 class Voice {
@@ -39,6 +48,10 @@ private:
     DiodeFilter diodeLadder;
     FormantFilter formantFilter;
     CombFilter combFilterInstance;
+    VitalSallenKeyFilter vitalSallenKeyFilter;
+    VitalDigitalSvfFilter vitalDigitalSvfFilter;
+    VitalLadderFilter vitalLadderFilter;
+    VitalDirtyFilter vitalDirtyFilter;
     FlexibleEnvelope amplitudeEnvelope;
     FlexibleEnvelope filterEnvelope;
     FilterBase* currentFilter;

@@ -29,7 +29,7 @@ void NcursesynthUI::initControls() {
 
     widgets.emplace_back("CUTOFF", ParamID::cutoff, 0, 40, WidgetType::CONTINUOUS, 0.8f);
     widgets.emplace_back("RESONANCE", ParamID::resonance, 1, 40, WidgetType::CONTINUOUS, 0.2f);
-    widgets.emplace_back("FILTER TYPE", ParamID::filter_type, 2, 40, WidgetType::DISCRETE, 0.0f, 11);
+    widgets.emplace_back("FILTER TYPE", ParamID::filter_type, 2, 40, WidgetType::DISCRETE, 0.0f, 15);
 
     widgets.emplace_back("FENV ATTACK", ParamID::flt_attack, 3, 40, WidgetType::CONTINUOUS, 0.1f);
     widgets.emplace_back("FENV DECAY", ParamID::flt_decay, 4, 40, WidgetType::CONTINUOUS, 0.3f);

@@ -13,6 +13,10 @@ Voice::Voice(float sampleRate)
       diodeLadder(sampleRate),
       formantFilter(sampleRate),
       combFilterInstance(sampleRate),
+      vitalSallenKeyFilter(sampleRate),
+      vitalDigitalSvfFilter(sampleRate),
+      vitalLadderFilter(sampleRate),
+      vitalDirtyFilter(sampleRate),
       amplitudeEnvelope(sampleRate),
       filterEnvelope(sampleRate),
       frequency(440.0f),
@@ -50,6 +54,10 @@ void Voice::setSampleRate(float rate) {
     diodeLadder.setSampleRate(rate);
     formantFilter.setSampleRate(rate);
     combFilterInstance.setSampleRate(rate);
+    vitalSallenKeyFilter.setSampleRate(rate);
+    vitalDigitalSvfFilter.setSampleRate(rate);
+    vitalLadderFilter.setSampleRate(rate);
+    vitalDirtyFilter.setSampleRate(rate);
     amplitudeEnvelope.setSampleRate(rate);
     filterEnvelope.setSampleRate(rate);
 }
@@ -114,6 +122,22 @@ void Voice::noteOn(float freq, int id, FilterType filterType,
             break;
         case FilterType::COMB:
             currentFilter = &combFilterInstance;
+            break;
+        case FilterType::VITAL_SALLEN_KEY:
+            currentFilter = &vitalSallenKeyFilter;
+            vitalSallenKeyFilter.setStyle(VitalSallenKeyFilter::Style::LP12);
+            break;
+        case FilterType::VITAL_DIGITAL_SVF:
+            currentFilter = &vitalDigitalSvfFilter;
+            vitalDigitalSvfFilter.setStyle(VitalDigitalSvfFilter::Style::LP12);
+            break;
+        case FilterType::VITAL_LADDER:
+            currentFilter = &vitalLadderFilter;
+            vitalLadderFilter.setStyle(VitalLadderFilter::Style::LP24);
+            break;
+        case FilterType::VITAL_DIRTY:
+            currentFilter = &vitalDirtyFilter;
+            vitalDirtyFilter.setStyle(VitalDirtyFilter::Style::LP12);
             break;
     }
     
@@ -203,6 +227,10 @@ void Voice::reset() {
     diodeLadder.reset();
     formantFilter.reset();
     combFilterInstance.reset();
+    vitalSallenKeyFilter.reset();
+    vitalDigitalSvfFilter.reset();
+    vitalLadderFilter.reset();
+    vitalDirtyFilter.reset();
     amplitudeEnvelope.reset();
     filterEnvelope.reset();
 }
@@ -245,6 +273,22 @@ void Voice::updateFilterType(FilterType type) {
             break;
         case FilterType::COMB:
             currentFilter = &combFilterInstance;
+            break;
+        case FilterType::VITAL_SALLEN_KEY:
+            currentFilter = &vitalSallenKeyFilter;
+            vitalSallenKeyFilter.setStyle(VitalSallenKeyFilter::Style::LP12);
+            break;
+        case FilterType::VITAL_DIGITAL_SVF:
+            currentFilter = &vitalDigitalSvfFilter;
+            vitalDigitalSvfFilter.setStyle(VitalDigitalSvfFilter::Style::LP12);
+            break;
+        case FilterType::VITAL_LADDER:
+            currentFilter = &vitalLadderFilter;
+            vitalLadderFilter.setStyle(VitalLadderFilter::Style::LP24);
+            break;
+        case FilterType::VITAL_DIRTY:
+            currentFilter = &vitalDirtyFilter;
+            vitalDirtyFilter.setStyle(VitalDirtyFilter::Style::LP12);
             break;
     }
 }

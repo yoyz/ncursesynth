@@ -30,8 +30,12 @@ ENGINE_NCURSESYNTH_ENGINE = machine/Ncursesynth/filters/moog_filter.cpp \
                            machine/Ncursesynth/filters/svf_filter.cpp \
                            machine/Ncursesynth/filters/diode_filter.cpp \
                            machine/Ncursesynth/filters/formant_filter.cpp \
-                           machine/Ncursesynth/filters/comb_filter.cpp \
-                           machine/Ncursesynth/oscillators/saw_oscillator.cpp \
+                            machine/Ncursesynth/filters/comb_filter.cpp \
+                            machine/Ncursesynth/filters/vital_sallen_key_filter.cpp \
+                            machine/Ncursesynth/filters/vital_digital_svf_filter.cpp \
+                            machine/Ncursesynth/filters/vital_ladder_filter.cpp \
+                            machine/Ncursesynth/filters/vital_dirty_filter.cpp \
+                            machine/Ncursesynth/oscillators/saw_oscillator.cpp \
                            machine/Ncursesynth/envelopes/adsr_envelope.cpp \
                            machine/Ncursesynth/envelopes/flexible_envelope.cpp \
                            machine/Ncursesynth/synth/synth_architecture.cpp \

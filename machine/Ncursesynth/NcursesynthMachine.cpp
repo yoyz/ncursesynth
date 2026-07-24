@@ -151,7 +151,7 @@ void NcursesynthMachine::setI(int index, int value) {
             synth_->setPolyphony(value);
             break;
         case MachineParam::FILTER_TYPE: {
-            int ft = std::max(0, std::min(10, value));
+            int ft = std::max(0, std::min(14, value));
             synth_->setFilterType(static_cast<FilterType>(ft));
             break;
         }
@@ -340,7 +340,7 @@ int NcursesynthMachine::checkI(int index, int value) {
         case MachineParam::POLYPHONY:
             return std::max(1, std::min(16, value));
         case MachineParam::FILTER_TYPE:
-            return std::max(0, std::min(10, value));
+            return std::max(0, std::min(14, value));
         default:
             return std::max(0, std::min(127, value));
     }
@@ -389,10 +389,11 @@ const char* NcursesynthMachine::getDisplayString(int index) {
         case MachineParam::FILTER_TYPE: {
             static const char* names[] = {"MOOG", "KORG MS20", "OBERHEIM", "MOOG HPF",
                                "SVF LP12", "SVF HP12", "SVF BP12", "SVF AP12",
-                               "DIODE", "FORMANT", "COMB"};
+                               "DIODE", "FORMANT", "COMB",
+                               "V-SALEN KY", "V-DGT SVF", "V-LADDER", "V-DIRTY"};
             int t = static_cast<int>(synth_->getCurrentFilterType());
             if (t < 0) t = 0;
-            if (t > 10) t = 10;
+            if (t > 14) t = 14;
             return names[t];
         }
         case MachineParam::OSC_1_WAVEFORM: {
