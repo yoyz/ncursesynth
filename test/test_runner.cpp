@@ -52,7 +52,8 @@ static const std::vector<std::string> g_availableTests = {
     "portamento",
     "edge_cases",
     "bipolar_params",
-    "long_running"
+    "long_running",
+    "init_pitch"
 };
 
 static const char* g_engineDescriptions[] = {
@@ -89,7 +90,8 @@ static const char* g_testDescriptions[] = {
     "Portamento/legato glide between notes",
     "Edge cases (note 0/127, velocity 0, CC boundaries)",
     "Bipolar parameter roundtrip accuracy",
-    "Long-running stability (60s note loop)"
+    "Long-running stability (60s note loop)",
+    "Default init pitch accuracy (simulates interactive UI init)"
 };
 
 TestRunner::TestRunner(const std::string& outputDir, bool verbose)
@@ -236,6 +238,7 @@ static const TestEntry g_testEntries[] = {
     {"edge_cases",        runEdgeCaseTests},
     {"bipolar_params",    runBipolarParamTests},
     {"long_running",      runLongRunningTests},
+    {"init_pitch",        runDefaultInitPitchTest},
 };
 
 bool TestRunner::runAllTests(Machine* machine, bool useFFT, const std::vector<std::string>& testNames) {

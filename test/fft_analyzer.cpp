@@ -114,43 +114,50 @@ float FFTAnalyzer::findFundamentalFrequency(const std::vector<float>& magnitudes
         return a.mag > b.mag;
     });
     
-    // Find fundamental by checking if peaks are harmonically related
+    // Find fundamental: find the strongest peak that has harmonics,
+    // then verify it isn't itself a harmonic of a lower peak.
+    // Sort by magnitude (strongest first) for initial detection.
+    std::sort(peaks.begin(), peaks.end(), [](const Peak& a, const Peak& b) {
+        return a.mag > b.mag;
+    });
+    
     for (const auto& peak : peaks) {
-        float peakFreq = peak.bin * binWidth;
-        
-        // Try this peak as fundamental
+        // Check if this peak has at least one harmonic above it
+        bool hasHarmonic = false;
         for (const auto& other : peaks) {
-            if (&peak == &other) continue;
-            
+            if (other.bin <= peak.bin) continue;
             float ratio = other.bin / static_cast<float>(peak.bin);
             float expectedRatio = std::round(ratio);
-            
-            // If this peak is a harmonic of the first peak
-            if (std::abs(ratio - expectedRatio) < 0.1f) {
-                return peakFreq; // This is likely the fundamental
+            if (std::abs(ratio - expectedRatio) < 0.15f) {
+                hasHarmonic = true;
+                break;
             }
         }
+        if (!hasHarmonic) continue;
         
-        // Try this peak as harmonic of a lower fundamental
+        // This peak has harmonics. Now check if it's a harmonic of a lower peak.
+        // If a lower peak also has harmonics and this peak is an integer multiple
+        // of it, the lower peak is the true fundamental.
+        float bestFundamental = peak.bin * binWidth;
         for (const auto& candidate : peaks) {
             if (candidate.bin >= peak.bin) continue;
+            if (candidate.mag < peak.mag * 0.01f) continue; // skip very weak candidates
             
             float ratio = peak.bin / static_cast<float>(candidate.bin);
-            
-            // Check if ratio is close to an integer (harmonic relationship)
             float nearestInt = std::round(ratio);
-            if (ratio > 0 && std::abs(ratio - nearestInt) < 0.1f) {
-                // Check if this fundamental has harmonics
+            if (ratio > 1.0f && std::abs(ratio - nearestInt) < 0.15f) {
+                // Verify candidate also has harmonics
                 for (const auto& check : peaks) {
                     if (check.bin <= candidate.bin) continue;
                     float checkRatio = check.bin / static_cast<float>(candidate.bin);
                     if (std::abs(checkRatio - std::round(checkRatio)) < 0.15f) {
-                        // This looks like a valid fundamental
-                        return candidate.bin * binWidth;
+                        bestFundamental = candidate.bin * binWidth;
+                        break;
                     }
                 }
             }
         }
+        return bestFundamental;
     }
     
     // Fallback to strongest peak

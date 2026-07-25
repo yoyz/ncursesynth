@@ -191,7 +191,7 @@ void CursynthMachine::setI(int what, int val)
     if (engine == nullptr) return;
 
     float f_val = (float)val / 128.0f;
-    int noteShift = 11;
+    int noteShift = 0;
 
     if (what == TRIG_TIME_MODE) trig_time_mode = val;
     if (what == TRIG_TIME_DURATION) {
@@ -201,7 +201,7 @@ void CursynthMachine::setI(int what, int val)
 
     if (what == NOTE_ON && val == 1) {
         if (midiDebug_) std::cerr << ">>> NoteOn CURSYNTH NOTE=" << note << std::endl;
-        int adjustedNote = note + osc1_scale - noteShift;
+        int adjustedNote = note - noteShift;
         engine->noteOn(adjustedNote, velocity / 32.0f);
         note_on = 1;
         if (midiDebug_) std::cerr << "  NOTE on -> " << adjustedNote << std::endl;
@@ -209,7 +209,7 @@ void CursynthMachine::setI(int what, int val)
 
     if (what == NOTE_ON && val == 0) {
         if (midiDebug_) std::cerr << ">>> NoteOff CURSYNTH NOTE=" << note << std::endl;
-        int adjustedNote = note + osc1_scale - noteShift;
+        int adjustedNote = note - noteShift;
         engine->noteOff(adjustedNote);
         note_on = 0;
         if (midiDebug_) std::cerr << "  NOTE off -> " << adjustedNote << std::endl;

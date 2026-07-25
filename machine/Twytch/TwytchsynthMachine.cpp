@@ -165,7 +165,7 @@ void TwytchsynthMachine::setI(int what, int val)
     if (engine == nullptr) return;
 
     float f_val = (float)val / 128.0f;
-    int noteShift = 12;
+    int noteShift = 0;
 
     if (what == TRIG_TIME_MODE) trig_time_mode = val;
     if (what == TRIG_TIME_DURATION) {
@@ -213,7 +213,8 @@ void TwytchsynthMachine::setI(int what, int val)
         osc1_scale = val;
         twytchhelmmopo::Value* ctrl = engine->getControl("osc_1_transpose");
         if (ctrl) {
-            float semitones = (val - 64) / 64.0f * 24.0f;
+            int idx = (val > 4) ? std::min(4, (val * 4 + 63) / 127) : val;
+            float semitones = (float)((idx - 2) * 12);
             ctrl->set(semitones);
         }
     }
@@ -221,7 +222,8 @@ void TwytchsynthMachine::setI(int what, int val)
         osc2_scale = val;
         twytchhelmmopo::Value* ctrl = engine->getControl("osc_2_transpose");
         if (ctrl) {
-            float semitones = (val - 64) / 64.0f * 24.0f;
+            int idx = (val > 4) ? std::min(4, (val * 4 + 63) / 127) : val;
+            float semitones = (float)((idx - 2) * 12);
             ctrl->set(semitones);
         }
     }

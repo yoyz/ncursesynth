@@ -177,11 +177,13 @@ void PBSynthOscillator::process(mfloat *in, mfloat *out, int n, int owrite) {
 		processTriangle(in, out, n, owrite);
 }
 
+static constexpr long OSC_FINE_TUNE = -60;  // Osctab base offset compensation (~0.47 st)
+
 void PBSynthOscillator::setNote(int note) {
 	
 	long i;
 
-	i = ((note * 128) + parameters.detune) * 2;
+	i = ((note * 128) + parameters.detune + OSC_FINE_TUNE) * 2;
 	if (i<0) i=0;
 	if (i>32000) i=32000;
 	wlength = osctab[i];
@@ -208,7 +210,7 @@ void PBSynthOscillator::reset() {
 	setWave(OSC_SAWTOOTH);
 	setPulseWidth(0.0f);
 	setNote(12);
-	setDetune(-128);
+	setDetune(0);
 }
 
 void PBSynthOscillator::setDetune(long detune) {

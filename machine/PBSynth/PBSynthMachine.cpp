@@ -90,10 +90,6 @@ void PBSynthMachine::init()
     note = 60;
     freq = 440.0;
     keyon = 0;
-    osc1_scale = 0;
-    osc2_scale = 0;
-    osc1_scale_raw = 64;
-    osc2_scale_raw = 64;
     amp_volume = 90; // 70%
 }
 
@@ -340,7 +336,7 @@ void PBSynthMachine::setI(int what,int val)
   float        f_val_cutoff;
   float        f_val_resonance;
   float        f_val;
-  int          noteShift=2;
+  int          noteShift=13;
   f_val=val;
   f_val=f_val/128.0;
   if (what==TRIG_TIME_MODE)       trig_time_mode=val;
@@ -386,8 +382,8 @@ void PBSynthMachine::setI(int what,int val)
 
       PBSynthVoice& v = voices[targetVoice];
       v.index = 0;
-      v.se->triggerNoteOsc(0, note + osc1_scale - noteShift);
-      v.se->triggerNoteOsc(1, note + osc2_scale - noteShift);
+      v.se->triggerNoteOsc(0, note - noteShift);
+      v.se->triggerNoteOsc(1, note - noteShift);
       v.note = note;
       v.keyon = 1;
 
@@ -425,10 +421,10 @@ void PBSynthMachine::setI(int what,int val)
 
     if (what==OSC1_TYPE)           { osc1_type = val; for (auto& v : voices) if(v.se) v.se->getPBSynthOscillator(0)->setWave(this->checkI(OSC1_TYPE,val)); }
     if (what==OSC2_TYPE)           { osc2_type = val; for (auto& v : voices) if(v.se) v.se->getPBSynthOscillator(1)->setWave(this->checkI(OSC2_TYPE,val)); }
-    if (what==OSC1_DETUNE)         { osc1_detune = val; for (auto& v : voices) if(v.se) v.se->getPBSynthOscillator(0)->setDetune(this->checkI(OSC1_DETUNE,val)+64); }
-    if (what==OSC2_DETUNE)         { osc2_detune = val; for (auto& v : voices) if(v.se) v.se->getPBSynthOscillator(1)->setDetune(this->checkI(OSC2_DETUNE,val)+64); }
-    if (what==OSC1_SCALE)          { osc1_scale=(int)((val / 127.0f) * 48.0f - 24.0f); osc1_scale_raw = val; }
-    if (what==OSC2_SCALE)          { osc2_scale=(int)((val / 127.0f) * 48.0f - 24.0f); osc2_scale_raw = val; }
+    if (what==OSC1_DETUNE)         { osc1_detune = val; for (auto& v : voices) if(v.se) v.se->getPBSynthOscillator(0)->setDetune((this->checkI(OSC1_DETUNE,val)-64)*2); }
+    if (what==OSC2_DETUNE)         { osc2_detune = val; for (auto& v : voices) if(v.se) v.se->getPBSynthOscillator(1)->setDetune((this->checkI(OSC2_DETUNE,val)-64)*2); }
+    if (what==OSC1_SCALE)          { int idx = (val > 4) ? std::min(4, (val * 4 + 63) / 127) : val; osc1_scale = (idx - 2) * 12; osc1_scale_raw = val; }
+    if (what==OSC2_SCALE)          { int idx = (val > 4) ? std::min(4, (val * 4 + 63) / 127) : val; osc2_scale = (idx - 2) * 12; osc2_scale_raw = val; }
 
 
     if (what==ADSR_ENV0_ATTACK)    { for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setA((f_val*2.0f)-1.0f); }

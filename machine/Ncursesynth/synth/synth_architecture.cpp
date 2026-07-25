@@ -163,12 +163,12 @@ float SynthArchitecture::process() {
     // Apply effects chain
     output = effectChain.process(output);
     
-    // Apply master volume and soft-clip
+    // Apply master volume and soft-clip (threshold at 4.0 to let polyphony breathe)
     output = output * volume;
     float absOut = fabsf(output);
-    if (absOut > 1.0f) {
-        float over = (absOut - 1.0f) * 0.5f;
-        output = (output > 0 ? 1.0f : -1.0f) * (1.0f - 1.0f / (1.0f + over));
+    if (absOut > 4.0f) {
+        float over = (absOut - 4.0f) * 0.5f;
+        output = (output > 0 ? 4.0f : -4.0f) * (1.0f - 1.0f / (1.0f + over));
     }
     
     return output;

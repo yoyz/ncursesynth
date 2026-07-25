@@ -152,7 +152,7 @@ int main(int argc, char* argv[]) {
         for (int i = 0; i < count; i++) {
             std::string name = tmpMidi.getDeviceName(i);
             if (!name.empty())
-                std::cout << "IO  hw:" << i << ",0,0  " << name << "\n";
+                std::cout << "  " << i << ": " << name << "\n";
         }
         if (count == 0) std::cout << "(no MIDI devices found)\n";
         return 0;
@@ -231,6 +231,19 @@ int main(int argc, char* argv[]) {
                 int portNum = atoi(midiPort.substr(3).c_str());
                 if (portNum >= 0 && portNum < midiInput.getDeviceCount())
                     selectedIndex = portNum;
+            } else {
+                bool isNumeric = !midiPort.empty() && midiPort.find_first_not_of("0123456789") == std::string::npos;
+                if (isNumeric)
+                    selectedIndex = atoi(midiPort.c_str());
+            }
+            if (selectedIndex < 0 || selectedIndex >= midiInput.getDeviceCount()) {
+                for (int i = 0; i < midiInput.getDeviceCount(); i++) {
+                    std::string name = midiInput.getDeviceName(i);
+                    if (name.find(midiPort) != std::string::npos) {
+                        selectedIndex = i;
+                        break;
+                    }
+                }
             }
             if (selectedIndex >= 0) {
                 midiInput.selectDevice(selectedIndex);

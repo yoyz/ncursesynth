@@ -4,6 +4,10 @@
 #include "../machine/Machine.h"
 #include "../machine/Parameter.h"
 #include "../machine/ParamID.h"
+#include "../machine/Ncursesynth/NcursesynthMachine.h"
+#include "../machine/PBSynth/PBSynthMachine.h"
+#include "../machine/Cursynth/CursynthMachine.h"
+#include "../machine/Twytch/TwytchsynthMachine.h"
 #include "../midi/midi_mapping.h"
 #include <vector>
 #include <algorithm>
@@ -14,6 +18,14 @@
 #include <stdio.h>
 #include <sys/resource.h>
 #include <chrono>
+
+static Machine* createMachine(const std::string& name) {
+    if (name == "Ncursesynth") return new NcursesynthMachine();
+    if (name == "PBSynth") return new PBSynthMachine();
+    if (name == "Cursynth") return new CursynthMachine(8);
+    if (name == "Twytch") return new TwytchsynthMachine();
+    return nullptr;
+}
 
 static void getCPUTime(double* userCpu, double* sysCpu) {
     struct rusage usage;
@@ -32,6 +44,37 @@ static double getWallClockTime() {
     auto now = std::chrono::high_resolution_clock::now();
     auto duration = now.time_since_epoch();
     return std::chrono::duration<double>(duration).count();
+}
+
+static void writeWavFile(const char* path, const float* samples, int numSamples, int sampleRate) {
+    FILE* f = fopen(path, "wb");
+    if (!f) return;
+    int32_t fileSize = 36 + numSamples * 2;
+    int16_t numCh = 1, bits = 16;
+    int32_t byteRate = sampleRate * numCh * bits / 8;
+    int16_t blockAlign = numCh * bits / 8;
+    int32_t dataSize = numSamples * 2;
+    fwrite("RIFF", 1, 4, f);
+    fwrite(&fileSize, 4, 1, f);
+    fwrite("WAVE", 1, 4, f);
+    fwrite("fmt ", 1, 4, f);
+    int32_t fmtSize = 16; fwrite(&fmtSize, 4, 1, f);
+    int16_t fmt = 1; fwrite(&fmt, 2, 1, f);
+    fwrite(&numCh, 2, 1, f);
+    fwrite(&sampleRate, 4, 1, f);
+    fwrite(&byteRate, 4, 1, f);
+    fwrite(&blockAlign, 2, 1, f);
+    fwrite(&bits, 2, 1, f);
+    fwrite("data", 1, 4, f);
+    fwrite(&dataSize, 4, 1, f);
+    for (int i = 0; i < numSamples; i++) {
+        float v = samples[i];
+        if (v > 1.0f) v = 1.0f;
+        if (v < -1.0f) v = -1.0f;
+        int16_t s = static_cast<int16_t>(v * 32767.0f);
+        fwrite(&s, 2, 1, f);
+    }
+    fclose(f);
 }
 
 static float calculateRMS(const std::vector<float>& samples) {
@@ -614,69 +657,106 @@ bool runOctaveTests(Machine* machine, bool useFFT) {
         return false; 
     }
     
-    machine->init();
-    
-    const int midiNote = 50;
-    const int numSamples = 32768;  // Large buffer for FFT
-    const int warmupSamples = 4096;
-    const int silenceSamples = 441000;  // 10 seconds at 48kHz - ensures complete note release
-    
-    // First test: play note at midiNote
-    int32_t* samples1 = new int32_t[numSamples];
-    triggerNote(machine, midiNote, samples1, numSamples, warmupSamples);
-    
-    // Generate silence to ensure note is released (10 seconds) and measure performance
-    double silenceTime1 = generateSilence(machine, silenceSamples);
-    
-    // Second test: play note at midiNote + 12 (one octave higher)
-    int32_t* samples2 = new int32_t[numSamples];
-    triggerNote(machine, midiNote + 12, samples2, numSamples, warmupSamples);
-    
-    // Generate silence (10 seconds) and measure performance
-    double silenceTime2 = generateSilence(machine, silenceSamples);
-    
-    // Convert to float and analyze
-    std::vector<float> floatSamples1(numSamples);
-    std::vector<float> floatSamples2(numSamples);
-    for (int i = 0; i < numSamples; i++) {
-        floatSamples1[i] = static_cast<float>(samples1[i]) / 8192.0f;
-        floatSamples2[i] = static_cast<float>(samples2[i]) / 8192.0f;
+    // --- FFT self-validation: verify the algorithm on pure sine waves ---
+    {
+        const int sr = 48000;
+        const int N = 65536;
+        const float freqC4 = 261.6256f;
+        const float freqC6 = 1046.5023f;
+        std::vector<float> c4(N), c6(N);
+        for (int i = 0; i < N; i++) {
+            c4[i] = 0.8f * sinf(2.0f * (float)M_PI * freqC4 * i / sr);
+            c6[i] = 0.8f * sinf(2.0f * (float)M_PI * freqC6 * i / sr);
+        }
+        std::vector<float> mag;
+        FFTAnalyzer::compute(c4.data(), N, mag);
+        float detC4 = FFTAnalyzer::findFundamentalFrequency(mag, (float)sr);
+        mag.clear();
+        FFTAnalyzer::compute(c6.data(), N, mag);
+        float detC6 = FFTAnalyzer::findFundamentalFrequency(mag, (float)sr);
+        float errC4 = std::abs(12.0f * std::log2(detC4 / freqC4));
+        float errC6 = std::abs(12.0f * std::log2(detC6 / freqC6));
+        if (errC4 > 1.0f || errC6 > 1.0f) {
+            std::ostringstream m;
+            m << "FFT self-test FAIL: C4=" << std::fixed << std::setprecision(1) << detC4
+              << "Hz (err=" << std::setprecision(2) << errC4 << "st) C6=" << detC6
+              << "Hz (err=" << errC6 << "st)";
+            printTestResult("octave", false, m.str());
+            return false;
+        }
     }
     
-    delete[] samples1;
-    delete[] samples2;
+    // C2=36, C3=48, C4=60, C5=72
+    const int notes[] = {36, 48, 60, 72};
+    const int numNotes = 4;
+    const int sampleRate = 48000;
+    const int numSamples = 65536;  // Power-of-2 for correct FFT bin width (~1.37 sec)
+    const int warmupSamples = 4096;
+    std::string engineName = machine->getName();
     
-    // Compute FFT for both
-    std::vector<float> magnitudes1, magnitudes2;
-    FFTAnalyzer::compute(floatSamples1.data(), numSamples, magnitudes1);
-    FFTAnalyzer::compute(floatSamples2.data(), numSamples, magnitudes2);
-    
-    float freq1 = FFTAnalyzer::findFundamentalFrequency(magnitudes1, 48000.0f);
-    float freq2 = FFTAnalyzer::findFundamentalFrequency(magnitudes2, 48000.0f);
-    
-    // Calculate expected frequencies
-    float expectedFreq1 = 440.0f * std::pow(2.0f, (midiNote - 69.0f) / 12.0f);
-    float expectedFreq2 = 440.0f * std::pow(2.0f, (midiNote + 12 - 69.0f) / 12.0f);
-    
-    // Verify octave relationship: freq2 should be approximately 2x freq1
-    // Allow some tolerance for engines that may have frequency detection issues
-    float ratio = (freq1 > 0) ? (freq2 / freq1) : 0.0f;
-    
-    // Calculate performance: how many seconds of audio can be generated per second of real time
-    // 441000 samples / 1000ms = 441 samples/ms = 441000 samples/second
-    double perf1 = (silenceTime1 > 0) ? (silenceSamples / silenceTime1) : 0.0;  // samples/ms
-    double perf2 = (silenceTime2 > 0) ? (silenceSamples / silenceTime2) : 0.0;  // samples/ms
-    
+    int allPassed = 0;
     std::ostringstream msg;
-    msg << "note=" << midiNote << " freq=" << std::fixed << std::setprecision(1) << freq1 
-        << "Hz (exp=" << expectedFreq1 << ") note+12=" << (midiNote + 12) 
-        << " freq=" << freq2 << "Hz (exp=" << expectedFreq2 << ") ratio=" 
-        << std::setprecision(3) << ratio << " perf=" << std::setprecision(0) 
-        << ((perf1 + perf2) / 2.0) << " samples/ms";
     
-    // Pass if both frequencies detected and ratio is close to 2.0 (within 25% tolerance)
-    // Also pass if both frequencies are non-zero but different (meaning pitch changed)
-    bool passed = (freq1 > 0 && freq2 > 0 && std::abs(ratio - 2.0f) < 0.5f);
+    for (int n = 0; n < numNotes; n++) {
+        int midiNote = notes[n];
+        
+        // Fresh engine for each note — avoids any leftover state
+        Machine* m = createMachine(engineName);
+        if (!m) { msg << "FAIL(create) "; continue; }
+        m->init();
+        
+        // Configure engine
+        m->setI(ParamID::osc1_wave, 2);     // TRIANGLE
+        m->setI(ParamID::osc2_amp, 0);      // Disable osc2
+        m->setI(ParamID::mix, 0);           // Full osc1
+        m->setI(ParamID::cutoff, 95);        // 75%
+        m->setI(ParamID::resonance, 0);      // 0
+        m->setI(ParamID::amp_sustain, 100);  // ~80%
+        m->setI(ParamID::amp_attack, 0);     // instant attack
+        m->setI(ParamID::amp_decay, 0);      // no decay
+        m->setI(ParamID::amp_release, 0);    // instant release
+        
+        // Play note and capture audio
+        int32_t* samples = new int32_t[numSamples];
+        triggerNote(m, midiNote, samples, numSamples, warmupSamples);
+        
+        // Convert to float
+        std::vector<float> floatSamples(numSamples);
+        for (int i = 0; i < numSamples; i++) {
+            floatSamples[i] = static_cast<float>(samples[i]) / 8192.0f;
+        }
+        delete[] samples;
+        delete m;
+        
+        // Write WAV file for each note
+        {
+            char wavName[64];
+            snprintf(wavName, sizeof(wavName), "tmp/octave_%s_C%d.wav",
+                     engineName.c_str(), n + 2);
+            writeWavFile(wavName, floatSamples.data(), numSamples, sampleRate);
+        }
+        
+        // FFT analysis
+        std::vector<float> magnitudes;
+        FFTAnalyzer::compute(floatSamples.data(), numSamples, magnitudes);
+        float freq = FFTAnalyzer::findFundamentalFrequency(magnitudes, static_cast<float>(sampleRate));
+        float expectedFreq = FFTAnalyzer::midiToFrequency(midiNote);
+        float errorSemitones = 0.0f;
+        if (freq > 0 && expectedFreq > 0) {
+            errorSemitones = 12.0f * std::log2(freq / expectedFreq);
+        }
+        
+        bool noteOk = (freq > 0) && (std::abs(errorSemitones) < 1.0f);
+        if (noteOk) allPassed++;
+        
+        msg << "C" << (n + 2) << "=" << midiNote 
+            << " freq=" << std::fixed << std::setprecision(1) << freq 
+            << "Hz (exp=" << expectedFreq << ")"
+            << " err=" << std::setprecision(2) << errorSemitones << "st"
+            << (noteOk ? " OK" : " MISS") << "  ";
+    }
+    
+    bool passed = (allPassed == numNotes);
     printTestResult("octave", passed, msg.str());
     return passed;
 }
@@ -2414,6 +2494,88 @@ bool runBipolarParamTests(Machine* machine, bool useFFT) {
     printTestResult("bipolar_params", allPassed,
         std::to_string(passCount) + "/4 sub-tests passed");
     return allPassed;
+}
+
+// Test: Default Init Pitch - verifies each engine plays correct note
+// using only the defaults set by Machine::init() (single source of truth)
+bool runDefaultInitPitchTest(Machine* machine, bool useFFT) {
+    (void)useFFT;
+    if (!machine) { printTestResult("init_pitch", false, "No machine"); return false; }
+
+    std::string engineName = machine->getName();
+    const int sampleRate = 48000;
+    const int numSamples = 65536;
+    const int warmupSamples = 4096;
+
+    const int testNotes[] = {60};  // C4
+    int allPassed = 0;
+    std::ostringstream msg;
+
+    for (int noteVal : testNotes) {
+        Machine* m = createMachine(engineName);
+        if (!m) { msg << "FAIL(create) "; continue; }
+        m->init();
+
+        // No additional setI calls — engine's init() is the single source of truth.
+
+        // Capture audio
+        int32_t* samples = new int32_t[numSamples];
+        {
+            m->setI(ParamID::note, noteVal);
+            m->noteOn();
+            for (int i = 0; i < warmupSamples; i++) m->tick();
+            for (int i = 0; i < numSamples; i++) samples[i] = m->tick();
+            m->noteOff();
+        }
+
+        // Convert to float and normalize
+        std::vector<float> floatSamples(numSamples);
+        int outputAmp = (engineName == "PBSynth") ? 4000 : 8192;
+        for (int i = 0; i < numSamples; i++)
+            floatSamples[i] = static_cast<float>(samples[i]) / outputAmp;
+        delete[] samples;
+
+        // Write WAV for manual analysis
+        char wavName[64];
+        snprintf(wavName, sizeof(wavName), "tmp/initpitch_%s_C4.wav", engineName.c_str());
+        writeWavFile(wavName, floatSamples.data(), numSamples, sampleRate);
+
+        // Compute RMS
+        double sumSq = 0;
+        for (int i = 0; i < numSamples; i++) sumSq += floatSamples[i] * floatSamples[i];
+        float rms = sqrt(sumSq / numSamples);
+
+        // Zero-crossing frequency estimate
+        int zc = 0;
+        for (int i = 1; i < numSamples; i++)
+            if (floatSamples[i-1] <= 0 && floatSamples[i] > 0) zc++;
+        float zcFreq = (float)zc * sampleRate / numSamples;
+
+        // FFT analysis
+        std::vector<float> magnitudes;
+        FFTAnalyzer::compute(floatSamples.data(), numSamples, magnitudes);
+        float freq = FFTAnalyzer::findFundamentalFrequency(magnitudes, sampleRate);
+        float expectedFreq = FFTAnalyzer::midiToFrequency(noteVal);
+        float errorSemitones = 0;
+        if (freq > 0 && expectedFreq > 0)
+            errorSemitones = 12.0f * std::log2(freq / expectedFreq);
+
+        bool noteOk = (freq > 0) && (std::abs(errorSemitones) < 1.0f);
+        if (noteOk) allPassed++;
+
+        msg << "C4=" << noteVal
+            << " fft=" << std::fixed << std::setprecision(1) << freq
+            << " zc=" << zcFreq
+            << " rms=" << rms
+            << " err=" << std::setprecision(2) << errorSemitones << "st"
+            << (noteOk ? " OK" : " MISS") << "  ";
+
+        delete m;
+    }
+
+    bool passed = (allPassed == 1);
+    printTestResult("init_pitch", passed, msg.str());
+    return passed;
 }
 
 // Test 12: Long-Running Stability

@@ -46,25 +46,9 @@ void NcursesynthMachine::init() {
     if (synth_) {
         synth_->allNotesOff();
         synth_->reset();
-        synth_->setVolume(0.7f);
-        synth_->setCutoff(1000.0f);
-        synth_->setResonance(0.5f);
-        synth_->setFilterEnvelopeAmount(0.5f);
-        synth_->setOsc1Waveform(Waveform::SAWTOOTH);
-        synth_->setOsc2Waveform(Waveform::SAWTOOTH);
-        synth_->setOscMix(0.5f);
-        synth_->setOsc1Detune(0.0f);
-        synth_->setOsc2Detune(0.0f);
+        synth_->setVolume(0.8f);
         synth_->setOsc1Amp(1.0f);
-        synth_->setOsc2Amp(1.0f);
-        synth_->setAmpAttack(0.0f);
-        synth_->setAmpDecay(1.0f);
-        synth_->setAmpSustain(0.5f);
-        synth_->setAmpRelease(0.5f);
-        synth_->setFilterAttack(0.0f);
-        synth_->setFilterDecay(1.0f);
-        synth_->setFilterSustain(0.5f);
-        synth_->setFilterRelease(0.5f);
+        synth_->setOsc2Amp(0.0f);
         synth_->getDelay()->setEnabled(false);
         synth_->getDelay()->setMix(0.0f);
         synth_->getReverb()->setEnabled(false);

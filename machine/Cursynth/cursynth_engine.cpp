@@ -565,6 +565,7 @@ namespace mopocursynth {
     voice_handler_->plug(polyphony, VoiceHandler::kPolyphony);
 
     addProcessor(voice_handler_);
+    setSampleRate(DEFAULTFREQ);
     controls_["polyphony"] = new Control(polyphony, 1, 32, 31);
 
     // Delay effect.
