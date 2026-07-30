@@ -158,6 +158,30 @@ ENGINE_TWYTCH_MACHINE = machine/Twytch/TwytchsynthMachine.cpp
 ENGINE_TWYTCH_UI = ui/twytch_ui.cpp
 
 # =============================================================================
+# DIGITS ENGINE
+# =============================================================================
+ENGINE_DIGITS_ENGINE = machine/Digits/DigitsPhaseDist.cpp \
+                       machine/Digits/DigitsVoice.cpp \
+                       machine/Digits/DigitsEngine.cpp
+
+ENGINE_DIGITS_MACHINE = machine/Digits/DigitsMachine.cpp
+
+ENGINE_DIGITS_UI = ui/digits_ui.cpp
+
+# =============================================================================
+# AMBIKA ENGINE
+# =============================================================================
+ENGINE_AMBIKA_ENGINE = machine/Ambika/avrlib/random.cpp \
+                       machine/Ambika/voicecard/voice.cpp \
+                       machine/Ambika/voicecard/oscillator.cpp \
+                       machine/Ambika/voicecard/resources.cpp \
+                       machine/Ambika/patches.cpp
+
+ENGINE_AMBIKA_MACHINE = machine/Ambika/AmbikaMachine.cpp
+
+ENGINE_AMBIKA_UI = ui/ambika_ui.cpp
+
+# =============================================================================
 # MACHINE UI (shared/engine selection)
 # =============================================================================
 MACHINE_UI = ui/machine_ui.cpp \
@@ -180,6 +204,12 @@ SOURCES = $(CORE_SOURCES) \
           $(ENGINE_TWYTCH_ENGINE) \
           $(ENGINE_TWYTCH_MACHINE) \
           $(ENGINE_TWYTCH_UI) \
+          $(ENGINE_DIGITS_ENGINE) \
+          $(ENGINE_DIGITS_MACHINE) \
+          $(ENGINE_DIGITS_UI) \
+          $(ENGINE_AMBIKA_ENGINE) \
+          $(ENGINE_AMBIKA_MACHINE) \
+          $(ENGINE_AMBIKA_UI) \
           $(MACHINE_UI)
 
 OBJECTS = $(SOURCES:.cpp=.o)
@@ -187,11 +217,11 @@ OBJECTS = $(SOURCES:.cpp=.o)
 # =============================================================================
 # TEST FRAMEWORK
 # =============================================================================
-TEST_CXXFLAGS = -std=c++14 -pthread -frtti -I. -I../machine -I../ui -I../audio -I../midi -I../bank -Wall -Wextra -Wno-unused-function -O2
+TEST_CXXFLAGS = -std=c++14 -pthread -frtti -I. -I../machine -I../ui -I../audio -I../midi -I../bank -Imachine/Ambika -Wall -Wextra -Wno-unused-function -O2 
 TEST_LDFLAGS = -lportaudio -lpthread -lrtmidi -lm -lncurses -Wl,--no-as-needed -lstdc++
 
 # UI test needs its own CXXFLAGS (includes ncurses path)
-TEST_UI_CXXFLAGS = -std=c++14 -pthread -frtti -I. -I../machine -I../ui -I../audio -I../midi -I../bank -Wall -Wextra -Wno-unused-function -O2
+TEST_UI_CXXFLAGS = -std=c++14 -pthread -frtti -I. -I../machine -I../ui -I../audio -I../midi -I../bank -Imachine/Ambika -Wall -Wextra -Wno-unused-function -O2 
 TEST_UI_LDFLAGS = -lncurses -lportaudio -lpthread -lrtmidi -lm -Wl,--no-as-needed -lstdc++
 
 TEST_UI_OBJECTS = ui/machine_ui.o \
@@ -201,6 +231,8 @@ TEST_UI_OBJECTS = ui/machine_ui.o \
                   ui/pbsynth_ui.o \
                   ui/cursynth_ui.o \
                   ui/twytch_ui.o \
+                  ui/digits_ui.o \
+                  ui/ambika_ui.o \
                   audio/audio_level.o
 
 # Convert source variables to object variables for test framework
@@ -223,11 +255,19 @@ TEST_CURSYNTH_MACHINE_OBJECTS = $(ENGINE_CURSYNTH_ENGINE:.cpp=.o) \
 TEST_TWYTCH_MACHINE_OBJECTS = $(ENGINE_TWYTCH_ENGINE:.cpp=.o) \
                              $(ENGINE_TWYTCH_MACHINE:.cpp=.o)
 
+TEST_DIGITS_MACHINE_OBJECTS = $(ENGINE_DIGITS_ENGINE:.cpp=.o) \
+                             $(ENGINE_DIGITS_MACHINE:.cpp=.o)
+
+TEST_AMBIKA_MACHINE_OBJECTS = $(ENGINE_AMBIKA_ENGINE:.cpp=.o) \
+                             $(ENGINE_AMBIKA_MACHINE:.cpp=.o)
+
 TEST_MACHINE_OBJECTS = $(TEST_CORE_OBJECTS) \
                     $(TEST_NCURSESYNTH_MACHINE_OBJECTS) \
                     $(TEST_PBSYNTH_MACHINE_OBJECTS) \
                     $(TEST_CURSYNTH_MACHINE_OBJECTS) \
-                    $(TEST_TWYTCH_MACHINE_OBJECTS)
+                    $(TEST_TWYTCH_MACHINE_OBJECTS) \
+                    $(TEST_DIGITS_MACHINE_OBJECTS) \
+                    $(TEST_AMBIKA_MACHINE_OBJECTS)
 
 TEST_OBJECTS = test_runner.o \
               fft_analyzer.o \
@@ -245,6 +285,10 @@ all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+
+# Ambika sources need -fpermissive for narrowing conversions in auto-generated data
+machine/Ambika/%.o: CXXFLAGS += -Imachine/Ambika -fpermissive -Wno-narrowing
+ui/ambika_ui.o: CXXFLAGS += -Imachine/Ambika -fpermissive -Wno-narrowing
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@

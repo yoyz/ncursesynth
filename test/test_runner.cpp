@@ -4,6 +4,8 @@
 #include "../machine/PBSynth/PBSynthMachine.h"
 #include "../machine/Cursynth/CursynthMachine.h"
 #include "../machine/Twytch/TwytchsynthMachine.h"
+#include "../machine/Digits/DigitsMachine.h"
+#include "../machine/Ambika/AmbikaMachine.h"
 #include <iostream>
 #include <iomanip>
 #include <atomic>
@@ -22,7 +24,9 @@ static const std::vector<std::string> g_availableEngines = {
     "ncursesynth",
     "pbsynth",
     "cursynth",
-    "twytch"
+    "twytch",
+    "digits",
+    "ambika"
 };
 
 static const std::vector<std::string> g_availableTests = {
@@ -60,7 +64,9 @@ static const char* g_engineDescriptions[] = {
     "Original ncursesynth engine",
     "PBSynth (8-voice polyphonic)",
     "Cursynth engine",
-    "Twytch (Helm-based) engine"
+    "Twytch (Helm-based) engine",
+    "Digits Phase Distortion engine",
+    "Ambika (6-voice, 22 oscillator algorithms)"
 };
 
 static const char* g_testDescriptions[] = {
@@ -95,7 +101,7 @@ static const char* g_testDescriptions[] = {
 };
 
 TestRunner::TestRunner(const std::string& outputDir, bool verbose)
-    : reporter_(outputDir), engines_({"ncursesynth", "pbsynth", "cursynth", "twytch"}), verbose_(verbose), quiet_(false), running_(false), results_() {}
+    : reporter_(outputDir), engines_({"ncursesynth", "pbsynth", "cursynth", "twytch", "digits", "ambika"}), verbose_(verbose), quiet_(false), running_(false), results_() {}
 
 TestRunner::~TestRunner() {
     std::lock_guard<std::mutex> lock(g_machineMutex_);
@@ -142,6 +148,8 @@ static Machine* createMachine(const std::string& engineName) {
     if (engineName == "pbsynth") return new PBSynthMachine();
     if (engineName == "cursynth") return new CursynthMachine(8);
     if (engineName == "twytch") return new TwytchsynthMachine();
+    if (engineName == "digits") return new DigitsMachine();
+    if (engineName == "ambika") return new AmbikaMachine();
     return nullptr;
 }
 

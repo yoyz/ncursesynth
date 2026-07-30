@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <cstring>
+#include <cctype>
 #include <signal.h>
 #include <atomic>
 #include <chrono>
@@ -22,10 +23,14 @@
 #include "machine/PBSynth/PBSynthMachine.h"
 #include "machine/Cursynth/CursynthMachine.h"
 #include "machine/Twytch/TwytchsynthMachine.h"
+#include "machine/Digits/DigitsMachine.h"
+#include "machine/Ambika/AmbikaMachine.h"
 #include "ui/pbsynth_ui.h"
 #include "ui/twytch_ui.h"
 #include "ui/ncursesynth_ui.h"
 #include "ui/cursynth_ui.h"
+#include "ui/digits_ui.h"
+#include "ui/ambika_ui.h"
 
 static bool g_pcKeyboardMode = false;
 
@@ -47,6 +52,7 @@ int main(int argc, char* argv[]) {
     std::string midiCapturePath;
     std::string synthEngineName;
     std::string mappingName;
+    bool headless = false;
     int fpsLimit = 30;
     int bufferSize = 256;
     double latencyMs = 20.0;
@@ -69,7 +75,8 @@ int main(int argc, char* argv[]) {
             std::cout << "  --tcp-capture-audio N  TCP port for audio capture (replaces PortAudio)\n";
             std::cout << "  --capture-audio-plus-fft-rms FILE  Write raw audio + per-second FFT/RMS analysis\n";
             std::cout << "  --capture-midi-plus-analysis FILE  Write MIDI event log (note_on/off/cc) with timestamps\n";
-            std::cout << "  --synthengine NAME  Run headless with named engine (ncursesynth/pbsynth/cursynth/twytch)\n";
+            std::cout << "  --synthengine NAME  Start with named engine (ncursesynth/pbsynth/cursynth/twytch/digits/ambika)\n";
+            std::cout << "  --headless         Run without UI (combine with --synthengine)\n";
             std::cout << "  --mapping NAME      Set MIDI mapping (e.g., deepmind12, summit)\n";
             std::cout << "  --fps N             Max refresh rate (default 30)\n";
             std::cout << "  --buffer-size N     Audio buffer size in frames (16-4096, default 256, power-of-2)\n";
@@ -132,14 +139,15 @@ int main(int argc, char* argv[]) {
         if (strcmp(argv[i], "--pc-keyboard") == 0) {
             g_pcKeyboardMode = true;
         }
+        if (strcmp(argv[i], "--headless") == 0) {
+            headless = true;
+        }
         if (strcmp(argv[i], "--limiter-threshold") == 0 && i + 1 < argc) {
             limiterThreshold = atof(argv[++i]);
             if (limiterThreshold < 0.1f) limiterThreshold = 0.1f;
             if (limiterThreshold > 1.0f) limiterThreshold = 1.0f;
         }
     }
-
-    bool headless = !synthEngineName.empty();
 
     if (listMidi) {
         MidiInput tmpMidi(nullptr);
@@ -168,8 +176,26 @@ int main(int argc, char* argv[]) {
     machineManager.registerMachine(new PBSynthMachine());
     machineManager.registerMachine(new CursynthMachine(8));
     machineManager.registerMachine(new TwytchsynthMachine());
+    machineManager.registerMachine(new DigitsMachine());
+    machineManager.registerMachine(new AmbikaMachine());
 
-    machineManager.setCurrentMachine(0);
+    if (!synthEngineName.empty()) {
+        for (int i = 0; i < machineManager.getMachineCount(); i++) {
+            std::string machName = machineManager.getMachineName(i);
+            bool match = machName.length() == synthEngineName.length();
+            if (match) {
+                for (size_t c = 0; c < machName.length(); c++)
+                    if (tolower(machName[c]) != tolower(synthEngineName[c]))
+                        { match = false; break; }
+            }
+            if (match) {
+                machineManager.setCurrentMachine(i);
+                break;
+            }
+        }
+    } else {
+        machineManager.setCurrentMachine(0);
+    }
     Machine* activeMachine = machineManager.getCurrentMachine();
     std::cout << "Selected engine: " << activeMachine->getName() << "\n" << std::endl;
 
@@ -280,101 +306,115 @@ int main(int argc, char* argv[]) {
     if (headless) {
         while (running)
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    } else {
-        std::cout << "UI launching...\n" << std::endl;
-        std::cout << "Press Ctrl+C to exit\n" << std::endl;
-
-        NcursesRenderer renderer;
-        renderer.init();
-        renderer.setRefreshIntervalMs(1000 / fpsLimit);
-
-        std::unique_ptr<MachineUI> ui;
-
-        TwytchsynthMachine* twytchMachine = dynamic_cast<TwytchsynthMachine*>(activeMachine);
-        PBSynthMachine* pbsynthMachine = dynamic_cast<PBSynthMachine*>(activeMachine);
-        CursynthMachine* cursynthMachine = dynamic_cast<CursynthMachine*>(activeMachine);
-        NcursesynthMachine* ncursesynthMachine = dynamic_cast<NcursesynthMachine*>(activeMachine);
-
-        if (twytchMachine)
-            ui.reset(new TwytchUI(activeMachine, &machineManager));
-        else if (pbsynthMachine)
-            ui.reset(new PBSynthUI(activeMachine, &machineManager));
-        else if (cursynthMachine)
-            ui.reset(new CursynthUI(activeMachine, &machineManager));
-        else
-            ui.reset(new NcursesynthUI(activeMachine, &machineManager));
-
-        ui->setRenderer(&renderer);
-        ui->setMidiInput(&midiInput);
-        ui->setMidiDeviceIndex(midiInput.getSelectedPort());
-        ui->setPcKeyboardMode(g_pcKeyboardMode);
-        ui->init();
-        ui->draw();
-
-        Machine* lastMachine = activeMachine;
-        while (running && ui->isActive()) {
-            int ch = renderer.getKey();
-
-            if (ch != Key::NONE)
-                ui->handleInput(ch);
-
-            ui->updateValues();
-
-            activeMachine = machineManager.getCurrentMachine();
-            if (activeMachine != lastMachine) {
-                if (audioEngine) audioEngine->setMachine(activeMachine);
-                if (captureDriver) captureDriver->setMachine(activeMachine);
-
-                int savedMenuSelection = ui->getMenuSelection();
-                int savedMenuIndex = ui->getMenuIndex();
-                int savedMidiDeviceIndex = ui->getMidiDeviceIndex();
-                int savedPresetIndex = ui->getPresetIndex();
-
-                PBSynthMachine* pm2 = dynamic_cast<PBSynthMachine*>(activeMachine);
-                CursynthMachine* cm2 = dynamic_cast<CursynthMachine*>(activeMachine);
-                TwytchsynthMachine* tm2 = dynamic_cast<TwytchsynthMachine*>(activeMachine);
-                NcursesynthMachine* nm2 = dynamic_cast<NcursesynthMachine*>(activeMachine);
-
-                if (pm2) { midiInput.setMachine(pm2); midiInput.setMappingMachine(pm2); pm2->init(); }
-                else if (cm2) { midiInput.setMachine(cm2); midiInput.setMappingMachine(cm2); cm2->init(); }
-                else if (tm2) { midiInput.setMachine(tm2); midiInput.setMappingMachine(tm2); tm2->init(); }
-                else if (nm2) { midiInput.setMachine(nm2); midiInput.setMappingMachine(nm2); nm2->init(); }
-
-                if (tm2) ui.reset(new TwytchUI(activeMachine, &machineManager));
-                else if (pm2) ui.reset(new PBSynthUI(activeMachine, &machineManager));
-                else if (cm2) ui.reset(new CursynthUI(activeMachine, &machineManager));
-                else ui.reset(new NcursesynthUI(activeMachine, &machineManager));
-
-                ui->setRenderer(&renderer);
-                ui->setMidiInput(&midiInput);
-                ui->setMenuIndex(savedMenuIndex);
-                ui->setMenuSelection(savedMenuSelection);
-                ui->setMidiDeviceIndex(savedMidiDeviceIndex);
-                ui->setPresetIndex(savedPresetIndex);
-                ui->setPcKeyboardMode(g_pcKeyboardMode);
-                ui->init();
-                ui->scanPresets();
-
-                lastMachine = activeMachine;
-            }
-
-            if (activeMachine) {
-                int note = -1;
-                if (auto* p = dynamic_cast<PBSynthMachine*>(activeMachine)) { if (p->getKeyOn()) note = p->getLastNote(); }
-                else if (auto* c = dynamic_cast<CursynthMachine*>(activeMachine)) { if (c->getKeyOn()) note = c->getLastNote(); }
-                else if (auto* t = dynamic_cast<TwytchsynthMachine*>(activeMachine)) { if (t->getKeyOn()) note = t->getLastNote(); }
-                else if (auto* n = dynamic_cast<NcursesynthMachine*>(activeMachine)) { if (n->getKeyOn()) note = n->getLastNote(); }
-                if (note >= 0) ui->setMidiNote(note, 127);
-            }
-
-            ui->draw();
-            int sleepMs = (fpsLimit > 0) ? (1000 / fpsLimit) : 30;
-            std::this_thread::sleep_for(std::chrono::milliseconds(sleepMs));
-        }
-
-        ui->stop();
+        return 0;
     }
 
+    std::cout << "UI launching...\n" << std::endl;
+    std::cout << "Press Ctrl+C to exit\n" << std::endl;
+
+    NcursesRenderer renderer;
+    renderer.init();
+    renderer.setRefreshIntervalMs(1000 / fpsLimit);
+
+    std::unique_ptr<MachineUI> ui;
+
+    TwytchsynthMachine* twytchMachine = dynamic_cast<TwytchsynthMachine*>(activeMachine);
+    PBSynthMachine* pbsynthMachine = dynamic_cast<PBSynthMachine*>(activeMachine);
+    CursynthMachine* cursynthMachine = dynamic_cast<CursynthMachine*>(activeMachine);
+    NcursesynthMachine* ncursesynthMachine = dynamic_cast<NcursesynthMachine*>(activeMachine);
+    DigitsMachine* digitsMachine = dynamic_cast<DigitsMachine*>(activeMachine);
+    AmbikaMachine* ambikaMachine = dynamic_cast<AmbikaMachine*>(activeMachine);
+
+    if (ambikaMachine)
+        ui.reset(new AmbikaUI(activeMachine, &machineManager));
+    else if (twytchMachine)
+        ui.reset(new TwytchUI(activeMachine, &machineManager));
+    else if (pbsynthMachine)
+        ui.reset(new PBSynthUI(activeMachine, &machineManager));
+    else if (cursynthMachine)
+        ui.reset(new CursynthUI(activeMachine, &machineManager));
+    else if (digitsMachine)
+        ui.reset(new DigitsUI(activeMachine, &machineManager));
+    else
+        ui.reset(new NcursesynthUI(activeMachine, &machineManager));
+
+    ui->setRenderer(&renderer);
+    ui->setMidiInput(&midiInput);
+    ui->setMidiDeviceIndex(midiInput.getSelectedPort());
+    ui->setPcKeyboardMode(g_pcKeyboardMode);
+    ui->init();
+    ui->draw();
+
+    Machine* lastMachine = activeMachine;
+    while (running && ui->isActive()) {
+        int ch = renderer.getKey();
+
+        if (ch != Key::NONE)
+            ui->handleInput(ch);
+
+        ui->updateValues();
+
+        activeMachine = machineManager.getCurrentMachine();
+        if (activeMachine != lastMachine) {
+            if (audioEngine) audioEngine->setMachine(activeMachine);
+            if (captureDriver) captureDriver->setMachine(activeMachine);
+
+            int savedMenuSelection = ui->getMenuSelection();
+            int savedMenuIndex = ui->getMenuIndex();
+            int savedMidiDeviceIndex = ui->getMidiDeviceIndex();
+            int savedPresetIndex = ui->getPresetIndex();
+
+            PBSynthMachine* pm2 = dynamic_cast<PBSynthMachine*>(activeMachine);
+            CursynthMachine* cm2 = dynamic_cast<CursynthMachine*>(activeMachine);
+            TwytchsynthMachine* tm2 = dynamic_cast<TwytchsynthMachine*>(activeMachine);
+            NcursesynthMachine* nm2 = dynamic_cast<NcursesynthMachine*>(activeMachine);
+            DigitsMachine* dm2 = dynamic_cast<DigitsMachine*>(activeMachine);
+            AmbikaMachine* am2 = dynamic_cast<AmbikaMachine*>(activeMachine);
+
+            if (am2) { midiInput.setMachine(am2); midiInput.setMappingMachine(am2); am2->init(); }
+            else if (pm2) { midiInput.setMachine(pm2); midiInput.setMappingMachine(pm2); pm2->init(); }
+            else if (cm2) { midiInput.setMachine(cm2); midiInput.setMappingMachine(cm2); cm2->init(); }
+            else if (tm2) { midiInput.setMachine(tm2); midiInput.setMappingMachine(tm2); tm2->init(); }
+            else if (nm2) { midiInput.setMachine(nm2); midiInput.setMappingMachine(nm2); nm2->init(); }
+            else if (dm2) { midiInput.setMachine(dm2); midiInput.setMappingMachine(dm2); dm2->init(); }
+
+            if (am2) ui.reset(new AmbikaUI(activeMachine, &machineManager));
+            else if (tm2) ui.reset(new TwytchUI(activeMachine, &machineManager));
+            else if (pm2) ui.reset(new PBSynthUI(activeMachine, &machineManager));
+            else if (cm2) ui.reset(new CursynthUI(activeMachine, &machineManager));
+            else if (dm2) ui.reset(new DigitsUI(activeMachine, &machineManager));
+            else ui.reset(new NcursesynthUI(activeMachine, &machineManager));
+
+            ui->setRenderer(&renderer);
+            ui->setMidiInput(&midiInput);
+            ui->setMenuIndex(savedMenuIndex);
+            ui->setMenuSelection(savedMenuSelection);
+            ui->setMidiDeviceIndex(savedMidiDeviceIndex);
+            ui->setPresetIndex(savedPresetIndex);
+            ui->setPcKeyboardMode(g_pcKeyboardMode);
+            ui->init();
+            ui->scanPresets();
+
+            lastMachine = activeMachine;
+        }
+
+        if (activeMachine) {
+            int note = -1;
+            if (auto* p = dynamic_cast<PBSynthMachine*>(activeMachine)) { if (p->getKeyOn()) note = p->getLastNote(); }
+            else if (auto* c = dynamic_cast<CursynthMachine*>(activeMachine)) { if (c->getKeyOn()) note = c->getLastNote(); }
+            else if (auto* t = dynamic_cast<TwytchsynthMachine*>(activeMachine)) { if (t->getKeyOn()) note = t->getLastNote(); }
+            else if (auto* n = dynamic_cast<NcursesynthMachine*>(activeMachine)) { if (n->getKeyOn()) note = n->getLastNote(); }
+            else if (auto* d = dynamic_cast<DigitsMachine*>(activeMachine)) { if (d->getKeyOn()) note = d->getLastNote(); }
+            else if (auto* a = dynamic_cast<AmbikaMachine*>(activeMachine)) { if (a->getKeyOn()) note = a->getLastNote(); }
+            if (note >= 0) ui->setMidiNote(note, 127);
+        }
+
+        ui->draw();
+        int sleepMs = (fpsLimit > 0) ? (1000 / fpsLimit) : 30;
+        std::this_thread::sleep_for(std::chrono::milliseconds(sleepMs));
+    }
+
+    ui->stop();
     std::cout << "\nShutting down..." << std::endl;
     midiInput.stop();
     if (tcpMidi) tcpMidi->stop();

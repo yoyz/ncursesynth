@@ -8,6 +8,8 @@
 #include "../machine/PBSynth/PBSynthMachine.h"
 #include "../machine/Cursynth/CursynthMachine.h"
 #include "../machine/Twytch/TwytchsynthMachine.h"
+#include "../machine/Digits/DigitsMachine.h"
+#include "../machine/Ambika/AmbikaMachine.h"
 #include "../midi/midi_mapping.h"
 #include <vector>
 #include <algorithm>
@@ -24,6 +26,8 @@ static Machine* createMachine(const std::string& name) {
     if (name == "PBSynth") return new PBSynthMachine();
     if (name == "Cursynth") return new CursynthMachine(8);
     if (name == "Twytch") return new TwytchsynthMachine();
+    if (name == "Digits") return new DigitsMachine();
+    if (name == "Ambika") return new AmbikaMachine();
     return nullptr;
 }
 
