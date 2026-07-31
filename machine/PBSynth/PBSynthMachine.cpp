@@ -8,7 +8,8 @@ PBSynthMachine::PBSynthMachine(int polyphony)
     : polyphony_(polyphony), currentVoice(0), cutoff(125), resonance(10),
       lfo_depth(0), lfo_depth_shift(20), lfo_speed(0),
       trig_time_mode(0), trig_time_duration(0), trig_time_duration_sample(0),
-      osc1_scale(0), osc2_scale(0), filter1_type(0)
+      osc1_scale(0), osc2_scale(0), filter1_type(0),
+      adsr_env0_release(64)
 {
     setName("PBSynth");
     DPRINTF("PBSynthMachine::PBSynthMachine()");
@@ -245,8 +246,7 @@ int PBSynthMachine::getI(int what)
       return (int)((s + 1.0f) * 64.0f + 0.5f);
   }
   if (what == ADSR_ENV0_RELEASE) {
-      float r = se->getEnvelope(0)->getR();
-      return (int)((r + 1.0f) * 64.0f + 0.5f);
+      return adsr_env0_release;
   }
   if (what == ADSR_ENV1_ATTACK) {
       float a = se->getEnvelope(1)->getA();
@@ -430,7 +430,7 @@ void PBSynthMachine::setI(int what,int val)
     if (what==ADSR_ENV0_ATTACK)    { for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setA((f_val*2.0f)-1.0f); }
     if (what==ADSR_ENV0_DECAY)     { for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setD((f_val*2.0f)-1.0f); }
     if (what==ADSR_ENV0_SUSTAIN)   { for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setS((f_val*2.0f)-1.0f); }
-    if (what==ADSR_ENV0_RELEASE)   { for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setR((f_val*2.0f)-1.0f); }
+    if (what==ADSR_ENV0_RELEASE)   { adsr_env0_release = val; for (auto& v : voices) if(v.se) v.se->getEnvelope(0)->setR(-1.0f + 2.0f * f_val * f_val); }
     if (what==ADSR_ENV1_ATTACK)    { for (auto& v : voices) if(v.se) v.se->getEnvelope(1)->setA((f_val*2.0f)-1.0f); }
     if (what==ADSR_ENV1_DECAY)     { for (auto& v : voices) if(v.se) v.se->getEnvelope(1)->setD((f_val*2.0f)-1.0f); }
     if (what==ADSR_ENV1_SUSTAIN)   { for (auto& v : voices) if(v.se) v.se->getEnvelope(1)->setS((f_val*2.0f)-1.0f); }

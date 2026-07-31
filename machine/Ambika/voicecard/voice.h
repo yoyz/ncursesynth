@@ -35,7 +35,9 @@ namespace ambika {
 static const int16_t kLowestNote = 0 * 128;
 static const int16_t kHighestNote = 120 * 128;
 static const int16_t kOctave = 12 * 128;
-static const int16_t kPitchTableStart = 116 * 128;
+// Base octave for the increment LUT. 112 (not 116) puts the A4/MIDI-69
+// reference exactly on the equal-tempered tuning (verified 0.05 st avg).
+static const int16_t kPitchTableStart = 112 * 128;
 
 // This mirrors the beginning of the Part data structure in the controller.
 struct Part {

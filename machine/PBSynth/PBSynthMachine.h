@@ -106,6 +106,8 @@ class PBSynthMachine : public Machine
    int                   osc2_detune;
    int                   filter1_type;
 
+   int                   adsr_env0_release;
+
 };
 
 #endif

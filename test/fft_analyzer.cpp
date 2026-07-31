@@ -122,13 +122,15 @@ float FFTAnalyzer::findFundamentalFrequency(const std::vector<float>& magnitudes
     });
     
     for (const auto& peak : peaks) {
-        // Check if this peak has at least one harmonic above it
+        // Check if this peak has at least one harmonic above it.
+        // A true harmonic must be an integer multiple >= 2 — a peak only
+        // slightly above (ratio ~1) is a sideband, not a harmonic.
         bool hasHarmonic = false;
         for (const auto& other : peaks) {
             if (other.bin <= peak.bin) continue;
             float ratio = other.bin / static_cast<float>(peak.bin);
             float expectedRatio = std::round(ratio);
-            if (std::abs(ratio - expectedRatio) < 0.15f) {
+            if (expectedRatio >= 2.0f && std::abs(ratio - expectedRatio) < 0.15f) {
                 hasHarmonic = true;
                 break;
             }
@@ -137,7 +139,9 @@ float FFTAnalyzer::findFundamentalFrequency(const std::vector<float>& magnitudes
         
         // This peak has harmonics. Now check if it's a harmonic of a lower peak.
         // If a lower peak also has harmonics and this peak is an integer multiple
-        // of it, the lower peak is the true fundamental.
+        // of it, the lower peak is the true fundamental. Candidates are iterated
+        // strongest-first, so the first qualifying one is the strongest harmonic
+        // divisor and the most reliable fundamental.
         float bestFundamental = peak.bin * binWidth;
         for (const auto& candidate : peaks) {
             if (candidate.bin >= peak.bin) continue;
@@ -145,16 +149,19 @@ float FFTAnalyzer::findFundamentalFrequency(const std::vector<float>& magnitudes
             
             float ratio = peak.bin / static_cast<float>(candidate.bin);
             float nearestInt = std::round(ratio);
-            if (ratio > 1.0f && std::abs(ratio - nearestInt) < 0.15f) {
-                // Verify candidate also has harmonics
+            if (ratio > 1.0f && nearestInt >= 2.0f &&
+                std::abs(ratio - nearestInt) < 0.15f) {
+                // Verify candidate also has harmonics (again >= 2x required)
                 for (const auto& check : peaks) {
                     if (check.bin <= candidate.bin) continue;
                     float checkRatio = check.bin / static_cast<float>(candidate.bin);
-                    if (std::abs(checkRatio - std::round(checkRatio)) < 0.15f) {
+                    if (std::round(checkRatio) >= 2.0f &&
+                        std::abs(checkRatio - std::round(checkRatio)) < 0.15f) {
                         bestFundamental = candidate.bin * binWidth;
                         break;
                     }
                 }
+                if (bestFundamental != peak.bin * binWidth) break;
             }
         }
         return bestFundamental;

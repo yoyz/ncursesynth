@@ -2,6 +2,7 @@
 #define AMBIKA_MACHINE_H
 
 #include "../Machine.h"
+#include <cstdint>
 
 class PluginVoiceManager;
 
@@ -21,6 +22,7 @@ public:
     float getF(int index) override;
     void applyCC(int cc, float normalized, const std::string& paramName) override;
     const char* getDisplayString(int index) override;
+    std::vector<std::pair<std::string, int>> getPresetParams() const override;
 
     int getKeyOn() const { return m_hasActiveNotes; }
     int getLastNote() const { return m_lastNote; }
@@ -41,7 +43,9 @@ private:
     int m_filterType;
     int m_mixOp;
     int m_lfoShape;
+    int m_fltEnvDepth;
 
+    static int mapParam(int id);
     void processBlock();
 };
 

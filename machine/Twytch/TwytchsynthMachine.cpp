@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cmath>
 #include "twytch_types.h"
 #include "TwytchsynthMachine.h"
 
@@ -246,7 +247,7 @@ void TwytchsynthMachine::setI(int what, int val)
     if (what == ADSR_ENV0_RELEASE) {
         adsr_env0_release = val;
         auto controls = engine->getControls();
-        if (controls.count("amp_release")) controls.at("amp_release")->set(f_val * 4);
+        if (controls.count("amp_release")) controls.at("amp_release")->set(0.02f * powf(200.0f, f_val));
     }
 
     if (what == ADSR_ENV1_ATTACK) {

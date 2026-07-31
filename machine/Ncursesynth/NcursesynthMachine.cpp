@@ -332,25 +332,25 @@ int NcursesynthMachine::checkI(int index, int value) {
 
 std::vector<std::pair<std::string, int>> NcursesynthMachine::getPresetParams() const {
     return {
-        {"OSC1_WAVEFORM", MachineParam::OSC_1_WAVEFORM},
-        {"OSC2_WAVEFORM", MachineParam::OSC_2_WAVEFORM},
-        {"OSC_MIX", MachineParam::OSC_MIX},
-        {"OSC2_TUNE", MachineParam::OSC_2_TUNE},
-        {"FILTER_TYPE", MachineParam::FILTER_TYPE},
-        {"CUTOFF", MachineParam::FILTER_CUTOFF},
-        {"RESONANCE", MachineParam::RESONANCE},
-        {"FILTER_ENV_DEPTH", MachineParam::FILTER_ENV_DEPTH},
-        {"AMP_ATTACK", MachineParam::AMP_ATTACK},
-        {"AMP_DECAY", MachineParam::AMP_DECAY},
-        {"AMP_SUSTAIN", MachineParam::AMP_SUSTAIN},
-        {"AMP_RELEASE", MachineParam::AMP_RELEASE},
-        {"FILTER_ENV_ATTACK", MachineParam::FILTER_ENV_ATTACK},
-        {"FILTER_ENV_DECAY", MachineParam::FILTER_ENV_DECAY},
-        {"FILTER_ENV_SUSTAIN", MachineParam::FILTER_ENV_SUSTAIN},
-        {"FILTER_ENV_RELEASE", MachineParam::FILTER_ENV_RELEASE},
-        {"VOLUME", 35},
-        {"LFO1_FREQ", MachineParam::LFO_1_FREQUENCY},
-        {"LFO1_AMOUNT", MachineParam::LFO_1_AMOUNT}
+        {"OSC1_WAVEFORM", ParamID::osc1_wave},
+        {"OSC2_WAVEFORM", ParamID::osc2_wave},
+        {"OSC_MIX", ParamID::mix},
+        {"OSC2_TUNE", ParamID::osc2_detune},
+        {"FILTER_TYPE", ParamID::filter_type},
+        {"CUTOFF", ParamID::cutoff},
+        {"RESONANCE", ParamID::resonance},
+        {"FILTER_ENV_DEPTH", ParamID::flt_env_depth},
+        {"AMP_ATTACK", ParamID::amp_attack},
+        {"AMP_DECAY", ParamID::amp_decay},
+        {"AMP_SUSTAIN", ParamID::amp_sustain},
+        {"AMP_RELEASE", ParamID::amp_release},
+        {"FILTER_ENV_ATTACK", ParamID::flt_attack},
+        {"FILTER_ENV_DECAY", ParamID::flt_decay},
+        {"FILTER_ENV_SUSTAIN", ParamID::flt_sustain},
+        {"FILTER_ENV_RELEASE", ParamID::flt_release},
+        {"VOLUME", ParamID::volume},
+        {"LFO1_FREQ", ParamID::lfo1_freq},
+        {"LFO1_AMOUNT", ParamID::lfo1_depth}
     };
 }
 

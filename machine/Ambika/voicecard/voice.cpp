@@ -32,8 +32,8 @@ static const Patch init_patch = {
   WAVEFORM_SAW, 0, 0, 0,
   WAVEFORM_SQUARE, 32, 0, 10,
 
-  // Mixer: balanced mix, sum operator, sub osc square
-  64, OP_SUM, 0, WAVEFORM_SUB_OSC_SQUARE_1, 40, 8, 0, 0,
+  // Mixer: balanced mix, sum operator, no sub osc or noise by default
+  64, OP_SUM, 0, WAVEFORM_SUB_OSC_SQUARE_1, 0, 0, 0, 0,
 
   // Filter: open cutoff, moderate resonance
   127, 32, 0, 0, 0, 0, 48, 0,
@@ -45,8 +45,9 @@ static const Patch init_patch = {
 
   LFO_WAVEFORM_TRIANGLE, 16,
 
-  // Routing: env1->pulse width, env1->filter, lfo1->pitch, env2->vca with velocity
-  MOD_SRC_ENV_1, MOD_DST_PARAMETER_1, 64,
+  // Routing: mod env (env3)->OSC1 PARAM (PWM), env1->filter, lfo1->pitch,
+  // env2->vca with velocity
+  MOD_SRC_ENV_3, MOD_DST_PARAMETER_1, 48,
   MOD_SRC_ENV_1, MOD_DST_FILTER_CUTOFF, 48,
   MOD_SRC_LFO_1, MOD_DST_OSC_1_2_FINE, 8,
   MOD_SRC_LFO_4, MOD_DST_PARAMETER_2, 0,
@@ -225,7 +226,12 @@ inline void Voice::LoadSources() {
   dst_[MOD_DST_MIX_SUB_OSC] = patch_.mix_sub_osc << 8;
 
   uint16_t cutoff = U8U8Mul(patch_.filter[0].cutoff, 128);
-  dst_[MOD_DST_FILTER_CUTOFF] = S16ClipU14(cutoff + pitch_value_ - 8192);
+  {
+    int32_t c = static_cast<int32_t>(cutoff) + pitch_value_ - 8192;
+    if (c < 0) c = 0;
+    if (c > 16383) c = 16383;
+    dst_[MOD_DST_FILTER_CUTOFF] = static_cast<int16_t>(c);
+  }
   dst_[MOD_DST_FILTER_RESONANCE] = patch_.filter[0].resonance << 8;
 
   dst_[MOD_DST_ATTACK] = 8192;
@@ -247,7 +253,7 @@ inline void Voice::ProcessModulationMatrix() {
     uint8_t destination = patch_.modulation[i].destination;
     uint8_t source_value = modulation_sources_[source];
     if (destination != MOD_DST_VCA) {
-      int16_t modulation = dst_[destination];
+      int32_t modulation = dst_[destination];
       if ((source >= MOD_SRC_LFO_1 && source <= MOD_SRC_LFO_4) ||
            source == MOD_SRC_PITCH_BEND ||
            source == MOD_SRC_NOTE) {
@@ -255,7 +261,9 @@ inline void Voice::ProcessModulationMatrix() {
       } else {
         modulation += S8U8Mul(amount, source_value);
       }
-      dst_[destination] = S16ClipU14(modulation);
+      if (modulation < 0) modulation = 0;
+      if (modulation > 16383) modulation = 16383;
+      dst_[destination] = static_cast<int16_t>(modulation);
     } else {
       if (amount < 0) {
         amount = -amount;
@@ -272,11 +280,11 @@ inline void Voice::ProcessModulationMatrix() {
 }
 
 inline void Voice::UpdateDestinations() {
-  uint16_t cutoff = dst_[MOD_DST_FILTER_CUTOFF];
-  cutoff = S16ClipU14(cutoff + S8U8Mul(patch_.filter_env,
-      modulation_sources_[MOD_SRC_ENV_2]));
-  cutoff = S16ClipU14(cutoff + S8S8Mul(patch_.filter_lfo,
-      modulation_sources_[MOD_SRC_LFO_2] + 128));
+  int32_t cutoff = dst_[MOD_DST_FILTER_CUTOFF];
+  cutoff += S8U8Mul(patch_.filter_env, modulation_sources_[MOD_SRC_ENV_2]);
+  cutoff += S8S8Mul(patch_.filter_lfo, modulation_sources_[MOD_SRC_LFO_2] + 128);
+  if (cutoff < 0) cutoff = 0;
+  if (cutoff > 16383) cutoff = 16383;
 
   modulation_destinations_[MOD_DST_FILTER_CUTOFF] = U14ShiftRight6(cutoff);
   modulation_destinations_[MOD_DST_FILTER_RESONANCE] = U14ShiftRight6(
@@ -480,6 +488,12 @@ void Voice::ProcessBlock() {
   wet_gain = U14ShiftRight6(dst_[MOD_DST_MIX_FUZZ]);
   dry_gain = ~wet_gain;
 
+  // VCA acts as a per-sample amplitude multiplier (analog gain cell on the
+  // original hardware). Without this, the output stays at full level until
+  // the envelope reaches ~0 and the gate below abruptly cuts it.
+  uint8_t vca_gain = modulation_destinations_[MOD_DST_VCA];
+  uint8_t vca_silence = 255 - vca_gain;
+
   for (uint8_t i = 0; i < kAudioBlockSize;) {
     uint8_t signal_noise_a, signal_noise_b;
     noise = (noise * 73) + 1;
@@ -489,6 +503,7 @@ void Voice::ProcessBlock() {
         ResourcesManager::Lookup<uint8_t, uint8_t>(
             wav_res_distortion, signal_noise_a),
         dry_gain, wet_gain);
+    a = U8Mix(128, a, vca_silence, vca_gain);
 
     noise = (noise * 73) + 1;
     signal_noise_b = U8Mix(buffer_[i++], noise, signal_gain, noise_gain);
@@ -497,6 +512,7 @@ void Voice::ProcessBlock() {
           ResourcesManager::Lookup<uint8_t, uint8_t>(
               wav_res_distortion, signal_noise_b),
           dry_gain, wet_gain);
+    b = U8Mix(128, b, vca_silence, vca_gain);
     output_[i-2] = a;
     output_[i-1] = b;
   }

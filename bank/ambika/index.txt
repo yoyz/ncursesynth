@@ -1,0 +1,4 @@
+Ambika presets
+init.txt=init
+lead.txt=lead
+bass.txt=bass

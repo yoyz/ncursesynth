@@ -229,8 +229,8 @@ class PluginVoiceManager {
       case PARAM_FILTER_TYPE:     return 0.0f;
       case PARAM_MIX_BALANCE:     return 0.5f;
       case PARAM_MIX_OPERATOR:    return 0.0f;
-      case PARAM_MIX_SUB_OSC:     return 0.3f;
-      case PARAM_MIX_NOISE:       return 0.06f;
+      case PARAM_MIX_SUB_OSC:     return 0.0f;
+      case PARAM_MIX_NOISE:       return 0.0f;
       case PARAM_MIX_FUZZ:        return 0.0f;
       case PARAM_ENV1_ATTACK:     return 0.0f;
       case PARAM_ENV1_DECAY:      return 0.6f;
@@ -417,11 +417,11 @@ class PluginVoiceManager {
     params_[PARAM_FILTER_RESONANCE] = p.filter[0].resonance / 127.0f;
     params_[PARAM_FILTER_MODE] = p.filter[0].mode / 3.0f;
     params_[PARAM_FILTER_TYPE] = 0.0f;
-    params_[PARAM_MIX_BALANCE] = p.mix_balance / 255.0f;
+    params_[PARAM_MIX_BALANCE] = p.mix_balance / 63.0f;
     params_[PARAM_MIX_OPERATOR] = p.mix_op / 5.0f;
-    params_[PARAM_MIX_SUB_OSC] = p.mix_sub_osc / 127.0f;
-    params_[PARAM_MIX_NOISE] = p.mix_noise / 127.0f;
-    params_[PARAM_MIX_FUZZ] = p.mix_fuzz / 127.0f;
+    params_[PARAM_MIX_SUB_OSC] = p.mix_sub_osc / 63.0f;
+    params_[PARAM_MIX_NOISE] = p.mix_noise / 63.0f;
+    params_[PARAM_MIX_FUZZ] = p.mix_fuzz / 63.0f;
     params_[PARAM_ENV1_ATTACK] = p.env_lfo[0].attack / 127.0f;
     params_[PARAM_ENV1_DECAY] = p.env_lfo[0].decay / 127.0f;
     params_[PARAM_ENV1_SUSTAIN] = p.env_lfo[0].sustain / 127.0f;
@@ -505,7 +505,7 @@ class PluginVoiceManager {
         break;
       case PARAM_MIX_BALANCE:
         for (int i = 0; i < kPluginVoices; ++i)
-          voices_[i].mutable_patch().mix_balance = (uint8_t)(v * 255.0f);
+          voices_[i].mutable_patch().mix_balance = (uint8_t)(v * 63.0f);
         break;
       case PARAM_MIX_OPERATOR:
         { uint8_t op = (uint8_t)(v * 5.0f + 0.5f);
@@ -516,15 +516,15 @@ class PluginVoiceManager {
         break;
       case PARAM_MIX_SUB_OSC:
         for (int i = 0; i < kPluginVoices; ++i)
-          voices_[i].mutable_patch().mix_sub_osc = (uint8_t)(v * 127.0f);
+          voices_[i].mutable_patch().mix_sub_osc = (uint8_t)(v * 63.0f);
         break;
       case PARAM_MIX_NOISE:
         for (int i = 0; i < kPluginVoices; ++i)
-          voices_[i].mutable_patch().mix_noise = (uint8_t)(v * 127.0f);
+          voices_[i].mutable_patch().mix_noise = (uint8_t)(v * 63.0f);
         break;
       case PARAM_MIX_FUZZ:
         for (int i = 0; i < kPluginVoices; ++i)
-          voices_[i].mutable_patch().mix_fuzz = (uint8_t)(v * 127.0f);
+          voices_[i].mutable_patch().mix_fuzz = (uint8_t)(v * 63.0f);
         break;
       case PARAM_ENV1_ATTACK:
         for (int i = 0; i < kPluginVoices; ++i)

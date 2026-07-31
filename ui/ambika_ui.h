@@ -11,7 +11,7 @@ public:
         : MachineUI(mach, mgr) {
         columnTitles[0] = "OSCILLATORS";
         columnTitles[1] = "FILTER / MIX";
-        columnTitles[2] = "ENVELOPE / LFO";
+        columnTitles[2] = "ENVELOPES";
         init();
     }
 };

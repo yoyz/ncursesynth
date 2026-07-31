@@ -13,6 +13,8 @@
 #include "../midi/midi_mapping.h"
 #include <vector>
 #include <algorithm>
+#include <map>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -182,7 +184,8 @@ bool runVolumeSilenceTest(Machine* machine, bool useFFT) {
     
     // Allow brief release time for engines that need it (like Twytch)
     // Generate a small buffer to let release complete
-    const int releaseSamples = 1024;
+    // Cursynth's default amp release is 0.3s, so drain 1s to cover it.
+    const int releaseSamples = 44100;
     std::vector<int32_t> releaseBuffer(releaseSamples);
     for (int i = 0; i < releaseSamples; i++) {
         machine->tick();
@@ -920,46 +923,139 @@ bool runPresetTests(Machine* machine, bool useFFT) {
         return false;
     }
 
-    // Try loading each preset
+    auto params = machine->getPresetParams();
+    if (params.empty()) {
+        printTestResult("preset", false, "Engine exposes no preset params");
+        return false;
+    }
+
+    // Build a lookup of param name -> id for the file content probe below.
+    std::map<std::string, int> paramMap;
+    for (const auto& p : params) {
+        paramMap[p.first] = p.second;
+    }
+
+    // ---- 1. Load every preset and verify its content is actually applied ----
     int loaded = 0;
+    std::vector<std::string> failures;
     for (const auto& f : files) {
         std::string path = dir + "/" + f;
-        if (machine->loadPreset(path)) {
+
+        // Probe the first KEY=VALUE line of the file so we can verify the
+        // engine state after loading matches what the file declares.
+        std::string probeKey, probeVal;
+        {
+            std::ifstream fh(path);
+            std::string line;
+            while (std::getline(fh, line)) {
+                if (line.empty() || line[0] == '#') continue;
+                size_t eq = line.find('=');
+                if (eq == std::string::npos) continue;
+                probeKey = line.substr(0, eq);
+                probeVal = line.substr(eq + 1);
+                break;
+            }
+        }
+
+        machine->init();
+        if (!machine->loadPreset(path)) {
+            failures.push_back(f + "(load failed)");
+            continue;
+        }
+
+        // Generate audio to verify the preset doesn't crash.
+        for (int i = 0; i < 1024; i++) machine->tick();
+
+        // Verify the file was actually applied: the probed parameter must
+        // now match the value written in the file (within ±2 lossy tolerance).
+        bool applied = true;
+        auto probeIt = paramMap.find(probeKey);
+        if (probeIt != paramMap.end() && !probeVal.empty()) {
+            try {
+                size_t pos;
+                float fval = std::stof(probeVal, &pos);
+                if (pos == probeVal.length()) {
+                    int expected = static_cast<int>(fval);
+                    int got = machine->getI(probeIt->second);
+                    if (abs(got - expected) > 2) applied = false;
+                }
+            } catch (...) {
+            }
+        }
+        if (applied) {
             loaded++;
-            // Generate audio to verify preset doesn't crash
-            machine->init();
-            for (int i = 0; i < 1024; i++) machine->tick();
+        } else {
+            failures.push_back(f + "(content not applied)");
         }
     }
 
     if (loaded == 0) {
-        printTestResult("preset", false, "Failed to load any presets in bank/" + machine->getName());
+        std::string why = failures.empty() ? "unknown" : failures[0];
+        printTestResult("preset", false, "Failed to load any presets in " + dir + ": " + why);
         return false;
     }
 
-    // Test save and reload
-    std::string testPath = "bank/" + machine->getName() + "/_test_preset_save";
-    bool saveOk = machine->savePreset(testPath);
+    // ---- 2. Save/reload roundtrip over the full parameter set ----
+    // NOTE: the engine dir is lowercase (bank/<engine>); getName() is mixed
+    // case, so it must be lowercased before building the save path.
+    std::string testPath = dir + "/_test_preset_save";
 
-    // Reload it and verify
-    bool reloadOk = false;
-    if (saveOk) {
-        reloadOk = machine->loadPreset(testPath);
-        // Generate audio after reload
-        if (reloadOk) {
-            machine->init();
-            for (int i = 0; i < 1024; i++) machine->tick();
-        }
-        // Clean up test file
-        remove(testPath.c_str());
+    // Set a distinctive value for every preset param, then capture the
+    // storable representation (what savePreset will write).
+    machine->init();
+    for (size_t i = 0; i < params.size(); i++) {
+        int val = static_cast<int>((i * 53 + 37) % 128);
+        machine->setI(params[i].second, val);
+    }
+    std::vector<int> savedVals(params.size());
+    for (size_t i = 0; i < params.size(); i++) {
+        savedVals[i] = machine->getI(params[i].second);
     }
 
-    std::string msg = "Loaded " + std::to_string(loaded) + "/" + std::to_string(files.size()) + " presets";
-    if (saveOk && reloadOk) msg += ", save/reload OK";
-    else if (saveOk) msg += ", save OK but reload failed";
-    
-    bool passed = (loaded > 0);
-    printTestResult("preset", passed, msg);
+    bool saveOk = machine->savePreset(testPath);
+    if (!saveOk) {
+        remove(testPath.c_str());
+        printTestResult("preset", false, "savePreset failed to " + testPath);
+        return false;
+    }
+
+    // Scramble every parameter, reload, and confirm the saved values return.
+    machine->init();
+    for (size_t i = 0; i < params.size(); i++) {
+        machine->setI(params[i].second, 0);
+    }
+    bool reloadOk = machine->loadPreset(testPath);
+    remove(testPath.c_str());
+
+    if (!reloadOk) {
+        printTestResult("preset", false, "loadPreset failed after save/reload");
+        return false;
+    }
+    for (int i = 0; i < 1024; i++) machine->tick();
+
+    int match = 0;
+    std::ostringstream mismatchMsg;
+    int shown = 0;
+    for (size_t i = 0; i < params.size(); i++) {
+        int got = machine->getI(params[i].second);
+        if (abs(got - savedVals[i]) <= 2) {
+            match++;
+        } else if (shown < 3) {
+            mismatchMsg << " " << params[i].first << "(" << savedVals[i] << "->" << got << ")";
+            shown++;
+        }
+    }
+
+    bool passed = (match >= static_cast<int>(params.size()) - 2);
+    std::ostringstream msg;
+    msg << "Loaded " << loaded << "/" << files.size() << " presets";
+    if (loaded < static_cast<int>(files.size())) {
+        msg << " (failed: " << failures[0] << ")";
+    }
+    msg << ", save/reload " << match << "/" << params.size() << " params match";
+    if (shown > 0) msg << " mismatch:" << mismatchMsg.str();
+
+    printTestResult("preset", passed, msg.str());
     return passed;
 }
 

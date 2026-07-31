@@ -53,6 +53,24 @@ static constexpr int OUTPUT_AMPLITUDE = 8192;
 #define AMB_FENV_AMOUNT     80
 #define AMB_FLFO_AMOUNT     81
 
+// Ambika extended param IDs (unified scheme — in a range that avoids
+// collisions with the shared ParamID namespace in machine/ParamID.h).
+// These identify Ambika-specific controls that have no unified equivalent.
+#define AMB_OSC1_PARAM      100
+#define AMB_OSC2_PARAM      101
+#define AMB_FILTER_MODE     102
+#define AMB_MIX_OP          103
+#define AMB_MIX_SUB         104
+#define AMB_MIX_NOISE       105
+#define AMB_MIX_FUZZ        106
+#define AMB_FLFO_AMT        107
+#define AMB_LFO_SHAPE       108
+#define AMB_PORTAMENTO      109
+#define AMB_MOD_ATTACK      110
+#define AMB_MOD_DECAY       111
+#define AMB_MOD_SUSTAIN     112
+#define AMB_MOD_RELEASE     113
+
 #define NOTE_ON             150
 #define NOTE1               70
 #define VELOCITY            140
