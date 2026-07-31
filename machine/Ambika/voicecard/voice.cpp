@@ -401,7 +401,13 @@ void Voice::ProcessBlock() {
   ProcessModulationMatrix();
   UpdateDestinations();
 
-  if (vca() < 2) {
+  // A voice that has never been gated, or whose amp envelope has fully
+  // finished (DEAD), must stay silent even if the patch leaves the VCA open:
+  // some factory patches route a constant or LFO to the VCA, and with no note
+  // the oscillators would render a sub-audio rumble that the analog audio
+  // path of the original hardware effectively rejects.
+  bool ungated = (gate_ == 0) && (envelope_[1].stage() == DEAD);
+  if (vca() < 2 || ungated) {
     for (uint8_t i = 0; i < kAudioBlockSize; i += 2) {
       output_[i] = 128;
       output_[i + 1] = 128;

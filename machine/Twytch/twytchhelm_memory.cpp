@@ -39,6 +39,6 @@ namespace twytchhelmmopo {
   }
 
   Memory::~Memory() {
-    delete memory_;
+    delete[] memory_;
   }
 } // namespace twytchhelmmopo

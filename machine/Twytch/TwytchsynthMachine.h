@@ -10,6 +10,7 @@ using namespace std;
 #define __TWYTCHSYNTHMACHINE__
 
 #include <cstdint>
+#include <vector>
 #define Sint32 int32_t
 #define Sint16 int16_t
 #define Uint32 uint32_t
@@ -38,6 +39,13 @@ class TwytchsynthMachine : public Machine
    const char* getDisplayString(int index) override;
 
    std::vector<std::pair<std::string, int>> getPresetParams() const override;
+
+   // Built-in Helm factory preset bank browsing
+   bool hasFactoryPatches() const override { return true; }
+   int getFactoryPatchCount() const override;
+   void loadFactoryPatch(int index) override;
+   int getFactoryPatchIndex() const override { return factoryIndex; }
+   const char* getFactoryPatchName(int index) const override;
 
    int getLastNote() const { return note; }
    int getKeyOn() const { return note_on; }
@@ -130,6 +138,12 @@ float                 lfo1_freq;
     int                   lfo2_freq_raw;
 
     int                   amp_volume;
+
+    int                   factoryIndex;
+    std::vector<twytchhelmmopo::ModulationConnection*> factoryConnections_;
+
+    void clearFactoryConnections();
+    void syncUiFromEngine();
 
 };
 

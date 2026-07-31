@@ -367,6 +367,7 @@ int main(int argc, char* argv[]) {
             int savedMenuIndex = ui->getMenuIndex();
             int savedMidiDeviceIndex = ui->getMidiDeviceIndex();
             int savedPresetIndex = ui->getPresetIndex();
+            int savedFactoryIndex = ui->getFactoryIndex();
 
             PBSynthMachine* pm2 = dynamic_cast<PBSynthMachine*>(activeMachine);
             CursynthMachine* cm2 = dynamic_cast<CursynthMachine*>(activeMachine);
@@ -395,6 +396,7 @@ int main(int argc, char* argv[]) {
             ui->setMenuSelection(savedMenuSelection);
             ui->setMidiDeviceIndex(savedMidiDeviceIndex);
             ui->setPresetIndex(savedPresetIndex);
+            ui->setFactoryIndex(savedFactoryIndex);
             ui->setPcKeyboardMode(g_pcKeyboardMode);
             ui->setMasterEffects(masterFx);
             ui->init();

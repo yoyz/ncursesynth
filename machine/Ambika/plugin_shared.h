@@ -110,8 +110,9 @@ enum AmbikaParam {
   PARAM_PRESET,
 
   // Filter modulation amounts (80-81)
-  PARAM_FILTER_ENV_AMOUNT,   // patch_.filter_env, int8_t, -128..127
-  PARAM_FILTER_LFO_AMOUNT,   // patch_.filter_lfo, int8_t, -128..127
+  // Unipolar 0..63 like the original ENV2TVCF / LFO2TVCF hardware params.
+  PARAM_FILTER_ENV_AMOUNT,   // patch_.filter_env, int8_t, 0..63
+  PARAM_FILTER_LFO_AMOUNT,   // patch_.filter_lfo, int8_t, 0..63
 
   PARAM_COUNT
 };
@@ -219,7 +220,7 @@ class PluginVoiceManager {
       case PARAM_OSC1_PARAMETER:  return 0.25f;
       case PARAM_OSC1_RANGE:      return 0.5f;
       case PARAM_OSC1_DETUNE:     return 0.5f;
-      case PARAM_OSC2_SHAPE:      return 2.0f / 22.0f;
+      case PARAM_OSC2_SHAPE:      return 2.0f / (float)(WAVEFORM_LAST - 2);
       case PARAM_OSC2_PARAMETER:  return 0.0f;
       case PARAM_OSC2_RANGE:      return 0.5f;
       case PARAM_OSC2_DETUNE:     return 0.5f;
@@ -248,8 +249,8 @@ class PluginVoiceManager {
       case PARAM_LFO_RATE:        return 0.12f;
       case PARAM_VOLUME:          return 0.8f;
       case PARAM_PORTAMENTO:      return 0.0f;
-      case PARAM_FILTER_ENV_AMOUNT: return 0.5f;
-      case PARAM_FILTER_LFO_AMOUNT: return 0.5f;
+      case PARAM_FILTER_ENV_AMOUNT: return 48.0f / 63.0f;  // matches init_patch filter_env=48
+      case PARAM_FILTER_LFO_AMOUNT: return 0.0f;           // matches init_patch filter_lfo=0
       case PARAM_PANIC:
       case PARAM_RESET:
       case PARAM_PREV_PRESET:
@@ -363,6 +364,13 @@ class PluginVoiceManager {
     return params_[param];
   }
 
+  int numPatches() const { return kNumPatches; }
+  const char* patchName(int index) const {
+    if (index < 0) index = 0;
+    if (index >= kNumPatches) index = kNumPatches - 1;
+    return kPatchNames[index];
+  }
+
   // -- Audio processing --
 
   void ProcessBlock(float** outputs, int num_channels, int num_frames) {
@@ -436,8 +444,8 @@ class PluginVoiceManager {
     params_[PARAM_ENV3_RELEASE] = p.env_lfo[2].release / 127.0f;
     params_[PARAM_LFO_SHAPE] = p.voice_lfo_shape / 3.0f;
     params_[PARAM_LFO_RATE] = p.voice_lfo_rate / 127.0f;
-    params_[PARAM_FILTER_ENV_AMOUNT] = (p.filter_env + 128) / 255.0f;
-    params_[PARAM_FILTER_LFO_AMOUNT] = (p.filter_lfo + 128) / 255.0f;
+    params_[PARAM_FILTER_ENV_AMOUNT] = p.filter_env / 63.0f;
+    params_[PARAM_FILTER_LFO_AMOUNT] = p.filter_lfo / 63.0f;
     for (int i = 0; i < kModSlots; ++i) {
       int base = PARAM_MOD_SOURCE_0 + i * 3;
       params_[base + 0] = p.modulation[i].source / (float)(kNumModSources - 2);
@@ -592,13 +600,17 @@ class PluginVoiceManager {
           voices_[i].mutable_part().portamento_time = (uint8_t)(v * 127.0f);
         break;
       case PARAM_FILTER_ENV_AMOUNT:
-        { int8_t val = (int8_t)(v * 255.0f - 128.0f);
+        { int8_t val = (int8_t)(v * 63.0f);
+          if (val < 0) val = 0;
+          if (val > 63) val = 63;
           for (int i = 0; i < kPluginVoices; ++i)
             voices_[i].mutable_patch().filter_env = val;
         }
         break;
       case PARAM_FILTER_LFO_AMOUNT:
-        { int8_t val = (int8_t)(v * 255.0f - 128.0f);
+        { int8_t val = (int8_t)(v * 63.0f);
+          if (val < 0) val = 0;
+          if (val > 63) val = 63;
           for (int i = 0; i < kPluginVoices; ++i)
             voices_[i].mutable_patch().filter_lfo = val;
         }

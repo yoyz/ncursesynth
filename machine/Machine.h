@@ -51,6 +51,14 @@ public:
     virtual bool savePreset(const std::string& path);
     static std::vector<std::string> getPresetList(const std::string& engineName);
 
+    // Factory (built-in) patch bank browsing. Optional: only engines with an
+    // embedded patch bank (e.g. Ambika's 208 patches) override these.
+    virtual bool hasFactoryPatches() const { return false; }
+    virtual int getFactoryPatchCount() const { return 0; }
+    virtual void loadFactoryPatch(int index) { (void)index; }
+    virtual int getFactoryPatchIndex() const { return -1; }
+    virtual const char* getFactoryPatchName(int index) const { (void)index; return ""; }
+
 protected:
     std::mutex mtx_;
     std::string name_;

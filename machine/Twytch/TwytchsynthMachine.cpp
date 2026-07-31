@@ -1,7 +1,9 @@
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 #include "twytch_types.h"
 #include "TwytchsynthMachine.h"
+#include "twytch_factory_patches.h"
 
 #define SAM 64
 
@@ -9,7 +11,8 @@ static constexpr int OUTPUT_AMPLITUDE = 8192;
 
 TwytchsynthMachine::TwytchsynthMachine()
     : engine(nullptr), cutoff(125), resonance(10), amp_volume(90),
-      trig_time_mode(0), trig_time_duration(0), trig_time_duration_sample(0)
+      trig_time_mode(0), trig_time_duration(0), trig_time_duration_sample(0),
+      factoryIndex(-1)
 {
     setName("Twytch");
     DPRINTF("TwytchsynthMachine::TwytchsynthMachine()");
@@ -44,6 +47,7 @@ TwytchsynthMachine::TwytchsynthMachine()
 TwytchsynthMachine::~TwytchsynthMachine()
 {
     DPRINTF("TwytchsynthMachine::~TwytchsynthMachine()");
+    clearFactoryConnections();
     if (buffer_f) free(buffer_f);
     if (buffer_i) free(buffer_i);
     delete engine;
@@ -53,6 +57,9 @@ TwytchsynthMachine::~TwytchsynthMachine()
 void TwytchsynthMachine::init()
 {
     DPRINTF("TwytchsynthMachine::init()");
+
+    clearFactoryConnections();
+    factoryIndex = -1;
 
     if (buffer_f == nullptr)
         buffer_f = (twytchhelmmopo::mopo_float*)malloc(sizeof(twytchhelmmopo::mopo_float) * SAM);
@@ -428,6 +435,132 @@ void TwytchsynthMachine::reset()
     trig_time_mode = 0;
     trig_time_duration = 0;
     trig_time_duration_sample = 0;
+}
+
+void TwytchsynthMachine::clearFactoryConnections()
+{
+    if (engine) {
+        for (auto* conn : factoryConnections_) {
+            engine->disconnectModulation(conn);
+            delete conn;
+        }
+    }
+    factoryConnections_.clear();
+}
+
+int TwytchsynthMachine::getFactoryPatchCount() const
+{
+    return twytch::kNumFactoryPatches;
+}
+
+const char* TwytchsynthMachine::getFactoryPatchName(int index) const
+{
+    if (index < 0) index = 0;
+    if (index >= twytch::kNumFactoryPatches) index = twytch::kNumFactoryPatches - 1;
+    return twytch::kFactoryPatchNames[index];
+}
+
+void TwytchsynthMachine::loadFactoryPatch(int index)
+{
+    if (engine == nullptr) return;
+    if (index < 0 || index >= twytch::kNumFactoryPatches) return;
+
+    clearFactoryConnections();
+
+    const twytch::FactoryPatch& patch = twytch::kFactoryPatches[index];
+
+    // Apply every setting the preset stores, in native units. Controls the
+    // engine does not have are ignored.
+    auto controls = engine->getControls();
+    for (int i = 0; i < patch.num_settings; ++i) {
+        const twytch::FactorySetting& setting = patch.settings[i];
+        auto it = controls.find(setting.name);
+        if (it != controls.end())
+            it->second->set(setting.value);
+    }
+
+    // Rebuild the modulation routing. Skip connections whose source or
+    // destination is not present in the engine (mirrors connectModulation's
+    // source-polyphonicity lookup to avoid asserting on null).
+    for (int i = 0; i < patch.num_modulations; ++i) {
+        const twytch::FactoryModulation& mod = patch.modulations[i];
+        twytchhelmmopo::Output* source = engine->getModulationSource(mod.source);
+        if (!source) continue;
+        // Polyphonic sources (mod/filter envelope, poly LFO, ...) and mono->poly
+        // pairings (e.g. mono_lfo_1 -> osc_1_tune) crash the shared
+        // modulation_scale with a UB that only manifests at -O2 (clean under
+        // ASan), so only monophonic source modulations are applied.
+        if (source->owner->isPolyphonic()) continue;
+        twytchhelmmopo::Processor* destination =
+            engine->getModulationDestination(mod.destination, false);
+        if (!destination) continue;
+
+        twytchhelmmopo::ModulationConnection* conn =
+            new twytchhelmmopo::ModulationConnection(mod.source, mod.destination);
+        conn->amount.set(mod.amount);
+        engine->connectModulation(conn);
+        factoryConnections_.push_back(conn);
+    }
+
+    factoryIndex = index;
+    syncUiFromEngine();
+}
+
+void TwytchsynthMachine::syncUiFromEngine()
+{
+    if (engine == nullptr) return;
+    auto controls = engine->getControls();
+
+    auto cv = [&controls](const char* name) -> float {
+        auto it = controls.find(name);
+        return (it != controls.end()) ? it->second->value() : 0.0f;
+    };
+    auto clampI = [](int v, int lo, int hi) {
+        if (v < lo) return lo;
+        if (v > hi) return hi;
+        return v;
+    };
+
+    osc1_type = clampI((int)(cv("osc_1_waveform") + 0.5f), 0, 11);
+    osc2_type = clampI((int)(cv("osc_2_waveform") + 0.5f), 0, 11);
+    osc1_detune = clampI((int)((cv("osc_1_tune") + 1.0f) * 64.0f + 0.5f), 0, 127);
+    osc2_detune = clampI((int)((cv("osc_2_tune") + 1.0f) * 64.0f + 0.5f), 0, 127);
+    osc1_scale = clampI((int)(cv("osc_1_transpose") / 12.0f + 2.0f + 0.5f), 0, 4);
+    osc2_scale = clampI((int)(cv("osc_2_transpose") / 12.0f + 2.0f + 0.5f), 0, 4);
+    osc1_unison = clampI((int)((cv("osc_1_unison_voices") - 1.0f) / 14.0f * 127.0f + 0.5f), 0, 127);
+    osc2_unison = clampI((int)((cv("osc_2_unison_voices") - 1.0f) / 14.0f * 127.0f + 0.5f), 0, 127);
+    osc1_unisondt = clampI((int)(cv("osc_1_unison_detune") * 1.27f + 0.5f), 0, 127);
+    osc2_unisondt = clampI((int)(cv("osc_2_unison_detune") * 1.27f + 0.5f), 0, 127);
+    osc3_type = clampI((int)(cv("sub_waveform") + 0.5f), 0, 10);
+    osc4_type = clampI((int)(cv("noise_waveform") + 0.5f), 0, 1);
+    osc3_amp = clampI((int)(cv("sub_volume") * 127.0f + 0.5f), 0, 127);
+    osc4_amp = clampI((int)(cv("noise_volume") * 127.0f + 0.5f), 0, 127);
+
+    filter1_cutoff = clampI((int)((cv("cutoff") - 28.0f) / 99.0f * 127.0f + 0.5f), 0, 127);
+    filter1_resonance = clampI((int)(cv("resonance") * 127.0f + 0.5f), 0, 127);
+
+    adsr_env0_attack = clampI((int)(cv("amp_attack") / 4.0f * 127.0f + 0.5f), 0, 127);
+    adsr_env0_decay = clampI((int)(cv("amp_decay") / 4.0f * 127.0f + 0.5f), 0, 127);
+    adsr_env0_sustain = clampI((int)(cv("amp_sustain") * 127.0f + 0.5f), 0, 127);
+    float amp_release = cv("amp_release");
+    if (amp_release <= 0.02f) amp_release = 0.02f;
+    adsr_env0_release = clampI((int)(logf(amp_release / 0.02f) / logf(200.0f) * 128.0f + 0.5f), 0, 127);
+
+    adsr_env1_attack = clampI((int)(cv("fil_attack") / 4.0f * 127.0f + 0.5f), 0, 127);
+    adsr_env1_decay = clampI((int)(cv("fil_decay") / 4.0f * 127.0f + 0.5f), 0, 127);
+    adsr_env1_sustain = clampI((int)(cv("fil_sustain") * 127.0f + 0.5f), 0, 127);
+    adsr_env1_release = clampI((int)(cv("fil_release") / 4.0f * 127.0f + 0.5f), 0, 127);
+    env1_depth = clampI((int)((cv("fil_env_depth") / 128.0f + 1.0f) * 64.0f + 0.5f), 0, 127);
+
+    osc12_mix = clampI((int)(cv("osc_mix") * 127.0f + 0.5f), 0, 127);
+    amp_volume = clampI((int)(cv("volume") * 127.0f + 0.5f), 0, 127);
+    velocity = clampI((int)(cv("velocity_track") * 127.0f + 0.5f), 0, 127);
+    lfo1_freq_raw = clampI((int)(cv("lfo_1_rate") / 10.0f * 128.0f + 0.5f), 0, 127);
+    lfo2_freq_raw = clampI((int)(cv("lfo_2_rate") / 10.0f * 128.0f + 0.5f), 0, 127);
+    lfo1_env_amount = clampI((int)(cv("lfo_1_amount") * 127.0f + 0.5f), 0, 127);
+    lfo2_env_amount = clampI((int)(cv("lfo_2_amount") * 127.0f + 0.5f), 0, 127);
+    lfo1_freq = lfo1_freq_raw / 128.0f * 10.0f;
+    lfo2_freq = lfo2_freq_raw / 128.0f * 10.0f;
 }
 
 

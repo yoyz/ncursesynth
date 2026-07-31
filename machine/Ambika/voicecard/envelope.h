@@ -76,6 +76,17 @@ class Envelope {
         uint16_t, uint8_t>(lut_res_env_portamento_increments, release);
     stage_target_[DECAY] = sustain << 1;
     stage_target_[SUSTAIN] = stage_target_[DECAY];
+    // Live parameter change while the note is held: the sustain segment has a
+    // zero phase increment, so once it is entered the value is frozen at the
+    // old level and Render() never re-reads the target. Snap it to the new
+    // level so moving the sustain control while holding a note changes the
+    // volume immediately (like the other synth engines).
+    if (stage_ == SUSTAIN) {
+      uint8_t target = stage_target_[SUSTAIN];
+      value_ = (uint16_t)target << 8;
+      a_ = target;
+      b_ = target;
+    }
   }
 
   uint8_t Render() {

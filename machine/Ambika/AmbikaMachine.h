@@ -24,6 +24,13 @@ public:
     const char* getDisplayString(int index) override;
     std::vector<std::pair<std::string, int>> getPresetParams() const override;
 
+    // Built-in 208-patch bank browsing
+    bool hasFactoryPatches() const override { return true; }
+    int getFactoryPatchCount() const override;
+    void loadFactoryPatch(int index) override;
+    int getFactoryPatchIndex() const override;
+    const char* getFactoryPatchName(int index) const override;
+
     int getKeyOn() const { return m_hasActiveNotes; }
     int getLastNote() const { return m_lastNote; }
 
@@ -35,15 +42,6 @@ private:
     float m_resampleBuf[40];
     float m_resamplePos;
     float m_resampleStep;
-
-    // Local cache for discrete params to avoid lossy roundtrips
-    int m_osc1Shape;
-    int m_osc2Shape;
-    int m_filterMode;
-    int m_filterType;
-    int m_mixOp;
-    int m_lfoShape;
-    int m_fltEnvDepth;
 
     static int mapParam(int id);
     void processBlock();

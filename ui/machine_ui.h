@@ -42,6 +42,7 @@ protected:
     int midiDeviceIndex;
     int mappingIndex;
     int presetIndex;
+    int factoryIndex;
     std::vector<PresetInfo> presets;
     bool presetInputMode;
     std::string presetInputBuffer;
@@ -76,6 +77,9 @@ protected:
     void drawLevelMeter();
     void handleNavigation(int ch);
 
+    int menuItemCount() const;
+    void clampMenuIndex();
+
 public:
     MachineUI(Machine* mach, MachineManager* mgr = nullptr);
     virtual ~MachineUI();
@@ -95,7 +99,7 @@ public:
 
     void setMidiNote(int note, int vel) { lastMidiNote = note; lastMidiVel = vel; midiActivity = true; }
     void setMidiInput(MidiInput* midi) { midiInput = midi; }
-    void setMenuIndex(int idx) { menuIndex = idx; }
+    void setMenuIndex(int idx) { menuIndex = idx; clampMenuIndex(); }
     void setMenuSelection(int sel) { menuSelection = sel; }
     void setMidiDeviceIndex(int idx) { midiDeviceIndex = idx; }
     void setMappingIndex(int idx) { mappingIndex = idx; }
@@ -104,6 +108,8 @@ public:
     int getMidiDeviceIndex() const { return midiDeviceIndex; }
     int getMappingIndex() const { return mappingIndex; }
     int getMenuSelection() const { return menuSelection; }
+    int getFactoryIndex() const { return factoryIndex; }
+    void setFactoryIndex(int idx) { factoryIndex = idx; }
 
     void scanPresets();
     bool loadPreset(int index);

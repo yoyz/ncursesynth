@@ -10,6 +10,42 @@
 #include <iomanip>
 #include <atomic>
 #include <mutex>
+#include <fstream>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+// Streambuf that duplicates every byte written to an output stream into both
+// the original stream (the terminal) and a log file, so a test run can be
+// inspected later without re-running the suite.
+class TeeBuf : public std::streambuf {
+public:
+    TeeBuf(std::streambuf* original, std::ostream& log)
+        : original_(original), log_(log) {}
+
+protected:
+    std::streamsize xsputn(const char* s, std::streamsize n) override {
+        log_.write(s, n);
+        std::streamsize written = original_->sputn(s, n);
+        if (written != n) log_.setstate(std::ios::badbit);
+        return written;
+    }
+
+    int_type overflow(int_type c) override {
+        if (c == traits_type::eof()) return traits_type::not_eof(c);
+        char ch = traits_type::to_char_type(c);
+        log_.put(ch);
+        return original_->sputc(ch);
+    }
+
+    int sync() override {
+        log_.flush();
+        return original_->pubsync();
+    }
+
+private:
+    std::streambuf* original_;
+    std::ostream& log_;
+};
 
 bool runFilterFull3Tests(Machine* machine, bool useFFT);
 
@@ -423,6 +459,8 @@ void printUsage() {
     std::cout << "  --verbose          Verbose output\n";
     std::cout << "  --quiet             Minimal output\n";
     std::cout << "  --fft               Enable FFT analysis\n";
+    std::cout << "  --output FILE       Write a copy of all console output to FILE\n";
+    std::cout << "                      (default: test_results/test_report.log, overwritten each run)\n";
 }
 
 void listEngines() {
@@ -459,6 +497,7 @@ int main(int argc, char** argv) {
     bool verbose = false;
     bool quiet = false;
     std::vector<std::string> tests;
+    std::string outputFile;
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -492,6 +531,8 @@ int main(int argc, char** argv) {
             runAllTests = true;
         } else if (arg == "--fft") {
             useFFT = true;
+        } else if (arg == "--output" && i + 1 < argc) {
+            outputFile = argv[++i];
         } else if (arg == "--verbose") {
             verbose = true;
         } else if (arg == "--quiet") {
@@ -516,6 +557,31 @@ int main(int argc, char** argv) {
 
     if (quiet) verbose = false;
 
+    // Tee the full run output to a log file so the results can be inspected
+    // later without re-running the suite. The default path is overwritten on
+    // every run; override with --output FILE.
+    std::string logPath = outputFile;
+    if (logPath.empty()) {
+        logPath = "test_results/test_report.log";
+    }
+    size_t slash = logPath.find_last_of('/');
+    if (slash != std::string::npos) {
+        mkdir(logPath.substr(0, slash).c_str(), 0755);
+    }
+
+    std::ofstream logFile(logPath);
+    TeeBuf* tee = nullptr;
+    std::streambuf* oldCoutBuf = nullptr;
+    std::streambuf* oldCerrBuf = nullptr;
+    if (logFile) {
+        tee = new TeeBuf(std::cout.rdbuf(), logFile);
+        oldCoutBuf = std::cout.rdbuf(tee);
+        oldCerrBuf = std::cerr.rdbuf(tee);
+        std::cout << "Log file: " << logPath << std::endl;
+    } else {
+        std::cerr << "Warning: could not open log file: " << logPath << std::endl;
+    }
+
     TestRunner runner("reports", verbose);
     bool success = true;
 
@@ -532,6 +598,10 @@ int main(int argc, char** argv) {
         all.insert(all.end(), failed.begin(), failed.end());
         runner.getReporter().printReport(passed, failed, all);
     }
+
+    if (oldCoutBuf) std::cout.rdbuf(oldCoutBuf);
+    if (oldCerrBuf) std::cerr.rdbuf(oldCerrBuf);
+    delete tee;
 
     return success ? 0 : 1;
 }

@@ -150,7 +150,11 @@ float DigitsVoice::process(float lfoOut)
                 m_ampPhase = kSustain;
             break;
         case kSustain:
-            m_ampLevel = m_ampLastOut;
+            // Live sustain changes: snap to the current sustain level so
+            // moving the control while a note is held changes the volume
+            // immediately (release uses m_ampLastOut, keep it in sync).
+            m_ampLevel = m_sustainLevel;
+            m_ampLastOut = m_ampLevel;
             if (m_ampLevel <= 0.001f) {
                 m_ampLevel = 0;
                 m_ampPhase = kFinished;
@@ -191,7 +195,10 @@ float DigitsVoice::process(float lfoOut)
                 m_fltPhase = kSustain;
             break;
         case kSustain:
-            m_fltLevel = m_fltLastOut;
+            // Live sustain changes: snap to the current sustain level so
+            // moving the control while a note is held takes effect immediately.
+            m_fltLevel = fs;
+            m_fltLastOut = m_fltLevel;
             break;
         case kRelease:
             m_fltLevel = fr * m_fltLastOut;

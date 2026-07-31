@@ -11,11 +11,11 @@ void AmbikaUI::initControls()
     widgets.clear();
 
     // Column 1 - OSCILLATORS (x=2)
-    widgets.push_back(Widget("OSC1 SHAPE",  ParamID::osc1_wave,  0, 2, WidgetType::DISCRETE,   1.0f / 34.0f, 35));
+    widgets.push_back(Widget("OSC1 SHAPE",  ParamID::osc1_wave,  0, 2, WidgetType::DISCRETE,   1.0f / 36.0f, 37));
     widgets.push_back(Widget("OSC1 PARAM",  AMB_OSC1_PARAM,      1, 2, WidgetType::CONTINUOUS, 0.25f));
     widgets.push_back(Widget("OSC1 RANGE",  ParamID::osc1_scale, 2, 2, WidgetType::BIPOLAR,    0.5f));
     widgets.push_back(Widget("OSC1 DETUNE", ParamID::osc1_detune,3, 2, WidgetType::BIPOLAR,    0.5f));
-    widgets.push_back(Widget("OSC2 SHAPE",  ParamID::osc2_wave,  4, 2, WidgetType::DISCRETE,   0.0f, 35));
+    widgets.push_back(Widget("OSC2 SHAPE",  ParamID::osc2_wave,  4, 2, WidgetType::DISCRETE,   2.0f / 36.0f, 37));
     widgets.push_back(Widget("OSC2 PARAM",  AMB_OSC2_PARAM,      5, 2, WidgetType::CONTINUOUS, 0.0f));
     widgets.push_back(Widget("OSC2 RANGE",  ParamID::osc2_scale, 6, 2, WidgetType::BIPOLAR,    0.5f));
     widgets.push_back(Widget("OSC2 DETUNE", ParamID::osc2_detune,7, 2, WidgetType::BIPOLAR,    0.5f));
@@ -35,8 +35,8 @@ void AmbikaUI::initControls()
     widgets.push_back(Widget("SUB OSC",  AMB_MIX_SUB,           6, 40, WidgetType::CONTINUOUS, 0.0f));
     widgets.push_back(Widget("NOISE",    AMB_MIX_NOISE,         7, 40, WidgetType::CONTINUOUS, 0.0f));
     widgets.push_back(Widget("FUZZ",     AMB_MIX_FUZZ,          8, 40, WidgetType::CONTINUOUS, 0.0f));
-    widgets.push_back(Widget("FENV AMT", ParamID::flt_env_depth, 9, 40, WidgetType::BIPOLAR,   0.5f));
-    widgets.push_back(Widget("FLFO AMT", AMB_FLFO_AMT,         10, 40, WidgetType::BIPOLAR,   0.5f));
+    widgets.push_back(Widget("FENV AMT", ParamID::flt_env_depth, 9, 40, WidgetType::CONTINUOUS, 48.0f / 63.0f));
+    widgets.push_back(Widget("FLFO AMT", AMB_FLFO_AMT,         10, 40, WidgetType::CONTINUOUS, 0.0f));
     widgets.push_back(Widget("PORTAM",   AMB_PORTAMENTO,       11, 40, WidgetType::CONTINUOUS, 0.0f));
 
     // Column 3 - ENVELOPES (x=78)

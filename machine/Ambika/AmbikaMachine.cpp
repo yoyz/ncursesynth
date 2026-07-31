@@ -63,10 +63,6 @@ AmbikaMachine::AmbikaMachine()
     , m_hasActiveNotes(false)
     , m_resamplePos(0.0f)
     , m_resampleStep(31250.0f / 48000.0f)
-    , m_osc1Shape(1), m_osc2Shape(0)
-    , m_filterMode(0), m_filterType(0)
-    , m_mixOp(0), m_lfoShape(0)
-    , m_fltEnvDepth(64)
 {
     setName("Ambika");
     m_vm = new PluginVoiceManager();
@@ -85,13 +81,6 @@ void AmbikaMachine::init()
     m_hasActiveNotes = false;
     m_resamplePos = 0.0f;
     std::memset(m_resampleBuf, 0, sizeof(m_resampleBuf));
-    m_osc1Shape = 1;
-    m_osc2Shape = 0;
-    m_filterMode = 0;
-    m_filterType = 0;
-    m_mixOp = 0;
-    m_lfoShape = 0;
-    m_fltEnvDepth = 64;
 }
 
 void AmbikaMachine::reset()
@@ -101,6 +90,26 @@ void AmbikaMachine::reset()
     m_hasActiveNotes = false;
     m_resamplePos = 0.0f;
     std::memset(m_resampleBuf, 0, sizeof(m_resampleBuf));
+}
+
+int AmbikaMachine::getFactoryPatchCount() const
+{
+    return m_vm->numPatches();
+}
+
+void AmbikaMachine::loadFactoryPatch(int index)
+{
+    m_vm->LoadPreset(index);
+}
+
+int AmbikaMachine::getFactoryPatchIndex() const
+{
+    return m_vm->current_preset_;
+}
+
+const char* AmbikaMachine::getFactoryPatchName(int index) const
+{
+    return m_vm->patchName(index);
 }
 
 void AmbikaMachine::processBlock()
@@ -191,57 +200,41 @@ void AmbikaMachine::setI(int index, int value)
 
     // Discrete params: value is the discrete index, map to 0.0-1.0 for engine
     if (index == ParamID::osc1_wave || index == ParamID::osc2_wave) {
-        int& cache = (index == ParamID::osc1_wave) ? m_osc1Shape : m_osc2Shape;
         if (value < 0) value = 0;
         if (value >= kNumOscShapes) value = kNumOscShapes - 1;
-        cache = value;
         m_vm->SetParam(mapParam(index), (float)value / (float)(kNumOscShapes - 1));
         return;
     }
     if (index == AMB_FILTER_MODE) {
         if (value < 0) value = 0;
         if (value >= kNumFilterModes) value = kNumFilterModes - 1;
-        m_filterMode = value;
         m_vm->SetParam(mapParam(index), (float)value / (float)(kNumFilterModes - 1));
         return;
     }
     if (index == ParamID::filter_type) {
-        m_filterType = value > 0 ? 1 : 0;
-        m_vm->SetParam(mapParam(index), m_filterType > 0 ? 1.0f : 0.0f);
+        int t = value > 0 ? 1 : 0;
+        m_vm->SetParam(mapParam(index), t > 0 ? 1.0f : 0.0f);
         return;
     }
     if (index == AMB_MIX_OP) {
         if (value < 0) value = 0;
         if (value >= kNumMixOps) value = kNumMixOps - 1;
-        m_mixOp = value;
         m_vm->SetParam(mapParam(index), (float)value / (float)(kNumMixOps - 1));
         return;
     }
     if (index == AMB_LFO_SHAPE) {
         if (value < 0) value = 0;
         if (value >= kNumLfoShapes) value = kNumLfoShapes - 1;
-        m_lfoShape = value;
         m_vm->SetParam(mapParam(index), (float)value / (float)(kNumLfoShapes - 1));
         return;
     }
 
     if (index == ParamID::flt_env_depth) {
-        // Logarithmic (power) curve: fine resolution near center, where the
-        // useful filter-envelope amount lives (roughly -15%..+15% of the
-        // control), expanding toward full +/- at the extremes.
-        m_fltEnvDepth = value;
-        float t;
-        if (value <= 64) {
-            t = (value - 64) / 64.0f;
-        } else {
-            t = (value - 64) / 63.0f;
-        }
-        if (t < -1.0f) t = -1.0f;
-        if (t > 1.0f) t = 1.0f;
-        float sign = t < 0.0f ? -1.0f : 1.0f;
-        float mag = powf(sign * t, 1.5f);
-        float normalized = 0.5f + sign * mag * 0.5f;
-        m_vm->SetParam(PARAM_FILTER_ENV_AMOUNT, normalized);
+        // Unipolar like the original ENV2TVCF (0..63). The UI raw value is
+        // 0-127; the engine clamps to 0..63.
+        if (value < 0) value = 0;
+        if (value > 127) value = 127;
+        m_vm->SetParam(PARAM_FILTER_ENV_AMOUNT, value / 127.0f);
         return;
     }
 
@@ -266,20 +259,44 @@ int AmbikaMachine::getI(int index)
     if (index == 70) return m_lastNote;
     if (index == 150) return m_hasActiveNotes ? 1 : 0;
 
-    // Discrete params: return cached discrete index directly
+    // All values are read back from the engine's current state so that
+    // discrete params and FENV AMT stay in sync after preset loads (no
+    // stale local caches).
+    float v = m_vm->GetParam(mapParam(index));
+
+    // Discrete params: denormalize 0.0-1.0 to the discrete index.
     switch (index) {
-        case ParamID::osc1_wave:   return m_osc1Shape;
-        case ParamID::osc2_wave:   return m_osc2Shape;
-        case AMB_FILTER_MODE:      return m_filterMode;
-        case ParamID::filter_type: return m_filterType;
-        case AMB_MIX_OP:           return m_mixOp;
-        case AMB_LFO_SHAPE:        return m_lfoShape;
-        case ParamID::flt_env_depth: return m_fltEnvDepth;
+        case ParamID::osc1_wave:
+        case ParamID::osc2_wave: {
+            int idx = (int)(v * (kNumOscShapes - 1) + 0.5f);
+            if (idx < 0) idx = 0;
+            if (idx >= kNumOscShapes) idx = kNumOscShapes - 1;
+            return idx;
+        }
+        case AMB_FILTER_MODE: {
+            int idx = (int)(v * (kNumFilterModes - 1) + 0.5f);
+            if (idx < 0) idx = 0;
+            if (idx >= kNumFilterModes) idx = kNumFilterModes - 1;
+            return idx;
+        }
+        case ParamID::filter_type:
+            return v > 0.5f ? 1 : 0;
+        case AMB_MIX_OP: {
+            int idx = (int)(v * (kNumMixOps - 1) + 0.5f);
+            if (idx < 0) idx = 0;
+            if (idx >= kNumMixOps) idx = kNumMixOps - 1;
+            return idx;
+        }
+        case AMB_LFO_SHAPE: {
+            int idx = (int)(v * (kNumLfoShapes - 1) + 0.5f);
+            if (idx < 0) idx = 0;
+            if (idx >= kNumLfoShapes) idx = kNumLfoShapes - 1;
+            return idx;
+        }
         default: break;
     }
 
-    // Continuous/bipolar params: convert 0.0-1.0 to 0-127
-    float v = m_vm->GetParam(mapParam(index));
+    // Continuous params: convert 0.0-1.0 to 0-127.
     return (int)(v * 127.0f);
 }
 
@@ -369,28 +386,31 @@ const char* AmbikaMachine::getDisplayString(int index)
     switch (index) {
         case ParamID::osc1_wave:
         case ParamID::osc2_wave: {
-            int idx = (index == ParamID::osc1_wave) ? m_osc1Shape : m_osc2Shape;
+            int idx = getI(index);
             if (idx < 0) idx = 0;
             if (idx >= kNumOscShapes) idx = kNumOscShapes - 1;
             return oscNames[idx];
         }
         case AMB_FILTER_MODE: {
-            if (m_filterMode < 0) return filterModeNames[0];
-            if (m_filterMode >= kNumFilterModes) return filterModeNames[kNumFilterModes - 1];
-            return filterModeNames[m_filterMode];
+            int idx = getI(index);
+            if (idx < 0) return filterModeNames[0];
+            if (idx >= kNumFilterModes) return filterModeNames[kNumFilterModes - 1];
+            return filterModeNames[idx];
         }
         case ParamID::filter_type: {
-            return filterTypeNames[m_filterType > 0 ? 1 : 0];
+            return filterTypeNames[getI(index) > 0 ? 1 : 0];
         }
         case AMB_MIX_OP: {
-            if (m_mixOp < 0) return opNames[0];
-            if (m_mixOp >= kNumMixOps) return opNames[kNumMixOps - 1];
-            return opNames[m_mixOp];
+            int idx = getI(index);
+            if (idx < 0) return opNames[0];
+            if (idx >= kNumMixOps) return opNames[kNumMixOps - 1];
+            return opNames[idx];
         }
         case AMB_LFO_SHAPE: {
-            if (m_lfoShape < 0) return lfoShapeNames[0];
-            if (m_lfoShape >= kNumLfoShapes) return lfoShapeNames[kNumLfoShapes - 1];
-            return lfoShapeNames[m_lfoShape];
+            int idx = getI(index);
+            if (idx < 0) return lfoShapeNames[0];
+            if (idx >= kNumLfoShapes) return lfoShapeNames[kNumLfoShapes - 1];
+            return lfoShapeNames[idx];
         }
         default:
             break;

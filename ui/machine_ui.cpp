@@ -21,7 +21,7 @@ MachineUI::MachineUI(Machine* mach, MachineManager* mgr)
       lastMidiNote(-1), lastMidiVel(0), midiActivity(false),
       pcKeyboardMode(false), pcOctave(4),
       menuSelection(0), menuIndex(0), midiDeviceIndex(-1), mappingIndex(0),
-      presetIndex(0), presetInputMode(false), statusTimer(0),
+      presetIndex(0), factoryIndex(0), presetInputMode(false), statusTimer(0),
       masterEffects(nullptr), fxView(false), fxSelection(0), fxAddType(0) {
     columnTitles[0] = "OSCILLATORS";
     columnTitles[1] = "FILTER";
@@ -132,8 +132,19 @@ void MachineUI::draw() {
     renderer->refresh();
 }
 
+int MachineUI::menuItemCount() const {
+    return (machine && machine->hasFactoryPatches()) ? 5 : 4;
+}
+
+void MachineUI::clampMenuIndex() {
+    int maxIdx = menuItemCount() - 1;
+    if (menuIndex < 0) menuIndex = 0;
+    if (menuIndex > maxIdx) menuIndex = maxIdx;
+}
+
 void MachineUI::drawMenuBar() {
     if (!renderer) return;
+    clampMenuIndex();
     int row = 2;
     int col = 2;
 
@@ -176,12 +187,26 @@ void MachineUI::drawMenuBar() {
     renderer->write(row, col + 60, "[PRESET: " + presetName + "]");
     renderer->setStyle(Style::NORMAL);
 
-    renderer->setStyle(Style::DIM);
-    if (menuSelection == 0)
-        renderer->write(row, col + 82, "(TAB: Menu | ARROWS: Navigate | S: Save)");
-    else
-        renderer->write(row, col + 82, "(LEFT/RIGHT: Switch | TAB: Params)");
-    renderer->setStyle(Style::NORMAL);
+    bool hasFactory = machine && machine->hasFactoryPatches();
+    if (hasFactory) {
+        std::string factoryName = "Init";
+        if (machine->getFactoryPatchIndex() >= 0)
+            factoryName = machine->getFactoryPatchName(machine->getFactoryPatchIndex());
+        if (factoryName.length() > 13) factoryName = factoryName.substr(0, 10) + "...";
+        renderer->setStyle(menuSelection == 1 && menuIndex == 4 ? Style::REVERSE : Style::NORMAL);
+        renderer->write(row, col + 80, "[FACTORYPATCH: " + factoryName + "]");
+        renderer->setStyle(Style::NORMAL);
+    }
+
+    int hintCol = hasFactory ? col + 104 : col + 82;
+    if (!hasFactory || screenCols >= hintCol + 25) {
+        renderer->setStyle(Style::DIM);
+        if (menuSelection == 0)
+            renderer->write(row, hintCol, "(TAB: Menu | ARROWS: Navigate | S: Save)");
+        else
+            renderer->write(row, hintCol, "(LEFT/RIGHT: Switch | TAB: Params)");
+        renderer->setStyle(Style::NORMAL);
+    }
 }
 
 void MachineUI::drawMidiMonitor() {
@@ -468,10 +493,12 @@ void MachineUI::handleInput(int ch) {
 
     if (menuSelection == 1) {
         if (ch == Key::UP) {
-            menuIndex = (menuIndex - 1 + 4) % 4;
+            int mc = menuItemCount();
+            menuIndex = (menuIndex - 1 + mc) % mc;
             return;
         } else if (ch == Key::DOWN) {
-            menuIndex = (menuIndex + 1) % 4;
+            int mc = menuItemCount();
+            menuIndex = (menuIndex + 1) % mc;
             return;
         }
 
@@ -520,6 +547,20 @@ void MachineUI::handleInput(int ch) {
                         int newIdx = (presetIndex + 1) % pc;
                         loadPreset(newIdx);
                     }
+                }
+            } else if (menuIndex == 4 && machine && machine->hasFactoryPatches()) {
+                int fc = machine->getFactoryPatchCount();
+                if (fc > 0) {
+                    if (ch == Key::LEFT) {
+                        factoryIndex = (factoryIndex - 1 + fc) % fc;
+                    } else {
+                        factoryIndex = (factoryIndex + 1) % fc;
+                    }
+                    if (factoryIndex < 0) factoryIndex = 0;
+                    machine->lock();
+                    machine->loadFactoryPatch(factoryIndex);
+                    machine->unlock();
+                    updateControlValues();
                 }
             }
         }

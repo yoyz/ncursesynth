@@ -155,7 +155,8 @@ ENGINE_TWYTCH_ENGINE = machine/Twytch/twytchhelm_alias.cpp \
                       machine/Twytch/twytchhelm_voice_handler.cpp \
                       machine/Twytch/twytchhelm_smooth_filter.cpp
 
-ENGINE_TWYTCH_MACHINE = machine/Twytch/TwytchsynthMachine.cpp
+ENGINE_TWYTCH_MACHINE = machine/Twytch/TwytchsynthMachine.cpp \
+                       machine/Twytch/twytch_factory_patches.cpp
 
 ENGINE_TWYTCH_UI = ui/twytch_ui.cpp
 
