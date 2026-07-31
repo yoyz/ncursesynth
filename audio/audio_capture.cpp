@@ -16,7 +16,9 @@ AudioCaptureDriver::AudioCaptureDriver(int tcpPort, int sampleRate)
     : tcpPort(tcpPort), sampleRate(sampleRate), running(false),
       machine(nullptr), totalSamples(0),
       ringBuffer(RING_CAPACITY, 0.0f), ringWrite(0), ringOverwriteCount(0),
-      limiter(0.85f, 1.0f, 50.0f, sampleRate) {}
+      limiter(0.85f, 1.0f, 50.0f, sampleRate) {
+    masterEffects.setSampleRate((float)sampleRate);
+}
 
 AudioCaptureDriver::~AudioCaptureDriver() {
     stop();
@@ -66,6 +68,7 @@ void AudioCaptureDriver::captureLoop() {
         if (m) {
             int32_t sample = m->tick();
             float f = sample / 8192.0f;
+            f = masterEffects.process(f);
             f = limiter.process(f);
             CaptureAnalyzer::writeSample(f);
             AudioLevel::update(f);

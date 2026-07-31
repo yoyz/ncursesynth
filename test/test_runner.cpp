@@ -57,7 +57,8 @@ static const std::vector<std::string> g_availableTests = {
     "edge_cases",
     "bipolar_params",
     "long_running",
-    "init_pitch"
+    "init_pitch",
+    "masterfx"
 };
 
 static const char* g_engineDescriptions[] = {
@@ -247,6 +248,7 @@ static const TestEntry g_testEntries[] = {
     {"bipolar_params",    runBipolarParamTests},
     {"long_running",      runLongRunningTests},
     {"init_pitch",        runDefaultInitPitchTest},
+    {"masterfx",          runMasterFxTests},
 };
 
 bool TestRunner::runAllTests(Machine* machine, bool useFFT, const std::vector<std::string>& testNames) {

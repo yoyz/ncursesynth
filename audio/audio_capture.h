@@ -8,6 +8,7 @@
 #include <cstdint>
 #include "../machine/Machine.h"
 #include "audio_limiter.h"
+#include "master_effects.h"
 
 class AudioCaptureDriver {
 public:
@@ -40,6 +41,7 @@ private:
 
 public:
     AudioLimiter limiter;
+    MasterEffects masterEffects;
 };
 
 #endif

@@ -13,6 +13,7 @@ CORE_SOURCES = main.cpp \
                audio/audio_capture.cpp \
                audio/audio_level.cpp \
                audio/capture_analysis.cpp \
+               audio/master_effects.cpp \
                machine/Machine.cpp \
                machine/MachineManager.cpp \
                midi/midi_input.cpp \
@@ -234,7 +235,8 @@ TEST_UI_OBJECTS = ui/machine_ui.o \
                   ui/twytch_ui.o \
                   ui/digits_ui.o \
                   ui/ambika_ui.o \
-                  audio/audio_level.o
+                  audio/audio_level.o \
+                  audio/master_effects.o
 
 # Convert source variables to object variables for test framework
 TEST_CORE_OBJECTS = machine/Machine.o \
@@ -309,13 +311,13 @@ midi/midi_client: midi/midi_client.cpp
 # =============================================================================
 # TEST FRAMEWORK
 # =============================================================================
-test: test/test_runner.o test/fft_analyzer.o test/test_reporter.o test/test_helpers.o test/test_engine.o test/fake_audio_driver.o test/midi_simulator.o $(TEST_MACHINE_OBJECTS)
+test: test/test_runner.o test/fft_analyzer.o test/test_reporter.o test/test_helpers.o test/test_engine.o test/fake_audio_driver.o test/midi_simulator.o audio/master_effects.o $(TEST_MACHINE_OBJECTS)
 	@echo "Test framework built"
 
 test_runner.o fft_analyzer.o test_reporter.o test_helpers.o test_engine.o fake_audio_driver.o midi_simulator.o: %.o: test/%.cpp
 	$(CXX) $(TEST_CXXFLAGS) $(DEPFLAGS) -c $< -o $@
 
-test_runner: test/test_runner.o test/fft_analyzer.o test/test_reporter.o test/test_helpers.o test/test_engine.o test/fake_audio_driver.o test/midi_simulator.o $(TEST_MACHINE_OBJECTS)
+test_runner: test/test_runner.o test/fft_analyzer.o test/test_reporter.o test/test_helpers.o test/test_engine.o test/fake_audio_driver.o test/midi_simulator.o audio/master_effects.o $(TEST_MACHINE_OBJECTS)
 	$(CXX) $(TEST_CXXFLAGS) -o $@ $^ $(TEST_LDFLAGS)
 	@echo ""
 	@echo "Testing can be done using the following command"

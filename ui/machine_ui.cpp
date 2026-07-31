@@ -21,7 +21,8 @@ MachineUI::MachineUI(Machine* mach, MachineManager* mgr)
       lastMidiNote(-1), lastMidiVel(0), midiActivity(false),
       pcKeyboardMode(false), pcOctave(4),
       menuSelection(0), menuIndex(0), midiDeviceIndex(-1), mappingIndex(0),
-      presetIndex(0), presetInputMode(false), statusTimer(0) {
+      presetIndex(0), presetInputMode(false), statusTimer(0),
+      masterEffects(nullptr), fxView(false), fxSelection(0), fxAddType(0) {
     columnTitles[0] = "OSCILLATORS";
     columnTitles[1] = "FILTER";
     columnTitles[2] = "ENVELOPE";
@@ -83,12 +84,16 @@ void MachineUI::draw() {
     renderer->write(4, 2, engineName + " ENGINE");
     renderer->setStyle(Style::NORMAL);
 
-    drawColumnHeader(2, columnTitles[0].c_str());
-    drawColumnHeader(40, columnTitles[1].c_str());
-    drawColumnHeader(78, columnTitles[2].c_str());
+    if (fxView) {
+        drawFxView();
+    } else {
+        drawColumnHeader(2, columnTitles[0].c_str());
+        drawColumnHeader(40, columnTitles[1].c_str());
+        drawColumnHeader(78, columnTitles[2].c_str());
 
-    for (size_t i = 0; i < widgets.size(); i++) {
-        widgets[i].draw(*renderer, (int)i == selectedControl, machine);
+        for (size_t i = 0; i < widgets.size(); i++) {
+            widgets[i].draw(*renderer, (int)i == selectedControl, machine);
+        }
     }
 
     if (statusTimer > 0) {
@@ -102,6 +107,9 @@ void MachineUI::draw() {
     if (presetInputMode) {
         renderer->write(screenRows - 2, 2, "Enter preset name: " + presetInputBuffer + "_");
         renderer->write(screenRows - 3, 2, "Press ENTER to save, ESC to cancel");
+    } else if (fxView) {
+        renderer->write(screenRows - 3, 2,
+            "F: Params | UP/DOWN: Select | L/R or PGUP/DN: Adjust | A: Add | X: Remove | [/]: Move");
     } else if (menuSelection == 0) {
         if (pcKeyboardMode) {
             char buf[80];
@@ -250,6 +258,158 @@ void MachineUI::drawLevelMeter() {
     renderer->setStyle(Style::NORMAL);
 }
 
+int MachineUI::fxRowCount() const {
+    if (!masterEffects) return 0;
+    int n = 0;
+    for (int e = 0; e < masterEffects->getEffectCount(); e++) {
+        n += 1 + masterEffects->getEffectParamCount(e);
+    }
+    return n;
+}
+
+bool MachineUI::fxRowAt(int flat, int& effectIdx, int& paramIdx) const {
+    if (!masterEffects) return false;
+    int idx = flat;
+    for (int e = 0; e < masterEffects->getEffectCount(); e++) {
+        int pcount = masterEffects->getEffectParamCount(e);
+        if (idx == 0) { effectIdx = e; paramIdx = -1; return true; }
+        if (idx <= pcount) { effectIdx = e; paramIdx = idx - 1; return true; }
+        idx -= pcount + 1;
+    }
+    return false;
+}
+
+int MachineUI::fxRowOf(int effectIdx, int paramIdx) const {
+    int flat = 0;
+    for (int e = 0; e < effectIdx; e++) {
+        flat += 1 + masterEffects->getEffectParamCount(e);
+    }
+    return flat + (paramIdx < 0 ? 0 : paramIdx + 1);
+}
+
+void MachineUI::drawFxView() {
+    if (!renderer || !masterEffects) return;
+
+    renderer->setStyle(Style::BOLD);
+    renderer->write(4, 18, "MASTER FX  (shared, post-mix)");
+    renderer->setStyle(Style::NORMAL);
+
+    constexpr int NAME_WIDTH = 11;
+    int row = CONTROL_ROW_OFFSET;
+    int col = 2;
+    int lastRow = screenRows - 6;
+
+    for (int e = 0; e < masterEffects->getEffectCount(); e++) {
+        if (row > lastRow) break;
+        int headerFlat = fxRowOf(e, -1);
+        bool selected = (headerFlat == fxSelection);
+
+        char buf[48];
+        snprintf(buf, sizeof(buf), "[%d] %-*s", e + 1, NAME_WIDTH - 3,
+                 masterEffects->getEffectName(e));
+        if (selected) renderer->setStyle(Style::REVERSE);
+        renderer->write(row, col, buf);
+        renderer->setStyle(selected ? Style::NORMAL : Style::DIM);
+        renderer->write(row, col + 11, masterEffects->isEffectEnabled(e) ? "[ON]" : "[OFF]");
+        renderer->setStyle(Style::NORMAL);
+
+        row++;
+
+        int pcount = masterEffects->getEffectParamCount(e);
+        for (int p = 0; p < pcount; p++) {
+            if (row > lastRow) break;
+            int flat = fxRowOf(e, p);
+            bool psel = (flat == fxSelection);
+
+            char nameBuf[16];
+            snprintf(nameBuf, sizeof(nameBuf), "%-*s", NAME_WIDTH,
+                     masterEffects->getEffectParamName(e, p));
+            float norm = masterEffects->getEffectParam(e, p);
+            int raw = (int)(norm * 127.0f + 0.5f);
+            if (raw > 127) raw = 127;
+            if (raw < 0) raw = 0;
+
+            if (psel) renderer->setStyle(Style::REVERSE);
+            renderer->write(row, col + 3, nameBuf);
+            renderer->write(row, col + 3 + NAME_WIDTH + 1, "[");
+            renderer->drawBar(row, col + 3 + NAME_WIDTH + 2, raw, 127, CONTROL_BAR_LEN);
+            renderer->write(row, col + 3 + NAME_WIDTH + 2 + CONTROL_BAR_LEN, "]");
+            int pct = (raw * 100 + 63) / 127;
+            char pctStr[16];
+            snprintf(pctStr, sizeof(pctStr), "%3d%%", pct);
+            renderer->write(row, col + 3 + NAME_WIDTH + 2 + CONTROL_BAR_LEN + 2, pctStr);
+            renderer->setStyle(psel ? Style::NORMAL : Style::NORMAL);
+
+            row++;
+        }
+    }
+
+    if (masterEffects->getEffectCount() == 0) {
+        renderer->setStyle(Style::DIM);
+        renderer->write(row, col, "Chain empty - press A to add an effect");
+        renderer->setStyle(Style::NORMAL);
+    }
+}
+
+void MachineUI::handleFxInput(int ch) {
+    if (ch == 'f' || ch == 'F') {
+        fxView = false;
+        return;
+    }
+    if (!masterEffects) return;
+
+    int total = fxRowCount();
+    if (total == 0) {
+        if (ch == 'a' || ch == 'A') {
+            masterEffects->addEffect((MasterEffects::EffectType)fxAddType);
+            fxAddType = (fxAddType + 1) % 4;
+            fxSelection = 0;
+        }
+        return;
+    }
+
+    if (ch == Key::UP) { fxSelection = (fxSelection - 1 + total) % total; return; }
+    if (ch == Key::DOWN) { fxSelection = (fxSelection + 1) % total; return; }
+
+    int effectIdx = 0, paramIdx = 0;
+    if (!fxRowAt(fxSelection, effectIdx, paramIdx)) return;
+
+    if (ch == 'a' || ch == 'A') {
+        if (masterEffects->insertEffect(effectIdx, (MasterEffects::EffectType)fxAddType)) {
+            fxAddType = (fxAddType + 1) % 4;
+            fxSelection = fxRowOf(effectIdx + 1, -1);
+        }
+        return;
+    }
+
+    if (paramIdx < 0) {
+        // Effect header row
+        if (ch == Key::LEFT || ch == Key::RIGHT || ch == Key::PAGE_UP || ch == Key::PAGE_DOWN) {
+            masterEffects->setEffectEnabled(effectIdx, !masterEffects->isEffectEnabled(effectIdx));
+        } else if (ch == 'x' || ch == 'X') {
+            masterEffects->removeEffect(effectIdx);
+            if (fxSelection >= fxRowCount()) fxSelection = fxRowCount() - 1;
+        } else if (ch == '[') {
+            masterEffects->moveEffect(effectIdx, effectIdx - 1);
+            fxSelection = fxRowOf(effectIdx - 1, -1);
+        } else if (ch == ']') {
+            masterEffects->moveEffect(effectIdx, effectIdx + 1);
+            fxSelection = fxRowOf(effectIdx + 1, -1);
+        }
+        return;
+    }
+
+    // Parameter row
+    int raw = (int)(masterEffects->getEffectParam(effectIdx, paramIdx) * 127.0f + 0.5f);
+    if (ch == Key::LEFT || ch == Key::PAGE_DOWN) raw--;
+    else if (ch == Key::RIGHT || ch == Key::PAGE_UP) raw++;
+    else if (ch >= '0' && ch <= '9') raw = (int)((ch - '0') / 10.0f * 127.0f + 0.5f);
+    else return;
+    if (raw < 0) raw = 0;
+    if (raw > 127) raw = 127;
+    masterEffects->setEffectParam(effectIdx, paramIdx, raw / 127.0f);
+}
+
 void MachineUI::handleInput(int ch) {
     if (presetInputMode) {
         if (ch == '\n' || ch == Key::ENTER) {
@@ -268,6 +428,12 @@ void MachineUI::handleInput(int ch) {
             if (presetInputBuffer.length() < 40)
                 presetInputBuffer += (char)ch;
         }
+        return;
+    }
+
+    // Master-FX view (shared across all engines)
+    if (fxView) {
+        handleFxInput(ch);
         return;
     }
 
@@ -361,6 +527,11 @@ void MachineUI::handleInput(int ch) {
     }
 
     if (menuSelection == 0) {
+        if (ch == 'f' || ch == 'F') {
+            fxView = true;
+            fxSelection = 0;
+            return;
+        }
         if (ch == 's' || ch == 'S') {
             std::string name = getCurrentPresetName();
             if (!name.empty() && name != "Init") {

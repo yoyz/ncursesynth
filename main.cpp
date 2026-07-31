@@ -303,6 +303,9 @@ int main(int argc, char* argv[]) {
         captureDriver->setMachine(activeMachine);
     }
 
+    MasterEffects* masterFx = audioEngine ? audioEngine->getMasterEffects()
+                            : (captureDriver ? &captureDriver->masterEffects : nullptr);
+
     if (headless) {
         while (running)
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -342,6 +345,7 @@ int main(int argc, char* argv[]) {
     ui->setMidiInput(&midiInput);
     ui->setMidiDeviceIndex(midiInput.getSelectedPort());
     ui->setPcKeyboardMode(g_pcKeyboardMode);
+    ui->setMasterEffects(masterFx);
     ui->init();
     ui->draw();
 
@@ -392,6 +396,7 @@ int main(int argc, char* argv[]) {
             ui->setMidiDeviceIndex(savedMidiDeviceIndex);
             ui->setPresetIndex(savedPresetIndex);
             ui->setPcKeyboardMode(g_pcKeyboardMode);
+            ui->setMasterEffects(masterFx);
             ui->init();
             ui->scanPresets();
 

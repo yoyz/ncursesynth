@@ -14,6 +14,7 @@ AudioEngine::AudioEngine(int rate, int frames, double latencyMs, float limiterTh
     machine.store(nullptr);
     switching.store(false);
     synth = new SynthArchitecture(8, sampleRate);  // Start with 8 voices
+    masterEffects.setSampleRate((float)sampleRate);
 }
 
 AudioEngine::~AudioEngine() {
@@ -50,8 +51,9 @@ int AudioEngine::audioCallback(const void* inputBuffer, void* outputBuffer,
                     sample = 0;
                 }
             }
-            // Scale to float and limit
+            // Scale to float, apply shared master FX, then limit
             float f = sample / 8192.0f;
+            f = engine->masterEffects.process(f);
             f = engine->limiter.process(f);
             CaptureAnalyzer::writeSample(f);
             AudioLevel::update(f);
@@ -61,6 +63,7 @@ int AudioEngine::audioCallback(const void* inputBuffer, void* outputBuffer,
     } else if (engine->synth) {
         for (unsigned int i = 0; i < framesPerBuffer; i++) {
             float sample = engine->synth->process();
+            sample = engine->masterEffects.process(sample);
             out[i] = std::max(-0.95f, std::min(0.95f, sample));
         }
     } else {

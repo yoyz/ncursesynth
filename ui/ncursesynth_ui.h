@@ -2,7 +2,7 @@
 #define NCURSESYNTH_UI_H
 
 #include "machine_ui.h"
-#include "../machine/NcursesynthMachine.h"
+#include "../machine/Ncursesynth/NcursesynthMachine.h"
 #include "../machine/ParamID.h"
 
 class NcursesynthUI : public MachineUI {

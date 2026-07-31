@@ -10,6 +10,7 @@
 #include "../machine/Twytch/TwytchsynthMachine.h"
 #include "../machine/Digits/DigitsMachine.h"
 #include "../machine/Ambika/AmbikaMachine.h"
+#include "../audio/master_effects.h"
 #include "../midi/midi_mapping.h"
 #include <vector>
 #include <algorithm>
@@ -2732,4 +2733,76 @@ bool runLongRunningTests(Machine* machine, bool useFFT) {
 
     printTestResult("long_running", passed, msg.str());
     return passed;
+}
+
+// Engine-independent test for the shared MasterEffects chain.
+// The machine argument is unused — this validates the master-FX module
+// (chain editing, enable/disable, param access, process pipeline)
+// independently of any synth engine.
+bool runMasterFxTests(Machine* machine, bool useFFT) {
+    (void)machine;
+    (void)useFFT;
+
+    bool allPassed = true;
+
+    MasterEffects fx;
+
+    // default chain: delay, reverb, chorus, distortion (all disabled)
+    if (fx.getEffectCount() != 4) {
+        printTestResult("masterfx", false, "wrong default chain count");
+        return false;
+    }
+
+    // pass-through when all disabled
+    float in = 0.5f;
+    float out = fx.process(in);
+    if (fabsf(out - in) > 0.001f) {
+        printTestResult("masterfx", false, "disabled chain altered signal");
+        return false;
+    }
+
+    // enable delay, set time short and mix full wet
+    fx.setEffectEnabled(0, true);
+    fx.setEffectParam(0, 0, 0.001f);  // time 1ms → ~48 samples at 48kHz
+    fx.setEffectParam(0, 1, 0.0f);    // feedback 0
+    fx.setEffectParam(0, 2, 1.0f);    // mix full wet
+
+    // with empty buffer first output should be silence (no prior signal)
+    out = fx.process(0.7f);
+    if (fabsf(out) > 0.01f) {
+        printTestResult("masterfx", false, "empty delay returned non-silence");
+        return false;
+    }
+
+    // feed signal, then verify delay produces output
+    for (int i = 0; i < 200; i++) fx.process(1.0f);
+    out = fx.process(0.0f);
+    if (fabsf(out) < 0.01f) {
+        printTestResult("masterfx", false, "delay had no tail");
+        allPassed = false;
+    }
+
+    // chain editing: insert reverb at front, move it
+    fx.insertEffect(-1, MasterEffects::EffectType::REVERB);
+    if (fx.getEffectCount() != 5) allPassed = false;
+    const char* name0 = fx.getEffectName(0);
+    if (strcmp(name0, "REVERB") != 0) allPassed = false;
+    fx.moveEffect(0, 1);
+    if (strcmp(fx.getEffectName(0), "DELAY") != 0) allPassed = false;
+    fx.removeEffect(1);
+    if (fx.getEffectCount() != 4) allPassed = false;
+
+    // param get/set round-trip
+    fx.setEffectParam(0, 0, 0.75f);
+    float v = fx.getEffectParam(0, 0);
+    if (fabsf(v - 0.75f) > 0.01f) allPassed = false;
+
+    // reset clears FX state
+    for (int i = 0; i < 50; i++) fx.process(1.0f);
+    fx.reset();
+    out = fx.process(0.0f);
+    if (fabsf(out - 0.0f) > 0.01f) allPassed = false;
+
+    printTestResult("masterfx", allPassed, allPassed ? "chain editing + passthrough + tail + roundtrip OK" : "some checks failed");
+    return allPassed;
 }

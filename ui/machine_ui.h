@@ -9,6 +9,7 @@
 #include "../machine/Machine.h"
 #include "../machine/MachineManager.h"
 #include "../midi/midi_mapping.h"
+#include "../audio/master_effects.h"
 
 struct PresetInfo {
     std::string name;
@@ -50,9 +51,21 @@ protected:
 
     std::string columnTitles[3];
 
+    // Shared master-FX view (same for every engine - no per-engine code)
+    MasterEffects* masterEffects;
+    bool fxView;
+    int fxSelection;
+    int fxAddType;
+
     static constexpr int HEADER_ROW = 6;
     static constexpr int CONTROL_ROW_OFFSET = 7;
     static constexpr int CONTROL_BAR_LEN = 16;
+
+    int fxRowCount() const;
+    bool fxRowAt(int flat, int& effectIdx, int& paramIdx) const;
+    int fxRowOf(int effectIdx, int paramIdx) const;
+    void drawFxView();
+    void handleFxInput(int ch);
 
     virtual void initControls() = 0;
     virtual void drawColumnHeader(int col, const char* title);
@@ -76,6 +89,9 @@ public:
 
     void setRenderer(IRenderer* r) { renderer = r; }
     IRenderer* getRenderer() const { return renderer; }
+
+    void setMasterEffects(MasterEffects* fx) { masterEffects = fx; }
+    bool isFxView() const { return fxView; }
 
     void setMidiNote(int note, int vel) { lastMidiNote = note; lastMidiVel = vel; midiActivity = true; }
     void setMidiInput(MidiInput* midi) { midiInput = midi; }

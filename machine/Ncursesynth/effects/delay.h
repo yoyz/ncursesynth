@@ -31,6 +31,21 @@ public:
     bool isEnabled() const override { return enabled; }
     void setEnabled(bool e) override { enabled = e; }
     const char* getName() const override { return "DELAY"; }
+
+    int getParamCount() const override { return 3; }
+    const char* getParamName(int index) const override {
+        return index == 0 ? "TIME" : (index == 1 ? "FEEDBACK" : "MIX");
+    }
+    float getParam(int index) const override {
+        return index == 0 ? (delayTimeMs / 1000.0f)
+             : (index == 1 ? (feedback / 0.95f) : mix);
+    }
+    void setParam(int index, float normalized) override {
+        float v = normalized < 0.0f ? 0.0f : (normalized > 1.0f ? 1.0f : normalized);
+        if (index == 0) setDelayTime(v * 1000.0f);
+        else if (index == 1) setFeedback(v * 0.95f);
+        else setMix(v);
+    }
 };
 
 #endif

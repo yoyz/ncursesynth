@@ -6,6 +6,7 @@
 #include "machine/Ncursesynth/synth/synth_architecture.h"
 #include "machine/Machine.h"
 #include "audio_limiter.h"
+#include "master_effects.h"
 
 class AudioEngine {
 private:
@@ -18,6 +19,7 @@ private:
     int framesPerBuffer;
     double latencyMs;
     AudioLimiter limiter;
+    MasterEffects masterEffects;
 
     static int audioCallback(const void* inputBuffer, void* outputBuffer,
                             unsigned long framesPerBuffer,
@@ -38,6 +40,7 @@ public:
     void setMachine(Machine* m);
     bool isActive() const { return isRunning.load(); }
     AudioLimiter* getLimiter() { return &limiter; }
+    MasterEffects* getMasterEffects() { return &masterEffects; }
 };
 
 #endif

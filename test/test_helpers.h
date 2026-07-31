@@ -38,5 +38,6 @@ bool runEdgeCaseTests(class Machine* machine, bool useFFT);
 bool runBipolarParamTests(class Machine* machine, bool useFFT);
 bool runLongRunningTests(class Machine* machine, bool useFFT);
 bool runDefaultInitPitchTest(class Machine* machine, bool useFFT);
+bool runMasterFxTests(class Machine* machine, bool useFFT);
 
 #endif
